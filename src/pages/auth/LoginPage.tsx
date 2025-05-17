@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { School } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -40,7 +39,11 @@ const LoginPage = () => {
       <div className="w-full max-w-md space-y-8 animate-fadeIn">
         <div className="text-center">
           <div className="flex justify-center">
-            <School className="h-12 w-12 text-primary" />
+            <img 
+              src="/src/components/auth/DVHS Logo.jpeg" 
+              alt="DVHS Logo" 
+              className="h-12 w-auto"
+            />
           </div>
           <h1 className="mt-2 text-2xl font-bold text-foreground">Deepthi Vidyalayam</h1>
           <p className="text-muted-foreground">Fee Management System</p>
