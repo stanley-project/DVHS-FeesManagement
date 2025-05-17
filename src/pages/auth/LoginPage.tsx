@@ -44,7 +44,7 @@ const LoginPage = () => {
             <img 
               src="/src/components/auth/DVHS Logo.jpeg" 
               alt="DVHS Logo" 
-              className="h-32 w-auto"
+              className="h-64 w-auto"
             />
           </div>
         </div>
