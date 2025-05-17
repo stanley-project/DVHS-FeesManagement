@@ -38,15 +38,15 @@ const LoginPage = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">
       <div className="w-full max-w-md space-y-8 animate-fadeIn">
         <div className="text-center">
-          <div className="flex justify-center">
+          <h1 className="text-2xl font-bold text-foreground">Deepthi Vidyalayam</h1>
+          <div className="mt-4 flex justify-center">
             <img 
               src="/src/components/auth/DVHS Logo.jpeg" 
               alt="DVHS Logo" 
-              className="h-12 w-auto"
+              className="h-16 w-auto"
             />
           </div>
-          <h1 className="mt-2 text-2xl font-bold text-foreground">Deepthi Vidyalayam</h1>
-          <p className="text-muted-foreground">Fee Management System</p>
+          <p className="text-muted-foreground mt-2">Fee Management System</p>
         </div>
         
         <div className="mt-8 bg-card rounded-lg shadow-md p-6 md:p-8">
