@@ -39,14 +39,14 @@ const LoginPage = () => {
       <div className="w-full max-w-md space-y-8 animate-fadeIn">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground">Deepthi Vidyalayam</h1>
+          <p className="text-muted-foreground">Fee Management System</p>
           <div className="mt-4 flex justify-center">
             <img 
               src="/src/components/auth/DVHS Logo.jpeg" 
               alt="DVHS Logo" 
-              className="h-16 w-auto"
+              className="h-32 w-auto"
             />
           </div>
-          <p className="text-muted-foreground mt-2">Fee Management System</p>
         </div>
         
         <div className="mt-8 bg-card rounded-lg shadow-md p-6 md:p-8">
