@@ -1,22 +1,82 @@
-import { Search, ArrowRight, CheckCircle, Filter } from 'lucide-react';
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { Search, ArrowRight, Filter, Download, FileText } from 'lucide-react';
+import StudentList from '../components/students/StudentList';
+import FeePaymentForm from '../components/fees/FeePaymentForm';
+import PaymentReceipt from '../components/fees/PaymentReceipt';
+import DailyCollectionReport from '../components/fees/DailyCollectionReport';
 
 const FeeCollection = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [showDailyCollection, setShowDailyCollection] = useState(false);
   
+  // Mock data for students
   const students = [
-    { id: 'ST-1001', name: 'Amit Kumar', class: 'IX-A', pendingFee: '₹15,000', dueDate: '15 Aug 2025' },
-    { id: 'ST-1002', name: 'Priya Sharma', class: 'X-B', pendingFee: '₹12,000', dueDate: '20 Sep 2025' },
-    { id: 'ST-1003', name: 'Rahul Singh', class: 'VII-C', pendingFee: '₹9,500', dueDate: '10 Oct 2025' },
-    { id: 'ST-1004', name: 'Sneha Gupta', class: 'V-A', pendingFee: '₹7,500', dueDate: '05 Nov 2025' },
-    { id: 'ST-1005', name: 'Rajesh Verma', class: 'XII-B', pendingFee: '₹19,000', dueDate: '30 Aug 2025' },
+    { 
+      id: 'ST-1001', 
+      name: 'Amit Kumar', 
+      class: 'IX-A', 
+      status: 'pending',
+      pending: '₹15,000'
+    },
+    { 
+      id: 'ST-1002', 
+      name: 'Priya Sharma', 
+      class: 'X-B', 
+      status: 'partial',
+      pending: '₹7,500'
+    },
+    { 
+      id: 'ST-1003', 
+      name: 'Rahul Singh', 
+      class: 'VII-C', 
+      status: 'paid'
+    },
   ];
-  
+
+  // Mock receipt data
+  const receiptData = {
+    receiptNumber: 'RC-2025001',
+    date: '2025-08-15',
+    student: {
+      name: 'Amit Kumar',
+      admissionNumber: 'ST-1001',
+      class: 'IX',
+      section: 'A',
+    },
+    payments: [
+      { feeType: 'Term 1 Fee', amount: '15,000' },
+      { feeType: 'Computer Lab Fee', amount: '2,500' },
+    ],
+    total: '17,500',
+    paymentMethod: 'UPI',
+    transactionId: 'UPI123456789',
+    collectedBy: 'John Doe',
+  };
+
+  const handlePaymentSubmit = (data: any) => {
+    console.log('Payment submitted:', data);
+    setShowReceipt(true);
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
         <h1>Fee Collection</h1>
+        <div className="flex gap-2">
+          <button
+            className="btn btn-outline btn-md inline-flex items-center"
+            onClick={() => setShowDailyCollection(true)}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Daily Collection
+          </button>
+          <button className="btn btn-outline btn-md inline-flex items-center">
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </button>
+        </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -48,29 +108,11 @@ const FeeCollection = () => {
               </button>
             </div>
             
-            <div className="divide-y">
-              {students.map((student, index) => (
-                <div
-                  key={index}
-                  className={`py-3 px-2 hover:bg-muted rounded-md cursor-pointer transition-colors ${selectedStudent === index ? 'bg-muted' : ''}`}
-                  onClick={() => setSelectedStudent(index)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium">{student.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {student.id} | {student.class}
-                      </p>
-                    </div>
-                    <ArrowRight className={`h-4 w-4 transition-opacity ${selectedStudent === index ? 'opacity-100 text-primary' : 'opacity-0'}`} />
-                  </div>
-                  <div className="mt-1 flex justify-between items-center">
-                    <p className="text-sm">Pending: {student.pendingFee}</p>
-                    <p className="text-xs text-muted-foreground">Due: {student.dueDate}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <StudentList
+              students={students}
+              selectedStudent={selectedStudent}
+              onSelectStudent={setSelectedStudent}
+            />
           </div>
         </div>
         
@@ -89,102 +131,19 @@ const FeeCollection = () => {
                     {students[selectedStudent].id} | {students[selectedStudent].class}
                   </p>
                 </div>
-                <div className="self-end sm:self-auto">
-                  <span className="inline-block px-3 py-1 bg-warning/10 text-warning rounded-full text-sm font-medium">
-                    Pending: {students[selectedStudent].pendingFee}
-                  </span>
-                </div>
+                {students[selectedStudent].status !== 'paid' && (
+                  <div className="self-end sm:self-auto">
+                    <span className="inline-block px-3 py-1 bg-warning/10 text-warning rounded-full text-sm font-medium">
+                      Pending: {students[selectedStudent].pending}
+                    </span>
+                  </div>
+                )}
               </div>
               
-              <form className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label htmlFor="feeType" className="block text-sm font-medium">
-                      Fee Type
-                    </label>
-                    <select id="feeType" className="input">
-                      <option value="term1">Term 1 Fee</option>
-                      <option value="term2">Term 2 Fee</option>
-                      <option value="term3">Term 3 Fee</option>
-                      <option value="admissionFee">Admission Fee</option>
-                      <option value="transportFee">Transport Fee</option>
-                      <option value="examFee">Examination Fee</option>
-                      <option value="otherFee">Other Fee</option>
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label htmlFor="amount" className="block text-sm font-medium">
-                      Amount
-                    </label>
-                    <div className="flex rounded-md shadow-sm">
-                      <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
-                        ₹
-                      </span>
-                      <input
-                        id="amount"
-                        type="number"
-                        className="input rounded-l-none"
-                        placeholder="Enter amount"
-                        defaultValue="15000"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label htmlFor="paymentDate" className="block text-sm font-medium">
-                      Payment Date
-                    </label>
-                    <input
-                      id="paymentDate"
-                      type="date"
-                      className="input"
-                      defaultValue={new Date().toISOString().slice(0, 10)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label htmlFor="paymentMode" className="block text-sm font-medium">
-                      Payment Mode
-                    </label>
-                    <select id="paymentMode" className="input">
-                      <option value="cash">Cash</option>
-                      <option value="cheque">Cheque/DD</option>
-                      <option value="online">Online Transfer</option>
-                      <option value="upi">UPI</option>
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-2 md:col-span-2">
-                    <label htmlFor="remarks" className="block text-sm font-medium">
-                      Remarks
-                    </label>
-                    <textarea
-                      id="remarks"
-                      rows={3}
-                      className="input"
-                      placeholder="Any additional information about this payment"
-                    />
-                  </div>
-                </div>
-                
-                <div className="border-t pt-4 flex flex-col sm:flex-row justify-end gap-3">
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-md"
-                    onClick={() => setSelectedStudent(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-md inline-flex items-center"
-                  >
-                    <CheckCircle className="mr-2 h-4 w-4" />
-                    Collect Fee & Generate Receipt
-                  </button>
-                </div>
-              </form>
+              <FeePaymentForm
+                onSubmit={handlePaymentSubmit}
+                onCancel={() => setSelectedStudent(null)}
+              />
             </div>
           ) : (
             <div className="p-8 text-center">
@@ -199,6 +158,21 @@ const FeeCollection = () => {
           )}
         </div>
       </div>
+
+      {/* Payment Receipt Modal */}
+      {showReceipt && (
+        <PaymentReceipt
+          receipt={receiptData}
+          onClose={() => setShowReceipt(false)}
+        />
+      )}
+
+      {/* Daily Collection Report Modal */}
+      {showDailyCollection && (
+        <DailyCollectionReport
+          onClose={() => setShowDailyCollection(false)}
+        />
+      )}
     </div>
   );
 };
