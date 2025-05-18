@@ -12,7 +12,6 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const [formData, setFormData] = useState(user || {
     name: '',
     phoneNumber: '',
-    email: '',
     role: 'teacher',
     status: 'active',
     assignedClasses: [],
@@ -78,19 +77,6 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
                   required
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                className="input"
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
             </div>
 
             <div className="space-y-2">

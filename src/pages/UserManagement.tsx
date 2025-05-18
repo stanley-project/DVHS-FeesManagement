@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserPlus, Pencil, Trash2, Phone, Mail, Shield, Search, Filter } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import LoginHistoryModal from '../components/users/LoginHistoryModal';
 import PermissionsModal from '../components/users/PermissionsModal';
@@ -22,7 +22,6 @@ const UserManagement = () => {
       name: 'Admin User', 
       role: 'administrator', 
       phoneNumber: '9876543210', 
-      email: 'admin@deepthischool.edu', 
       status: 'active',
       lastLogin: '2025-08-15 09:30 AM',
       assignedClasses: [],
@@ -32,7 +31,6 @@ const UserManagement = () => {
       name: 'Accountant User', 
       role: 'accountant', 
       phoneNumber: '9876543211', 
-      email: 'accountant@deepthischool.edu', 
       status: 'active',
       lastLogin: '2025-08-15 10:15 AM',
       assignedClasses: [],
@@ -42,7 +40,6 @@ const UserManagement = () => {
       name: 'Teacher User', 
       role: 'teacher', 
       phoneNumber: '9876543212', 
-      email: 'teacher@deepthischool.edu', 
       status: 'active',
       lastLogin: '2025-08-15 08:45 AM',
       assignedClasses: ['IX-A', 'IX-B'],
@@ -80,8 +77,7 @@ const UserManagement = () => {
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.phoneNumber.includes(searchQuery) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+      user.phoneNumber.includes(searchQuery);
     
     const matchesRole = selectedRole === 'all' || user.role === selectedRole;
     const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus;
@@ -116,7 +112,7 @@ const UserManagement = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search by name, email, or phone"
+                placeholder="Search by name or phone number"
                 className="input pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -154,7 +150,7 @@ const UserManagement = () => {
                 <tr className="border-b">
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contact</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Phone Number</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Last Login</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
@@ -189,15 +185,9 @@ const UserManagement = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{user.phoneNumber}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{user.email}</span>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span>{user.phoneNumber}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
