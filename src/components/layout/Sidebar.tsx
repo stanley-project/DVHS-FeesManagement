@@ -1,5 +1,5 @@
-import { School } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
+import { School, Home } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { cn } from '../../utils/cn';
 import { useAuth } from '../../contexts/AuthContext';
 import { navItems, getIconComponent } from '../../data/mockData';
@@ -11,11 +11,16 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Filter navigation items based on user role
   const filteredNavItems = navItems.filter(
     item => user && item.allowedRoles.includes(user.role)
   );
+
+  const handleHomeClick = () => {
+    navigate('/');
+  };
 
   return (
     <>
@@ -35,14 +40,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
         )}
       >
         {/* Logo and header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-primary-foreground/10">
+        <div 
+          className="flex items-center justify-between h-16 px-4 border-b border-primary-foreground/10 cursor-pointer"
+          onClick={handleHomeClick}
+        >
           <div className="flex items-center space-x-2">
-            <School className="h-8 w-8" />
+            <School className="h-8 w-8 text-white" />
             <div>
-              <h2 className="text-lg font-semibold tracking-tight">Deepthi Vidyalayam</h2>
-              <p className="text-xs opacity-70">Fee Management System</p>
+              <h2 className="text-lg font-semibold tracking-tight text-white">Deepthi Vidyalayam</h2>
+              <p className="text-xs text-white font-bold opacity-70">Fee Management System</p>
             </div>
           </div>
+          <Home className="h-5 w-5 text-white hover:opacity-80" />
         </div>
         
         {/* Navigation */}
@@ -58,10 +67,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, toggleSidebar }) => {
                 }}
                 className={({ isActive }) => 
                   cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors font-bold",
                     isActive 
-                      ? "bg-primary-foreground text-primary font-medium" 
-                      : "text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10"
+                      ? "bg-primary-foreground text-primary" 
+                      : "text-white hover:text-primary-foreground hover:bg-primary-foreground/10"
                   )
                 }
               >
