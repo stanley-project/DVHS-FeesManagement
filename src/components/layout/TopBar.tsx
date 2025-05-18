@@ -1,14 +1,34 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu, Bell, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import GlobalSearch from './GlobalSearch';
+import NotificationCenter from './NotificationCenter';
 
 interface TopBarProps {
   toggleSidebar: () => void;
 }
 
 const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, resetSession } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  // Reset session timeout on user activity
+  useEffect(() => {
+    const handleActivity = () => {
+      resetSession();
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+    };
+  }, [resetSession]);
 
   const toggleDropdown = () => {
     setDropdownOpen(!dropdownOpen);
@@ -16,23 +36,34 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
-      <button 
-        onClick={toggleSidebar}
-        className="p-2 rounded-md text-muted-foreground hover:bg-muted focus:outline-none lg:hidden"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
+      <div className="flex items-center gap-4">
+        <button 
+          onClick={toggleSidebar}
+          className="p-2 rounded-md text-muted-foreground hover:bg-muted focus:outline-none lg:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
 
-      <div className="flex-1">
         <h1 className="text-lg font-semibold md:text-xl ml-2 lg:ml-0">
           Welcome, {user?.name}
         </h1>
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="p-2 rounded-md text-muted-foreground hover:bg-muted focus:outline-none">
-          <Bell className="h-5 w-5" />
-        </button>
+        <GlobalSearch />
+
+        <div className="relative">
+          <button 
+            onClick={() => setNotificationsOpen(true)}
+            className="p-2 rounded-md text-muted-foreground hover:bg-muted focus:outline-none"
+          >
+            <Bell className="h-5 w-5" />
+          </button>
+
+          {notificationsOpen && (
+            <NotificationCenter onClose={() => setNotificationsOpen(false)} />
+          )}
+        </div>
 
         <div className="relative">
           <button 
