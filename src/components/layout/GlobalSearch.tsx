@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, X, Student, CircleDollarSign, User } from 'lucide-react';
+import { Search, X, Indent as Student, CircleDollarSign, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SearchResult {
