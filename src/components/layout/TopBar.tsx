@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Menu, Bell, User, LogOut } from 'lucide-react';
+import { Menu, Bell, User, LogOut, Home } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import GlobalSearch from './GlobalSearch';
 import NotificationCenter from './NotificationCenter';
 
@@ -12,6 +13,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   const { user, logout, resetSession } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Reset session timeout on user activity
   useEffect(() => {
@@ -34,6 +36,10 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
     setDropdownOpen(!dropdownOpen);
   };
 
+  const handleHomeClick = () => {
+    navigate('/');
+  };
+
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
       <div className="flex items-center gap-4">
@@ -51,6 +57,13 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
 
       <div className="flex items-center gap-4">
         <GlobalSearch />
+
+        <button 
+          onClick={handleHomeClick}
+          className="p-2 rounded-md text-muted-foreground hover:bg-muted focus:outline-none"
+        >
+          <Home className="h-5 w-5" />
+        </button>
 
         <div className="relative">
           <button 
