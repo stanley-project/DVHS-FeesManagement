@@ -25,6 +25,7 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
 
   const handleConfirm = () => {
     onSubmit(formData);
+    setShowConfirmation(false);
   };
 
   return (
@@ -128,12 +129,14 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
             </p>
             <div className="flex justify-end gap-3">
               <button
+                type="button"
                 className="btn btn-outline btn-sm"
                 onClick={() => setShowConfirmation(false)}
               >
                 Cancel
               </button>
               <button
+                type="button"
                 className="btn btn-primary btn-sm"
                 onClick={handleConfirm}
               >
