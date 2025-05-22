@@ -13,6 +13,7 @@ import FeeCollection from './pages/FeeCollection';
 import Reports from './pages/Reports';
 import UserManagement from './pages/UserManagement';
 import VillageManagement from './pages/VillageManagement';
+import AcademicYearManagement from './pages/AcademicYearManagement';
 import StudentFeeStatus from './pages/StudentFeeStatus';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -30,7 +31,6 @@ function App() {
         <ProtectedRoute>
           <DashboardLayout />
         </ProtectedRoute>
-      
       }>
         {/* Default route - redirects based on role */}
         <Route index element={
@@ -69,6 +69,11 @@ function App() {
         <Route path="village-management" element={
           <ProtectedRoute allowedRoles={['administrator']}>
             <VillageManagement />
+          </ProtectedRoute>
+        } />
+        <Route path="academic-year-management" element={
+          <ProtectedRoute allowedRoles={['administrator']}>
+            <AcademicYearManagement />
           </ProtectedRoute>
         } />
         
