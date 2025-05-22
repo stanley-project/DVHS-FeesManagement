@@ -54,18 +54,15 @@ export function useVillages() {
 
           if (busError) throw busError;
 
-          // Get current bus fee
+          // Get current bus fee - using maybeSingle() instead of single()
           const { data: busFees, error: busFeesError } = await supabase
             .from('bus_fee_structure')
             .select('fee_amount')
             .eq('village_id', village.id)
             .eq('is_active', true)
-            .single();
+            .maybeSingle();
 
-          // Only throw error if it's not a "no rows returned" error and not undefined
-          if (busFeesError && busFeesError.code !== 'PGRST116' && busFeesError.code !== undefined) {
-            throw busFeesError;
-          }
+          if (busFeesError) throw busFeesError;
 
           return {
             ...village,
