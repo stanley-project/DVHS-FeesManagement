@@ -14,7 +14,7 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
     name: '',
     distance_from_school: '',
     is_active: true,
-    description: '',
+    bus_number: '',
     current_bus_fee: '',
   });
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +114,26 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
             </div>
 
             <div className="space-y-2">
+              <label htmlFor="busNumber" className="block text-sm font-medium">
+                Bus Number *
+              </label>
+              <select
+                id="busNumber"
+                className="input"
+                value={formData.bus_number}
+                onChange={(e) => setFormData({ ...formData, bus_number: e.target.value })}
+                required
+              >
+                <option value="">Select bus number</option>
+                <option value="Bus1">Bus 1</option>
+                <option value="Bus2">Bus 2</option>
+                <option value="Bus3">Bus 3</option>
+                <option value="Bus4">Bus 4</option>
+                <option value="Winger">Winger</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
               <label htmlFor="busFee" className="block text-sm font-medium">
                 Current Bus Fee (₹/month)
               </label>
@@ -135,20 +155,6 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
               <p className="text-xs text-muted-foreground">
                 Leave empty if bus service is not available for this village
               </p>
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <label htmlFor="description" className="block text-sm font-medium">
-                Description
-              </label>
-              <textarea
-                id="description"
-                rows={3}
-                className="input"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Optional description about the village..."
-              />
             </div>
 
             <div className="md:col-span-2">
