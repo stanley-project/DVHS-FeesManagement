@@ -1,4 +1,4 @@
-import { FileText, Download, Pencil, CircleDollarSign } from 'lucide-react';
+import { FileText, Download, Pencil, CircleDollarSign, MapPin, Bus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface StudentDetailsProps {
@@ -18,6 +18,10 @@ interface StudentDetailsProps {
     fatherName: string;
     motherName: string;
     fatherAadhar?: string;
+    village: string;
+    villageDistance: number;
+    hasBus: boolean;
+    registrationType: 'new' | 'continuing';
   };
 }
 
@@ -41,11 +45,19 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
     {
       id: 'PMT003',
       date: '2025-12-15',
+      
       type: 'Term 3 Fee',
       amount: '₹15,000',
       status: 'pending',
     },
   ];
+
+  // Mock fee structure
+  const feeStructure = {
+    admissionFee: student.registrationType === 'new' ? 5000 : 0,
+    monthlySchoolFee: 2500,
+    monthlyBusFee: student.hasBus ? 1500 : 0,
+  };
 
   return (
     <div className="space-y-6">
@@ -95,6 +107,10 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
               <dd className="font-medium">{student.admissionDate}</dd>
             </div>
             <div className="flex justify-between">
+              <dt className="text-muted-foreground">Registration Type</dt>
+              <dd className="font-medium capitalize">{student.registrationType}</dd>
+            </div>
+            <div className="flex justify-between">
               <dt className="text-muted-foreground">Status</dt>
               <dd>
                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -114,6 +130,10 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Address</dt>
               <dd className="font-medium text-right">{student.address}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-muted-foreground">Village</dt>
+              <dd className="font-medium">{student.village} ({student.villageDistance} km)</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Phone Number</dt>
@@ -139,6 +159,51 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
         </div>
       </div>
 
+      {/* Transportation Details */}
+      <div className="bg-card rounded-lg shadow p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium">Transportation Details</h3>
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            student.hasBus ? 'bg-success/10 text-success' : 'bg-muted-foreground/10'
+          }`}>
+            {student.hasBus ? 'Bus Service Opted' : 'No Bus Service'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="bg-muted p-4 rounded-md">
+            <div className="flex items-center gap-2 mb-2">
+              <MapPin className="h-5 w-5 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Village</p>
+            </div>
+            <p className="font-medium">{student.village}</p>
+            <p className="text-sm text-muted-foreground">{student.villageDistance} km from school</p>
+          </div>
+
+          {student.hasBus && (
+            <>
+              <div className="bg-muted p-4 rounded-md">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bus className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Bus Service</p>
+                </div>
+                <p className="font-medium">Active</p>
+                <p className="text-sm text-muted-foreground">Monthly Fee: ₹{feeStructure.monthlyBusFee}</p>
+              </div>
+
+              <div className="bg-muted p-4 rounded-md">
+                <div className="flex items-center gap-2 mb-2">
+                  <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Payment Status</p>
+                </div>
+                <p className="font-medium text-success">Paid for current month</p>
+                <p className="text-sm text-muted-foreground">Next due: 15 Sep 2025</p>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Fee Information */}
       <div className="bg-card rounded-lg shadow p-6">
         <div className="flex items-center justify-between mb-6">
@@ -149,19 +214,29 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
           </Link>
         </div>
 
-        {/* Outstanding Fees */}
+        {/* Fee Structure */}
         <div className="mb-6">
-          <h4 className="text-sm font-medium mb-2">Outstanding Fees</h4>
+          <h4 className="text-sm font-medium mb-2">Applicable Fees</h4>
           <div className="bg-muted p-4 rounded-md">
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Outstanding</p>
-                <p className="text-2xl font-bold text-error">₹30,000</p>
+            {student.registrationType === 'new' && (
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-sm">One-time Admission Fee</p>
+                <p className="font-medium">₹{feeStructure.admissionFee.toLocaleString('en-IN')}</p>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-muted-foreground">Due Date</p>
-                <p className="text-sm font-medium">15 Sep 2025</p>
+            )}
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-sm">Monthly School Fee</p>
+              <p className="font-medium">₹{feeStructure.monthlySchoolFee.toLocaleString('en-IN')}</p>
+            </div>
+            {student.hasBus && (
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-sm">Monthly Bus Fee</p>
+                <p className="font-medium">₹{feeStructure.monthlyBusFee.toLocaleString('en-IN')}</p>
               </div>
+            )}
+            <div className="flex justify-between items-center pt-2 border-t">
+              <p className="font-medium">Total Monthly Fee</p>
+              <p className="font-medium">₹{(feeStructure.monthlySchoolFee + feeStructure.monthlyBusFee).toLocaleString('en-IN')}</p>
             </div>
           </div>
         </div>
@@ -170,7 +245,7 @@ const StudentDetails = ({ student }: StudentDetailsProps) => {
         <div>
           <h4 className="text-sm font-medium mb-2">Payment History</h4>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
                   <th className="px-4 py-2 text-left font-medium text-muted-foreground">Receipt ID</th>

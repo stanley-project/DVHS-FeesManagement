@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 interface StudentFormProps {
@@ -24,7 +24,38 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
     fatherName: '',
     motherName: '',
     fatherAadhar: '',
+    village_id: '',
+    has_school_bus: false,
+    registration_type: 'new',
   });
+
+  const [villages, setVillages] = useState([
+    { id: '1', name: 'Ramapuram', distance_from_school: 5.2, bus_fee: 1500 },
+    { id: '2', name: 'Kondapur', distance_from_school: 3.8, bus_fee: 1200 },
+    { id: '3', name: 'Gachibowli', distance_from_school: 7.5, bus_fee: 2000 },
+  ]);
+
+  const [feeBreakdown, setFeeBreakdown] = useState({
+    admissionFee: 0,
+    monthlySchoolFee: 0,
+    monthlyBusFee: 0,
+    totalMonthlyFee: 0,
+  });
+
+  useEffect(() => {
+    // Calculate fees based on selections
+    const selectedVillage = villages.find(v => v.id === formData.village_id);
+    const admissionFee = formData.registration_type === 'new' ? 5000 : 0;
+    const monthlySchoolFee = 2500; // Example fixed amount
+    const monthlyBusFee = formData.has_school_bus && selectedVillage ? selectedVillage.bus_fee : 0;
+
+    setFeeBreakdown({
+      admissionFee,
+      monthlySchoolFee,
+      monthlyBusFee,
+      totalMonthlyFee: monthlySchoolFee + monthlyBusFee,
+    });
+  }, [formData.village_id, formData.has_school_bus, formData.registration_type]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +204,80 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
           </div>
         </div>
 
+        {/* Registration Details */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Registration Details</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="registrationType" className="block text-sm font-medium">
+                Registration Type *
+              </label>
+              <div className="space-x-4">
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="registrationType"
+                    value="new"
+                    checked={formData.registration_type === 'new'}
+                    onChange={(e) => setFormData({ ...formData, registration_type: e.target.value })}
+                    className="h-4 w-4 border-input"
+                  />
+                  <span className="ml-2">New Admission</span>
+                </label>
+                <label className="inline-flex items-center">
+                  <input
+                    type="radio"
+                    name="registrationType"
+                    value="continuing"
+                    checked={formData.registration_type === 'continuing'}
+                    onChange={(e) => setFormData({ ...formData, registration_type: e.target.value })}
+                    className="h-4 w-4 border-input"
+                  />
+                  <span className="ml-2">Continuing Student</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="village" className="block text-sm font-medium">
+                Village *
+              </label>
+              <select
+                id="village"
+                className="input"
+                value={formData.village_id}
+                onChange={(e) => setFormData({ ...formData, village_id: e.target.value })}
+                required
+              >
+                <option value="">Select village</option>
+                {villages.map((village) => (
+                  <option key={village.id} value={village.id}>
+                    {village.name} ({village.distance_from_school} km)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={formData.has_school_bus}
+                  onChange={(e) => setFormData({ ...formData, has_school_bus: e.target.checked })}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <span className="text-sm font-medium">Opt-in for School Bus Service</span>
+              </label>
+              {formData.has_school_bus && formData.village_id && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Monthly bus fee for {villages.find(v => v.id === formData.village_id)?.name}:
+                  ₹{villages.find(v => v.id === formData.village_id)?.bus_fee}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* Contact Information */}
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Contact Information</h3>
@@ -277,6 +382,33 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
                 maxLength={12}
                 placeholder="12-digit Aadhar number"
               />
+            </div>
+          </div>
+        </div>
+
+        {/* Fee Preview */}
+        <div className="bg-muted p-4 rounded-md">
+          <h3 className="text-lg font-medium mb-4">Fee Preview</h3>
+          <div className="space-y-2">
+            {formData.registration_type === 'new' && (
+              <div className="flex justify-between">
+                <span>One-time Admission Fee:</span>
+                <span>₹{feeBreakdown.admissionFee.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span>Monthly School Fee:</span>
+              <span>₹{feeBreakdown.monthlySchoolFee.toLocaleString('en-IN')}</span>
+            </div>
+            {formData.has_school_bus && (
+              <div className="flex justify-between">
+                <span>Monthly Bus Fee:</span>
+                <span>₹{feeBreakdown.monthlyBusFee.toLocaleString('en-IN')}</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-2 border-t font-medium">
+              <span>Total Monthly Fee:</span>
+              <span>₹{feeBreakdown.totalMonthlyFee.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </div>

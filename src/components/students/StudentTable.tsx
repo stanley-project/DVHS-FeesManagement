@@ -10,6 +10,9 @@ interface Student {
   section: string;
   admissionDate: string;
   status: 'active' | 'inactive';
+  village: string;
+  hasBus: boolean;
+  registrationType: 'new' | 'continuing';
 }
 
 const StudentTable = () => {
@@ -18,6 +21,9 @@ const StudentTable = () => {
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedVillage, setSelectedVillage] = useState('all');
+  const [selectedBusService, setSelectedBusService] = useState('all');
+  const [selectedRegistrationType, setSelectedRegistrationType] = useState('all');
 
   // Mock data - replace with actual API call
   const students: Student[] = [
@@ -29,8 +35,18 @@ const StudentTable = () => {
       section: 'A',
       admissionDate: '2025-06-01',
       status: 'active',
+      village: 'Ramapuram',
+      hasBus: true,
+      registrationType: 'new',
     },
-    // Add more mock data as needed
+    // Add more mock data
+  ];
+
+  // Mock villages data
+  const villages = [
+    { id: '1', name: 'Ramapuram' },
+    { id: '2', name: 'Kondapur' },
+    { id: '3', name: 'Gachibowli' },
   ];
 
   const itemsPerPage = 10;
@@ -42,8 +58,15 @@ const StudentTable = () => {
     const matchesClass = selectedClass === 'all' || student.class === selectedClass;
     const matchesSection = selectedSection === 'all' || student.section === selectedSection;
     const matchesStatus = selectedStatus === 'all' || student.status === selectedStatus;
+    const matchesVillage = selectedVillage === 'all' || student.village === selectedVillage;
+    const matchesBusService = selectedBusService === 'all' || 
+                             (selectedBusService === 'with' && student.hasBus) ||
+                             (selectedBusService === 'without' && !student.hasBus);
+    const matchesRegistrationType = selectedRegistrationType === 'all' || 
+                                  student.registrationType === selectedRegistrationType;
 
-    return matchesSearch && matchesClass && matchesSection && matchesStatus;
+    return matchesSearch && matchesClass && matchesSection && matchesStatus && 
+           matchesVillage && matchesBusService && matchesRegistrationType;
   });
 
   const paginatedStudents = filteredStudents.slice(
@@ -66,7 +89,7 @@ const StudentTable = () => {
           />
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             className="input"
             value={selectedClass}
@@ -100,6 +123,37 @@ const StudentTable = () => {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
+
+          <select
+            className="input"
+            value={selectedVillage}
+            onChange={(e) => setSelectedVillage(e.target.value)}
+          >
+            <option value="all">All Villages</option>
+            {villages.map((village) => (
+              <option key={village.id} value={village.name}>{village.name}</option>
+            ))}
+          </select>
+
+          <select
+            className="input"
+            value={selectedBusService}
+            onChange={(e) => setSelectedBusService(e.target.value)}
+          >
+            <option value="all">All Bus Service</option>
+            <option value="with">With Bus</option>
+            <option value="without">Without Bus</option>
+          </select>
+
+          <select
+            className="input"
+            value={selectedRegistrationType}
+            onChange={(e) => setSelectedRegistrationType(e.target.value)}
+          >
+            <option value="all">All Registration Types</option>
+            <option value="new">New Admission</option>
+            <option value="continuing">Continuing</option>
+          </select>
           
           <button className="btn btn-outline btn-icon" title="Export">
             <Download className="h-4 w-4" />
@@ -127,6 +181,9 @@ const StudentTable = () => {
                 </th>
                 <th className="px-4 py-3 text-left">Class</th>
                 <th className="px-4 py-3 text-left">Section</th>
+                <th className="px-4 py-3 text-left">Village</th>
+                <th className="px-4 py-3 text-left">Bus Service</th>
+                <th className="px-4 py-3 text-left">Registration Type</th>
                 <th className="px-4 py-3 text-left">
                   <button className="flex items-center gap-1">
                     Admission Date
@@ -144,6 +201,17 @@ const StudentTable = () => {
                   <td className="px-4 py-3">{student.name}</td>
                   <td className="px-4 py-3">{student.class}</td>
                   <td className="px-4 py-3">{student.section}</td>
+                  <td className="px-4 py-3">{student.village}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      student.hasBus ? 'bg-success/10 text-success' : 'bg-muted-foreground/10'
+                    }`}>
+                      {student.hasBus ? 'Yes' : 'No'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="capitalize">{student.registrationType}</span>
+                  </td>
                   <td className="px-4 py-3">{student.admissionDate}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
