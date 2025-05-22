@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
+import { useVillageContext } from '../../contexts/VillageContext';
 
 interface VillageFormProps {
   village?: any;
   onClose: () => void;
-  onSubmit: (data: any) => void;
 }
 
-const VillageForm = ({ village, onClose, onSubmit }: VillageFormProps) => {
+const VillageForm = ({ village, onClose }: VillageFormProps) => {
+  const { addVillage, updateVillage } = useVillageContext();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [formData, setFormData] = useState(village || {
     name: '',
@@ -15,14 +16,26 @@ const VillageForm = ({ village, onClose, onSubmit }: VillageFormProps) => {
     is_active: true,
     description: '',
   });
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setShowConfirmation(true);
   };
 
-  const handleConfirm = () => {
-    onSubmit(formData);
+  const handleConfirm = async () => {
+    try {
+      if (village) {
+        await updateVillage(village.id, formData);
+      } else {
+        await addVillage(formData);
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      setShowConfirmation(false);
+    }
   };
 
   return (
@@ -41,6 +54,12 @@ const VillageForm = ({ village, onClose, onSubmit }: VillageFormProps) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {error && (
+            <div className="bg-error/10 border border-error/30 text-error rounded-md p-3">
+              {error}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="name" className="block text-sm font-medium">
@@ -67,7 +86,7 @@ const VillageForm = ({ village, onClose, onSubmit }: VillageFormProps) => {
                 min="0"
                 className="input"
                 value={formData.distance_from_school}
-                onChange={(e) => setFormData({ ...formData, distance_from_school: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, distance_from_school: parseFloat(e.target.value) })}
                 required
               />
             </div>

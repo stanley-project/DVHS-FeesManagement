@@ -1,4 +1,5 @@
 import { ArrowUpDown, Eye, Pencil, ToggleLeft } from 'lucide-react';
+import { useVillageContext } from '../../contexts/VillageContext';
 
 interface VillageTableProps {
   searchQuery: string;
@@ -8,36 +9,15 @@ interface VillageTableProps {
 }
 
 const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTableProps) => {
-  // Mock data for villages
-  const villages = [
-    {
-      id: '1',
-      name: 'Ramapuram',
-      distance_from_school: 5.2,
-      is_active: true,
-      current_bus_fee: '₹1,500',
-      total_students: 45,
-      bus_students: 32,
-    },
-    {
-      id: '2',
-      name: 'Kondapur',
-      distance_from_school: 3.8,
-      is_active: true,
-      current_bus_fee: '₹1,200',
-      total_students: 38,
-      bus_students: 25,
-    },
-    {
-      id: '3',
-      name: 'Gachibowli',
-      distance_from_school: 7.5,
-      is_active: false,
-      current_bus_fee: '₹2,000',
-      total_students: 28,
-      bus_students: 20,
-    },
-  ];
+  const { villages, loading, error, updateVillage } = useVillageContext();
+
+  const handleToggleStatus = async (village: any) => {
+    try {
+      await updateVillage(village.id, { is_active: !village.is_active });
+    } catch (err) {
+      console.error('Failed to toggle village status:', err);
+    }
+  };
 
   const filteredVillages = villages.filter(village => {
     const matchesSearch = village.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -47,6 +27,18 @@ const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTabl
     
     return matchesSearch && matchesStatus;
   });
+
+  if (loading) {
+    return <div className="text-center py-8">Loading villages...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-error">
+        Error loading villages: {error}
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-x-auto">
@@ -77,7 +69,12 @@ const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTabl
             <tr key={village.id} className="border-b hover:bg-muted/50">
               <td className="px-4 py-3 font-medium">{village.name}</td>
               <td className="px-4 py-3 text-right">{village.distance_from_school}</td>
-              <td className="px-4 py-3 text-right">{village.current_bus_fee}</td>
+              <td className="px-4 py-3 text-right">
+                {village.current_bus_fee 
+                  ? `₹${village.current_bus_fee.toLocaleString('en-IN')}`
+                  : '-'
+                }
+              </td>
               <td className="px-4 py-3 text-right">{village.total_students}</td>
               <td className="px-4 py-3 text-right">{village.bus_students}</td>
               <td className="px-4 py-3">
@@ -105,6 +102,7 @@ const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTabl
                   </button>
                   <button
                     className="p-1 hover:bg-muted rounded-md"
+                    onClick={() => handleToggleStatus(village)}
                     title="Toggle Status"
                   >
                     <ToggleLeft className="h-4 w-4" />
