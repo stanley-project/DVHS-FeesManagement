@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowUpDown, Eye, Pencil, ToggleLeft, Download, Filter, Search, Plus } from 'lucide-react';
+import { Plus, Upload, Download, Filter, Eye, Pencil, ToggleLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 interface Student {
@@ -10,20 +10,24 @@ interface Student {
   section: string;
   admissionDate: string;
   status: 'active' | 'inactive';
-  village: string;
-  hasBus: boolean;
-  registrationType: 'new' | 'continuing';
 }
 
 const StudentTable = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedSection, setSelectedSection] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedVillage, setSelectedVillage] = useState('all');
-  const [selectedBusService, setSelectedBusService] = useState('all');
-  const [selectedRegistrationType, setSelectedRegistrationType] = useState('all');
+
+  // Class options including pre-primary classes
+  const classOptions = [
+    { value: 'nursery', label: 'Nursery' },
+    { value: 'lkg', label: 'LKG' },
+    { value: 'ukg', label: 'UKG' },
+    ...Array.from({ length: 10 }, (_, i) => ({
+      value: (i + 1).toString(),
+      label: `Class ${i + 1}`
+    }))
+  ];
 
   // Mock data - replace with actual API call
   const students: Student[] = [
@@ -35,18 +39,8 @@ const StudentTable = () => {
       section: 'A',
       admissionDate: '2025-06-01',
       status: 'active',
-      village: 'Ramapuram',
-      hasBus: true,
-      registrationType: 'new',
     },
-    // Add more mock data
-  ];
-
-  // Mock villages data
-  const villages = [
-    { id: '1', name: 'Ramapuram' },
-    { id: '2', name: 'Kondapur' },
-    { id: '3', name: 'Gachibowli' },
+    // Add more mock data as needed
   ];
 
   const itemsPerPage = 10;
@@ -58,49 +52,34 @@ const StudentTable = () => {
     const matchesClass = selectedClass === 'all' || student.class === selectedClass;
     const matchesSection = selectedSection === 'all' || student.section === selectedSection;
     const matchesStatus = selectedStatus === 'all' || student.status === selectedStatus;
-    const matchesVillage = selectedVillage === 'all' || student.village === selectedVillage;
-    const matchesBusService = selectedBusService === 'all' || 
-                             (selectedBusService === 'with' && student.hasBus) ||
-                             (selectedBusService === 'without' && !student.hasBus);
-    const matchesRegistrationType = selectedRegistrationType === 'all' || 
-                                  student.registrationType === selectedRegistrationType;
 
-    return matchesSearch && matchesClass && matchesSection && matchesStatus && 
-           matchesVillage && matchesBusService && matchesRegistrationType;
+    return matchesSearch && matchesClass && matchesSection && matchesStatus;
   });
-
-  const paginatedStudents = filteredStudents.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
 
   return (
     <div className="space-y-4">
-      {/* Filters and Search */}
+      {/* Search and Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Search by name or admission number..."
-            className="input pl-9 w-full"
+            className="input w-full"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
         
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2">
           <select
             className="input"
             value={selectedClass}
             onChange={(e) => setSelectedClass(e.target.value)}
           >
             <option value="all">All Classes</option>
-            {['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'].map(
-              (cls) => (
-                <option key={cls} value={cls}>Class {cls}</option>
-              )
-            )}
+            {classOptions.map((cls) => (
+              <option key={cls.value} value={cls.value}>{cls.label}</option>
+            ))}
           </select>
           
           <select
@@ -109,9 +88,10 @@ const StudentTable = () => {
             onChange={(e) => setSelectedSection(e.target.value)}
           >
             <option value="all">All Sections</option>
-            {['A', 'B', 'C', 'D'].map((section) => (
-              <option key={section} value={section}>Section {section}</option>
-            ))}
+            <option value="A">Section A</option>
+            <option value="B">Section B</option>
+            <option value="C">Section C</option>
+            <option value="D">Section D</option>
           </select>
           
           <select
@@ -123,37 +103,6 @@ const StudentTable = () => {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-
-          <select
-            className="input"
-            value={selectedVillage}
-            onChange={(e) => setSelectedVillage(e.target.value)}
-          >
-            <option value="all">All Villages</option>
-            {villages.map((village) => (
-              <option key={village.id} value={village.name}>{village.name}</option>
-            ))}
-          </select>
-
-          <select
-            className="input"
-            value={selectedBusService}
-            onChange={(e) => setSelectedBusService(e.target.value)}
-          >
-            <option value="all">All Bus Service</option>
-            <option value="with">With Bus</option>
-            <option value="without">Without Bus</option>
-          </select>
-
-          <select
-            className="input"
-            value={selectedRegistrationType}
-            onChange={(e) => setSelectedRegistrationType(e.target.value)}
-          >
-            <option value="all">All Registration Types</option>
-            <option value="new">New Admission</option>
-            <option value="continuing">Continuing</option>
-          </select>
           
           <button className="btn btn-outline btn-icon" title="Export">
             <Download className="h-4 w-4" />
@@ -161,57 +110,28 @@ const StudentTable = () => {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Students Table */}
       <div className="bg-card rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b">
-                <th className="px-4 py-3 text-left">
-                  <button className="flex items-center gap-1">
-                    Admission No.
-                    <ArrowUpDown className="h-4 w-4" />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">
-                  <button className="flex items-center gap-1">
-                    Student Name
-                    <ArrowUpDown className="h-4 w-4" />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">Class</th>
-                <th className="px-4 py-3 text-left">Section</th>
-                <th className="px-4 py-3 text-left">Village</th>
-                <th className="px-4 py-3 text-left">Bus Service</th>
-                <th className="px-4 py-3 text-left">Registration Type</th>
-                <th className="px-4 py-3 text-left">
-                  <button className="flex items-center gap-1">
-                    Admission Date
-                    <ArrowUpDown className="h-4 w-4" />
-                  </button>
-                </th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Admission No.</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Student Name</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Class</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Section</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Admission Date</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedStudents.map((student) => (
+              {filteredStudents.map((student) => (
                 <tr key={student.id} className="border-b hover:bg-muted/50">
                   <td className="px-4 py-3 font-medium">{student.admissionNumber}</td>
                   <td className="px-4 py-3">{student.name}</td>
                   <td className="px-4 py-3">{student.class}</td>
                   <td className="px-4 py-3">{student.section}</td>
-                  <td className="px-4 py-3">{student.village}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      student.hasBus ? 'bg-success/10 text-success' : 'bg-muted-foreground/10'
-                    }`}>
-                      {student.hasBus ? 'Yes' : 'No'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="capitalize">{student.registrationType}</span>
-                  </td>
                   <td className="px-4 py-3">{student.admissionDate}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
@@ -242,20 +162,18 @@ const StudentTable = () => {
         {/* Pagination */}
         <div className="p-4 border-t flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredStudents.length)} of {filteredStudents.length} students
+            Showing {filteredStudents.length} students
           </p>
           <div className="flex gap-1">
             <button
               className="btn btn-outline btn-sm"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={true}
             >
               Previous
             </button>
             <button
               className="btn btn-outline btn-sm"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              disabled={true}
             >
               Next
             </button>

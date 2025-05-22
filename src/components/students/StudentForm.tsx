@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AlertCircle } from 'lucide-react';
 
 interface StudentFormProps {
@@ -32,33 +32,16 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
     previous_admission_number: '',
   });
 
-  const [villages, setVillages] = useState([
-    { id: '1', name: 'Ramapuram', distance_from_school: 5.2, bus_fee: 1500 },
-    { id: '2', name: 'Kondapur', distance_from_school: 3.8, bus_fee: 1200 },
-    { id: '3', name: 'Gachibowli', distance_from_school: 7.5, bus_fee: 2000 },
-  ]);
-
-  const [feeBreakdown, setFeeBreakdown] = useState({
-    admissionFee: 0,
-    monthlySchoolFee: 0,
-    monthlyBusFee: 0,
-    totalMonthlyFee: 0,
-  });
-
-  useEffect(() => {
-    // Calculate fees based on selections
-    const selectedVillage = villages.find(v => v.id === formData.village_id);
-    const admissionFee = formData.registration_type === 'new' ? 5000 : 0;
-    const monthlySchoolFee = 2500; // Example fixed amount
-    const monthlyBusFee = formData.has_school_bus && selectedVillage ? selectedVillage.bus_fee : 0;
-
-    setFeeBreakdown({
-      admissionFee,
-      monthlySchoolFee,
-      monthlyBusFee,
-      totalMonthlyFee: monthlySchoolFee + monthlyBusFee,
-    });
-  }, [formData.village_id, formData.has_school_bus, formData.registration_type]);
+  // Class options including pre-primary classes
+  const classOptions = [
+    { value: 'nursery', label: 'Nursery' },
+    { value: 'lkg', label: 'LKG' },
+    { value: 'ukg', label: 'UKG' },
+    ...Array.from({ length: 10 }, (_, i) => ({
+      value: (i + 1).toString(),
+      label: `Class ${i + 1}`
+    }))
+  ];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,77 +51,6 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
   const handleConfirm = () => {
     onSubmit(formData);
     setShowConfirmation(false);
-  };
-
-  const renderRegistrationSpecificFields = () => {
-    if (registrationType === 'rejoining') {
-      return (
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="previousAdmissionNumber" className="block text-sm font-medium">
-              Previous Admission Number
-            </label>
-            <input
-              id="previousAdmissionNumber"
-              type="text"
-              className="input"
-              value={formData.previous_admission_number}
-              onChange={(e) => setFormData({ ...formData, previous_admission_number: e.target.value })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="rejoiningReason" className="block text-sm font-medium">
-              Reason for Rejoining *
-            </label>
-            <textarea
-              id="rejoiningReason"
-              className="input"
-              value={formData.rejoining_reason}
-              onChange={(e) => setFormData({ ...formData, rejoining_reason: e.target.value })}
-              required={registrationType === 'rejoining'}
-              rows={3}
-            />
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const renderFeePreview = () => {
-    const selectedVillage = villages.find(v => v.id === formData.village_id);
-    const admissionFee = registrationType === 'new' ? 5000 : 0;
-    const monthlySchoolFee = 2500;
-    const monthlyBusFee = formData.has_school_bus && selectedVillage ? selectedVillage.bus_fee : 0;
-
-    return (
-      <div className="bg-muted p-4 rounded-md">
-        <h3 className="text-lg font-medium mb-4">Fee Preview</h3>
-        <div className="space-y-2">
-          {registrationType === 'new' && (
-            <div className="flex justify-between">
-              <span>One-time Admission Fee:</span>
-              <span>₹{admissionFee.toLocaleString('en-IN')}</span>
-            </div>
-          )}
-          <div className="flex justify-between">
-            <span>Monthly School Fee:</span>
-            <span>₹{monthlySchoolFee.toLocaleString('en-IN')}</span>
-          </div>
-          {formData.has_school_bus && (
-            <div className="flex justify-between">
-              <span>Monthly Bus Fee:</span>
-              <span>₹{monthlyBusFee.toLocaleString('en-IN')}</span>
-            </div>
-          )}
-          <div className="flex justify-between pt-2 border-t font-medium">
-            <span>Total Monthly Fee:</span>
-            <span>₹{(monthlySchoolFee + monthlyBusFee).toLocaleString('en-IN')}</span>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -220,11 +132,9 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
                 required
               >
                 <option value="">Select class</option>
-                {['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'].map(
-                  (cls) => (
-                    <option key={cls} value={cls}>Class {cls}</option>
-                  )
-                )}
+                {classOptions.map((cls) => (
+                  <option key={cls.value} value={cls.value}>{cls.label}</option>
+                ))}
               </select>
             </div>
 
@@ -278,51 +188,41 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
           </div>
         </div>
 
-        {/* Registration Details */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Registration Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {renderRegistrationSpecificFields()}
-
-            <div className="space-y-2">
-              <label htmlFor="village" className="block text-sm font-medium">
-                Village *
-              </label>
-              <select
-                id="village"
-                className="input"
-                value={formData.village_id}
-                onChange={(e) => setFormData({ ...formData, village_id: e.target.value })}
-                required
-              >
-                <option value="">Select village</option>
-                {villages.map((village) => (
-                  <option key={village.id} value={village.id}>
-                    {village.name} ({village.distance_from_school} km)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="flex items-center gap-2">
+        {/* Rejoining Information (if applicable) */}
+        {registrationType === 'rejoining' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Rejoining Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label htmlFor="previousAdmissionNumber" className="block text-sm font-medium">
+                  Previous Admission Number *
+                </label>
                 <input
-                  type="checkbox"
-                  checked={formData.has_school_bus}
-                  onChange={(e) => setFormData({ ...formData, has_school_bus: e.target.checked })}
-                  className="h-4 w-4 rounded border-input"
+                  id="previousAdmissionNumber"
+                  type="text"
+                  className="input"
+                  value={formData.previous_admission_number}
+                  onChange={(e) => setFormData({ ...formData, previous_admission_number: e.target.value })}
+                  required
                 />
-                <span className="text-sm font-medium">Opt-in for School Bus Service</span>
-              </label>
-              {formData.has_school_bus && formData.village_id && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Monthly bus fee for {villages.find(v => v.id === formData.village_id)?.name}:
-                  ₹{villages.find(v => v.id === formData.village_id)?.bus_fee}
-                </p>
-              )}
+              </div>
+
+              <div className="space-y-2 md:col-span-2">
+                <label htmlFor="rejoiningReason" className="block text-sm font-medium">
+                  Reason for Rejoining *
+                </label>
+                <textarea
+                  id="rejoiningReason"
+                  className="input"
+                  value={formData.rejoining_reason}
+                  onChange={(e) => setFormData({ ...formData, rejoining_reason: e.target.value })}
+                  rows={3}
+                  required
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Contact Information */}
         <div className="space-y-4">
@@ -432,9 +332,6 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
           </div>
         </div>
 
-        {/* Fee Preview */}
-        {renderFeePreview()}
-
         {/* Form Actions */}
         <div className="flex justify-end gap-3 pt-6 border-t">
           <button
@@ -462,7 +359,8 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
               <h3 className="text-lg font-semibold">Confirm Submission</h3>
             </div>
             <p className="text-muted-foreground mb-6">
-              Are you sure you want to {initialData ? 'update' : 'register'} this student? This action cannot be undone.
+              Are you sure you want to {initialData ? 'update' : 'register'} this student?
+              {registrationType === 'new' && ' Admission fee will be applicable.'}
             </p>
             <div className="flex justify-end gap-3">
               <button
