@@ -15,6 +15,7 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
     distance_from_school: '',
     is_active: true,
     description: '',
+    current_bus_fee: '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +30,28 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
       if (village) {
         await updateVillage(village.id, formData);
       } else {
-        await addVillage(formData);
+        // When creating a new village, we need to handle the bus fee separately
+        const { current_bus_fee, ...villageData } = formData;
+        const newVillage = await addVillage(villageData);
+        
+        // If a bus fee was specified, create the initial bus fee record
+        if (current_bus_fee) {
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bus_fee_structure`, {
+            method: 'POST',
+            headers: {
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              village_id: newVillage.id,
+              fee_amount: parseFloat(current_bus_fee),
+              effective_from_date: new Date().toISOString(),
+              effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
+              is_active: true,
+            }),
+          });
+        }
       }
       onClose();
     } catch (err) {
@@ -91,6 +113,30 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
               />
             </div>
 
+            <div className="space-y-2">
+              <label htmlFor="busFee" className="block text-sm font-medium">
+                Current Bus Fee (₹/month)
+              </label>
+              <div className="flex rounded-md shadow-sm">
+                <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
+                  ₹
+                </span>
+                <input
+                  id="busFee"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input rounded-l-none"
+                  value={formData.current_bus_fee}
+                  onChange={(e) => setFormData({ ...formData, current_bus_fee: e.target.value })}
+                  placeholder="Enter monthly bus fee"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Leave empty if bus service is not available for this village
+              </p>
+            </div>
+
             <div className="space-y-2 md:col-span-2">
               <label htmlFor="description" className="block text-sm font-medium">
                 Description
@@ -147,6 +193,12 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
             <p className="text-muted-foreground mb-6">
               Are you sure you want to {village ? 'update' : 'add'} this village?
               {!formData.is_active && ' This village will be marked as inactive.'}
+              {formData.current_bus_fee && (
+                <>
+                  <br />
+                  The monthly bus fee will be set to ₹{formData.current_bus_fee}.
+                </>
+              )}
             </p>
             <div className="flex justify-end gap-3">
               <button
