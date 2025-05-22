@@ -23,4 +23,4 @@ CREATE POLICY "All authenticated users can view villages"
 ON villages
 FOR SELECT
 TO authenticated
-USING (true);
+USING (true)
