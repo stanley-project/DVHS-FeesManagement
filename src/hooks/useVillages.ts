@@ -8,6 +8,7 @@ interface Village {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  bus_number: string;
 }
 
 interface VillageWithStats extends Village {
@@ -26,35 +27,53 @@ export function useVillages() {
       setLoading(true);
       setError(null);
 
-      // Fetch villages with student counts
-      const { data, error: fetchError } = await supabase
+      // First fetch all villages
+      const { data: villagesData, error: villagesError } = await supabase
         .from('villages')
-        .select(`
-          *,
-          students:students(count),
-          bus_students:students(count)
-        `)
-        .eq('bus_students.has_school_bus', true);
+        .select('*');
 
-      if (fetchError) throw fetchError;
+      if (villagesError) throw villagesError;
 
-      // Fetch current bus fees
-      const { data: busFees, error: busFeesError } = await supabase
-        .from('bus_fee_structure')
-        .select('*')
-        .eq('is_active', true);
+      // Then fetch student counts for each village
+      const villagesWithCounts = await Promise.all(
+        villagesData.map(async (village) => {
+          // Get total students count
+          const { count: totalStudents, error: totalError } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('village_id', village.id);
 
-      if (busFeesError) throw busFeesError;
+          if (totalError) throw totalError;
 
-      // Combine the data
-      const villagesWithStats = data.map(village => ({
-        ...village,
-        total_students: village.students?.[0]?.count || 0,
-        bus_students: village.bus_students?.[0]?.count || 0,
-        current_bus_fee: busFees.find(fee => fee.village_id === village.id)?.fee_amount
-      }));
+          // Get bus students count
+          const { count: busStudents, error: busError } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('village_id', village.id)
+            .eq('has_school_bus', true);
 
-      setVillages(villagesWithStats);
+          if (busError) throw busError;
+
+          // Get current bus fee
+          const { data: busFees, error: busFeesError } = await supabase
+            .from('bus_fee_structure')
+            .select('fee_amount')
+            .eq('village_id', village.id)
+            .eq('is_active', true)
+            .single();
+
+          if (busFeesError && busFeesError.code !== 'PGRST116') throw busFeesError;
+
+          return {
+            ...village,
+            total_students: totalStudents || 0,
+            bus_students: busStudents || 0,
+            current_bus_fee: busFees?.fee_amount
+          };
+        })
+      );
+
+      setVillages(villagesWithCounts);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -97,6 +116,15 @@ export function useVillages() {
 
   const updateBusFee = async (villageId: string, amount: number) => {
     try {
+      // Get the current academic year
+      const { data: currentYear, error: yearError } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (yearError) throw yearError;
+
       // Deactivate current fee structure
       await supabase
         .from('bus_fee_structure')
@@ -110,6 +138,7 @@ export function useVillages() {
         .insert([{
           village_id: villageId,
           fee_amount: amount,
+          academic_year_id: currentYear.id,
           effective_from_date: new Date().toISOString(),
           effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
           is_active: true
