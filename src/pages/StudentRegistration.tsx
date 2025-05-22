@@ -3,11 +3,13 @@ import { Plus, Upload, Search } from 'lucide-react';
 import StudentTable from '../components/students/StudentTable';
 import StudentForm from '../components/students/StudentForm';
 import StudentSearch from '../components/students/StudentSearch';
+import RegistrationTypeSelector from '../components/students/RegistrationTypeSelector';
 
 const StudentRegistration = () => {
   const [showForm, setShowForm] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [formData, setFormData] = useState<any>(null);
+  const [registrationType, setRegistrationType] = useState<'new' | 'rejoining' | 'continuing'>('new');
 
   const handleSubmit = (data: any) => {
     console.log('Form submitted:', data);
@@ -56,14 +58,26 @@ const StudentRegistration = () => {
 
       {showForm ? (
         <div className="bg-card rounded-lg shadow p-6">
-          <StudentForm
-            onSubmit={handleSubmit}
-            onCancel={() => {
+          <RegistrationTypeSelector
+            value={registrationType}
+            onChange={setRegistrationType}
+            onSearch={() => {
               setShowForm(false);
-              setFormData(null);
+              setShowSearch(true);
             }}
-            initialData={formData}
           />
+          
+          <div className="mt-6">
+            <StudentForm
+              onSubmit={handleSubmit}
+              onCancel={() => {
+                setShowForm(false);
+                setFormData(null);
+              }}
+              initialData={formData}
+              registrationType={registrationType}
+            />
+          </div>
         </div>
       ) : (
         <StudentTable />

@@ -5,9 +5,10 @@ interface StudentFormProps {
   onSubmit: (data: any) => void;
   onCancel: () => void;
   initialData?: any;
+  registrationType: 'new' | 'rejoining' | 'continuing';
 }
 
-const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
+const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: StudentFormProps) => {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [formData, setFormData] = useState(initialData || {
     admissionNumber: '',
@@ -26,7 +27,9 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
     fatherAadhar: '',
     village_id: '',
     has_school_bus: false,
-    registration_type: 'new',
+    registration_type: registrationType,
+    rejoining_reason: '',
+    previous_admission_number: '',
   });
 
   const [villages, setVillages] = useState([
@@ -65,6 +68,77 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
   const handleConfirm = () => {
     onSubmit(formData);
     setShowConfirmation(false);
+  };
+
+  const renderRegistrationSpecificFields = () => {
+    if (registrationType === 'rejoining') {
+      return (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="previousAdmissionNumber" className="block text-sm font-medium">
+              Previous Admission Number
+            </label>
+            <input
+              id="previousAdmissionNumber"
+              type="text"
+              className="input"
+              value={formData.previous_admission_number}
+              onChange={(e) => setFormData({ ...formData, previous_admission_number: e.target.value })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="rejoiningReason" className="block text-sm font-medium">
+              Reason for Rejoining *
+            </label>
+            <textarea
+              id="rejoiningReason"
+              className="input"
+              value={formData.rejoining_reason}
+              onChange={(e) => setFormData({ ...formData, rejoining_reason: e.target.value })}
+              required={registrationType === 'rejoining'}
+              rows={3}
+            />
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const renderFeePreview = () => {
+    const selectedVillage = villages.find(v => v.id === formData.village_id);
+    const admissionFee = registrationType === 'new' ? 5000 : 0;
+    const monthlySchoolFee = 2500;
+    const monthlyBusFee = formData.has_school_bus && selectedVillage ? selectedVillage.bus_fee : 0;
+
+    return (
+      <div className="bg-muted p-4 rounded-md">
+        <h3 className="text-lg font-medium mb-4">Fee Preview</h3>
+        <div className="space-y-2">
+          {registrationType === 'new' && (
+            <div className="flex justify-between">
+              <span>One-time Admission Fee:</span>
+              <span>₹{admissionFee.toLocaleString('en-IN')}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span>Monthly School Fee:</span>
+            <span>₹{monthlySchoolFee.toLocaleString('en-IN')}</span>
+          </div>
+          {formData.has_school_bus && (
+            <div className="flex justify-between">
+              <span>Monthly Bus Fee:</span>
+              <span>₹{monthlyBusFee.toLocaleString('en-IN')}</span>
+            </div>
+          )}
+          <div className="flex justify-between pt-2 border-t font-medium">
+            <span>Total Monthly Fee:</span>
+            <span>₹{(monthlySchoolFee + monthlyBusFee).toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -208,35 +282,7 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Registration Details</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="registrationType" className="block text-sm font-medium">
-                Registration Type *
-              </label>
-              <div className="space-x-4">
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    name="registrationType"
-                    value="new"
-                    checked={formData.registration_type === 'new'}
-                    onChange={(e) => setFormData({ ...formData, registration_type: e.target.value })}
-                    className="h-4 w-4 border-input"
-                  />
-                  <span className="ml-2">New Admission</span>
-                </label>
-                <label className="inline-flex items-center">
-                  <input
-                    type="radio"
-                    name="registrationType"
-                    value="continuing"
-                    checked={formData.registration_type === 'continuing'}
-                    onChange={(e) => setFormData({ ...formData, registration_type: e.target.value })}
-                    className="h-4 w-4 border-input"
-                  />
-                  <span className="ml-2">Continuing Student</span>
-                </label>
-              </div>
-            </div>
+            {renderRegistrationSpecificFields()}
 
             <div className="space-y-2">
               <label htmlFor="village" className="block text-sm font-medium">
@@ -387,31 +433,7 @@ const StudentForm = ({ onSubmit, onCancel, initialData }: StudentFormProps) => {
         </div>
 
         {/* Fee Preview */}
-        <div className="bg-muted p-4 rounded-md">
-          <h3 className="text-lg font-medium mb-4">Fee Preview</h3>
-          <div className="space-y-2">
-            {formData.registration_type === 'new' && (
-              <div className="flex justify-between">
-                <span>One-time Admission Fee:</span>
-                <span>₹{feeBreakdown.admissionFee.toLocaleString('en-IN')}</span>
-              </div>
-            )}
-            <div className="flex justify-between">
-              <span>Monthly School Fee:</span>
-              <span>₹{feeBreakdown.monthlySchoolFee.toLocaleString('en-IN')}</span>
-            </div>
-            {formData.has_school_bus && (
-              <div className="flex justify-between">
-                <span>Monthly Bus Fee:</span>
-                <span>₹{feeBreakdown.monthlyBusFee.toLocaleString('en-IN')}</span>
-              </div>
-            )}
-            <div className="flex justify-between pt-2 border-t font-medium">
-              <span>Total Monthly Fee:</span>
-              <span>₹{feeBreakdown.totalMonthlyFee.toLocaleString('en-IN')}</span>
-            </div>
-          </div>
-        </div>
+        {renderFeePreview()}
 
         {/* Form Actions */}
         <div className="flex justify-end gap-3 pt-6 border-t">
