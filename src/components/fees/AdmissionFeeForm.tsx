@@ -13,21 +13,9 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [formData, setFormData] = useState(initialData || {
     academicYear,
-    fees: [
-      { class: 'I', amount: '' },
-      { class: 'II', amount: '' },
-      { class: 'III', amount: '' },
-      { class: 'IV', amount: '' },
-      { class: 'V', amount: '' },
-      { class: 'VI', amount: '' },
-      { class: 'VII', amount: '' },
-      { class: 'VIII', amount: '' },
-      { class: 'IX', amount: '' },
-      { class: 'X', amount: '' },
-      { class: 'XI', amount: '' },
-      { class: 'XII', amount: '' },
-    ],
+    amount: '',
     effectiveDate: new Date().toISOString().split('T')[0],
+    notes: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -57,32 +45,27 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
         </div>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {formData.fees.map((fee: any, index: number) => (
-              <div key={fee.class} className="space-y-2">
-                <label htmlFor={`fee-${index}`} className="block text-sm font-medium">
-                  Class {fee.class}
-                </label>
-                <div className="flex rounded-md shadow-sm">
-                  <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
-                    ₹
-                  </span>
-                  <input
-                    id={`fee-${index}`}
-                    type="number"
-                    className="input rounded-l-none"
-                    value={fee.amount}
-                    onChange={(e) => {
-                      const newFees = [...formData.fees];
-                      newFees[index].amount = e.target.value;
-                      setFormData({ ...formData, fees: newFees });
-                    }}
-                    min="0"
-                    required
-                  />
-                </div>
-              </div>
-            ))}
+          <div className="space-y-2">
+            <label htmlFor="amount" className="block text-sm font-medium">
+              Admission Fee Amount *
+            </label>
+            <div className="flex rounded-md shadow-sm">
+              <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
+                ₹
+              </span>
+              <input
+                id="amount"
+                type="number"
+                className="input rounded-l-none"
+                value={formData.amount}
+                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                min="0"
+                required
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              This amount will be applicable for all new admissions across all classes
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -96,6 +79,20 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
               value={formData.effectiveDate}
               onChange={(e) => setFormData({ ...formData, effectiveDate: e.target.value })}
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="notes" className="block text-sm font-medium">
+              Notes
+            </label>
+            <textarea
+              id="notes"
+              className="input"
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={3}
+              placeholder="Add any notes about this fee change..."
             />
           </div>
         </div>
@@ -112,7 +109,7 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
             type="submit"
             className="btn btn-primary btn-md"
           >
-            Save Admission Fee Structure
+            Save Admission Fee
           </button>
         </div>
       </form>
@@ -126,7 +123,7 @@ const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious
               <h3 className="text-lg font-semibold">Confirm Changes</h3>
             </div>
             <p className="text-muted-foreground mb-6">
-              Are you sure you want to update the admission fee structure for {academicYear}?
+              Are you sure you want to set the admission fee to ₹{formData.amount} for {academicYear}?
               This will affect all new admissions from {formData.effectiveDate}.
             </p>
             <div className="flex justify-end gap-3">
