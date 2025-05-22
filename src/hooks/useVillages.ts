@@ -62,13 +62,16 @@ export function useVillages() {
             .eq('is_active', true)
             .single();
 
-          if (busFeesError && busFeesError.code !== 'PGRST116') throw busFeesError;
+          // Only throw error if it's not a "no rows returned" error and not undefined
+          if (busFeesError && busFeesError.code !== 'PGRST116' && busFeesError.code !== undefined) {
+            throw busFeesError;
+          }
 
           return {
             ...village,
             total_students: totalStudents || 0,
             bus_students: busStudents || 0,
-            current_bus_fee: busFees?.fee_amount
+            current_bus_fee: busFees?.fee_amount || undefined
           };
         })
       );
