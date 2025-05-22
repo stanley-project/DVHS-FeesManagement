@@ -8,7 +8,7 @@
       - All authenticated users can view villages
 */
 
--- Enable RLS
+-- Enable RLS...
 ALTER TABLE villages ENABLE ROW LEVEL SECURITY;
 
 -- Policy for administrators to manage villages
