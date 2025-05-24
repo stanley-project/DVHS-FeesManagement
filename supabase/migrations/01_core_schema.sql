@@ -138,25 +138,29 @@ CREATE POLICY "Administrators can manage users"
   USING (auth.jwt() ->> 'role' = 'administrator');
 
 -- Create policies for academic_years table
-CREATE POLICY IF NOT EXISTS "All authenticated users can view academic years"
+DROP POLICY IF EXISTS "All authenticated users can view academic years" ON academic_years;
+CREATE POLICY "All authenticated users can view academic years"
   ON academic_years
   FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY IF NOT EXISTS "Administrators can manage academic years"
+DROP POLICY IF EXISTS "Administrators can manage academic years" ON academic_years;
+CREATE POLICY "Administrators can manage academic years"
   ON academic_years
   FOR ALL
   TO authenticated
   USING (auth.jwt() ->> 'role' = 'administrator');
 
 -- Create policies for classes table
-CREATE POLICY IF NOT EXISTS "All authenticated users can view classes"
+DROP POLICY IF EXISTS "All authenticated users can view classes" ON classes;
+CREATE POLICY "All authenticated users can view classes"
   ON classes
   FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Administrators can manage classes" ON classes;
 CREATE POLICY IF NOT EXISTS "Administrators can manage classes"
   ON classes
   FOR ALL
