@@ -28,17 +28,25 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
     try {
       setError(null);
       
-      // Get current academic year
+      // Get current academic year with proper error handling
       const { data: academicYears, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
         .eq('is_current', true)
+        .limit(1)
         .single();
 
-      if (yearError) throw yearError;
+      if (yearError) {
+        if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+          setError('No active academic year found. Please set a current academic year in Academic Year Management.');
+          setLoading(false);
+          return;
+        }
+        throw yearError;
+      }
 
       if (!academicYears) {
-        setError('No active academic year found. Please contact the administrator.');
+        setError('No active academic year found. Please set a current academic year in Academic Year Management.');
         setLoading(false);
         return;
       }
