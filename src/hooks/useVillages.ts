@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { withRetry } from '../utils/fetchUtils';
 
 interface Village {
   id: string;
