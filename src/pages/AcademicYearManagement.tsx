@@ -12,9 +12,9 @@ const AcademicYearManagement = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Fetch academic years on component mount
-  useState(() => {
-    fetchAcademicYears();
-  }, []);
+useEffect(() => {
+  fetchAcademicYears();
+}, []);
 
   const fetchAcademicYears = async () => {
     try {
