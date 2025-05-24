@@ -1,9 +1,22 @@
 import { useState } from 'react';
 
-// Update formData initialization
-const [formData, setFormData] = useState(initialData || {
-  academicYear,
-  fees: [
+interface FeeData {
+  class: string;
+  monthlyFee: string;
+  termFee: string;
+}
+
+interface SchoolFeeFormProps {
+  initialData?: {
+    academicYear: string;
+    fees: FeeData[];
+    effectiveDate: string;
+  };
+  academicYear: string;
+}
+
+const SchoolFeeForm = ({ initialData, academicYear }: SchoolFeeFormProps) => {
+  const defaultFees = [
     { class: 'nursery', monthlyFee: '', termFee: '' },
     { class: 'lkg', monthlyFee: '', termFee: '' }, 
     { class: 'ukg', monthlyFee: '', termFee: '' },
@@ -17,8 +30,20 @@ const [formData, setFormData] = useState(initialData || {
     { class: '8', monthlyFee: '', termFee: '' },
     { class: '9', monthlyFee: '', termFee: '' },
     { class: '10', monthlyFee: '', termFee: '' }
-  ],
-  effectiveDate: new Date().toISOString().split('T')[0],
-});
+  ];
 
-export default formData
+  const [formData, setFormData] = useState({
+    academicYear,
+    fees: initialData?.fees || defaultFees,
+    effectiveDate: initialData?.effectiveDate || new Date().toISOString().split('T')[0],
+  });
+
+  return (
+    // Component JSX will go here
+    <div>
+      {/* Form implementation */}
+    </div>
+  );
+};
+
+export default SchoolFeeForm;
