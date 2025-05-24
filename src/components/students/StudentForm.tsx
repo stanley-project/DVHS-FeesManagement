@@ -25,7 +25,7 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
     fatherName: '',
     motherName: '',
     fatherAadhar: '',
-    village_id: '',
+    village_id: '', // Required field
     has_school_bus: false,
     registration_type: registrationType,
     rejoining_reason: '',
@@ -43,8 +43,22 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
     }))
   ];
 
+  // Mock villages data - in real app, fetch from API
+  const villages = [
+    { id: 'v1', name: 'Ramapuram', distance: 5.2 },
+    { id: 'v2', name: 'Kondapur', distance: 3.8 },
+    { id: 'v3', name: 'Gachibowli', distance: 7.5 },
+  ];
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate village selection
+    if (!formData.village_id) {
+      alert('Please select a village');
+      return;
+    }
+
     setShowConfirmation(true);
   };
 
@@ -184,6 +198,56 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Transportation Information */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Transportation Information</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label htmlFor="village" className="block text-sm font-medium">
+                Village * <span className="text-error">Required</span>
+              </label>
+              <select
+                id="village"
+                className="input"
+                value={formData.village_id}
+                onChange={(e) => setFormData({ ...formData, village_id: e.target.value })}
+                required
+              >
+                <option value="">Select village</option>
+                {villages.map((village) => (
+                  <option key={village.id} value={village.id}>
+                    {village.name} ({village.distance} km)
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Distance from school will affect bus fee calculation
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium">
+                Bus Service *
+              </label>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="hasSchoolBus"
+                  className="h-4 w-4 rounded border-input"
+                  checked={formData.has_school_bus}
+                  onChange={(e) => setFormData({ ...formData, has_school_bus: e.target.checked })}
+                />
+                <label htmlFor="hasSchoolBus" className="text-sm">
+                  Opt for School Bus Service
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Monthly bus fee will be calculated based on village distance
+              </p>
             </div>
           </div>
         </div>
@@ -361,6 +425,7 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
             <p className="text-muted-foreground mb-6">
               Are you sure you want to {initialData ? 'update' : 'register'} this student?
               {registrationType === 'new' && ' Admission fee will be applicable.'}
+              {formData.has_school_bus && ' Monthly bus fee will be charged based on village distance.'}
             </p>
             <div className="flex justify-end gap-3">
               <button
