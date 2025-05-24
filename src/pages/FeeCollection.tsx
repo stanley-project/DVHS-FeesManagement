@@ -25,14 +25,28 @@ const FeeCollection = () => {
       setError(null);
       setLoading(true);
 
-      // Get current academic year
+      // Get current academic year with proper error handling
       const { data: currentYear, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
         .eq('is_current', true)
+        .limit(1)
         .single();
 
-      if (yearError) throw yearError;
+      if (yearError) {
+        if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+          setError('No active academic year found. Please contact the administrator.');
+          setLoading(false);
+          return;
+        }
+        throw yearError;
+      }
+
+      if (!currentYear) {
+        setError('No active academic year found. Please contact the administrator.');
+        setLoading(false);
+        return;
+      }
 
       // Get students with their fee status
       let query = supabase
