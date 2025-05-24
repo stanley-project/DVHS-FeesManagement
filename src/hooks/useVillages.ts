@@ -168,7 +168,7 @@ export function useVillages() {
     updateBusFee,
     refreshVillages: fetchVillages
   };
-};
+}
 
 const checkNetworkStatus = () => {
   return navigator.onLine;
