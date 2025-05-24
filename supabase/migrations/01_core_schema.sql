@@ -138,43 +138,43 @@ CREATE POLICY "Administrators can manage users"
   USING (auth.jwt() ->> 'role' = 'administrator');
 
 -- Create policies for academic_years table
-CREATE POLICY "All authenticated users can view academic years"
+CREATE POLICY IF NOT EXISTS "All authenticated users can view academic years"
   ON academic_years
   FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Administrators can manage academic years"
+CREATE POLICY IF NOT EXISTS "Administrators can manage academic years"
   ON academic_years
   FOR ALL
   TO authenticated
   USING (auth.jwt() ->> 'role' = 'administrator');
 
 -- Create policies for classes table
-CREATE POLICY "All authenticated users can view classes"
+CREATE POLICY IF NOT EXISTS "All authenticated users can view classes"
   ON classes
   FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Administrators can manage classes"
+CREATE POLICY IF NOT EXISTS "Administrators can manage classes"
   ON classes
   FOR ALL
   TO authenticated
   USING (auth.jwt() ->> 'role' = 'administrator');
 
 -- Create triggers for updated_at
-CREATE TRIGGER update_users_updated_at
+CREATE TRIGGER IF NOT EXISTS update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_academic_years_updated_at
+CREATE TRIGGER IF NOT EXISTS update_academic_years_updated_at
     BEFORE UPDATE ON academic_years
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_classes_updated_at
+CREATE TRIGGER IF NOT EXISTS update_classes_updated_at
     BEFORE UPDATE ON classes
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
