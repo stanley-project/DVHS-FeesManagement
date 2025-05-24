@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, ArrowUpDown, AlertCircle } from 'lucide-react';
 import AcademicYearForm from '../components/fees/AcademicYearForm';
 import { supabase } from '../lib/supabase';
