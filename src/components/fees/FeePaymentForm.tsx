@@ -176,12 +176,67 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    if (!formData.feeTypeId) {
+      setError('Please select a fee type');
+      return false;
+    }
+
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      setError('Amount must be greater than 0');
+      return false;
+    }
+
+    if (!formData.paymentDate) {
+      setError('Payment date is required');
+      return false;
+    }
+
+    // Check if payment date is not in the future
+    const paymentDate = new Date(formData.paymentDate);
+    if (paymentDate > new Date()) {
+      setError('Payment date cannot be in the future');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      ...formData,
-      amount: parseFloat(formData.amount)
-    });
+    setError(null);
+
+    if (!validateForm()) {
+      return;
+    }
+
+    try {
+      // Generate receipt number
+      const receiptNumber = `RC-${Date.now()}`;
+
+      // Start transaction
+      const { data: payment, error: paymentError } = await supabase
+        .from('fee_payments')
+        .insert({
+          student_id: studentId,
+          fee_structure_id: formData.feeTypeId,
+          amount_paid: parseFloat(formData.amount),
+          payment_date: formData.paymentDate,
+          payment_method: formData.paymentMode,
+          receipt_number: receiptNumber,
+          notes: formData.remarks,
+          created_by: (await supabase.auth.getUser()).data.user?.id
+        })
+        .select()
+        .single();
+
+      if (paymentError) throw paymentError;
+
+      onSubmit(payment);
+    } catch (error: any) {
+      console.error('Error processing payment:', error);
+      setError(error.message || 'Failed to process payment. Please try again.');
+    }
   };
 
   if (loading) {
