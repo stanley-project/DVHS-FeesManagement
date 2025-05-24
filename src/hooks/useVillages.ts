@@ -164,7 +164,6 @@ const validateSession = async () => {
   if (error) throw new Error('Authentication error: ' + error.message);
   if (!session) throw new Error('No active session');
   return session;
-};
 
 export function useVillages() {
   const [villages, setVillages] = useState<VillageWithStats[]>([]);
