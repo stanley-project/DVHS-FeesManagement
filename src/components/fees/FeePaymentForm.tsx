@@ -5,9 +5,10 @@ interface FeePaymentFormProps {
   onSubmit: (data: any) => void;
   onCancel: () => void;
   studentId?: string;
+  registrationType?: 'new' | 'continuing';
 }
 
-const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) => {
+const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: FeePaymentFormProps) => {
   const [feeTypes, setFeeTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
 
   useEffect(() => {
     fetchFeeTypes();
-  }, []);
+  }, [studentId, registrationType]);
 
   const fetchFeeTypes = async () => {
     try {
@@ -31,20 +32,38 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
       const { data: academicYears, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
-        .eq('is_current', true);
+        .eq('is_current', true)
+        .single();
 
       if (yearError) throw yearError;
 
-      if (!academicYears || academicYears.length === 0) {
+      if (!academicYears) {
         setError('No active academic year found. Please contact the administrator.');
         setLoading(false);
         return;
       }
 
-      const currentYear = academicYears[0];
+      // Get student details if studentId is provided
+      let studentClass;
+      let studentVillage;
+      if (studentId) {
+        const { data: student, error: studentError } = await supabase
+          .from('students')
+          .select(`
+            class_id,
+            village_id,
+            has_school_bus
+          `)
+          .eq('id', studentId)
+          .single();
 
-      // Get fee types from fee structure
-      const { data, error } = await supabase
+        if (studentError) throw studentError;
+        studentClass = student.class_id;
+        studentVillage = student.village_id;
+      }
+
+      // Get fee types based on registration type and student details
+      let query = supabase
         .from('fee_structure')
         .select(`
           id,
@@ -54,10 +73,47 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
             id,
             name,
             category,
-            is_monthly
+            is_monthly,
+            is_for_new_students_only
           )
         `)
-        .eq('academic_year_id', currentYear.id);
+        .eq('academic_year_id', academicYears.id);
+
+      // Add filters based on student details
+      if (studentClass) {
+        query = query.eq('class_id', studentClass);
+      }
+
+      // For new students, include admission fees
+      if (registrationType === 'new') {
+        // Get admission fee
+        const { data: admissionFee, error: admissionError } = await supabase
+          .from('admission_fee_settings')
+          .select('*')
+          .eq('academic_year_id', academicYears.id)
+          .eq('is_active', true)
+          .single();
+
+        if (!admissionError && admissionFee) {
+          // Add admission fee to fee types
+          const admissionFeeType = {
+            id: 'admission',
+            amount: admissionFee.amount,
+            due_date: admissionFee.effective_from,
+            fee_type: {
+              id: 'admission',
+              name: 'Admission Fee',
+              category: 'admission',
+              is_monthly: false,
+              is_for_new_students_only: true
+            }
+          };
+          setFeeTypes([admissionFeeType]);
+        }
+      }
+
+      // Get regular fee types
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -67,7 +123,42 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
         return;
       }
 
-      setFeeTypes(data);
+      // Filter fee types based on registration type
+      const filteredFeeTypes = data.filter(fee => {
+        if (registrationType === 'new') {
+          return true; // Show all fees for new students
+        } else {
+          return !fee.fee_type.is_for_new_students_only; // Hide admission-only fees for continuing students
+        }
+      });
+
+      // If student has bus service, get bus fee
+      if (studentId && studentVillage) {
+        const { data: busFee, error: busError } = await supabase
+          .from('bus_fee_structure')
+          .select('*')
+          .eq('village_id', studentVillage)
+          .eq('academic_year_id', academicYears.id)
+          .eq('is_active', true)
+          .single();
+
+        if (!busError && busFee) {
+          const busFeeType = {
+            id: 'bus',
+            amount: busFee.fee_amount,
+            due_date: busFee.effective_from_date,
+            fee_type: {
+              id: 'bus',
+              name: 'Bus Fee',
+              category: 'bus',
+              is_monthly: true
+            }
+          };
+          filteredFeeTypes.push(busFeeType);
+        }
+      }
+
+      setFeeTypes([...feeTypes, ...filteredFeeTypes]);
     } catch (error: any) {
       console.error('Error fetching fee types:', error);
       setError(error.message || 'Failed to fetch fee types. Please try again later.');
