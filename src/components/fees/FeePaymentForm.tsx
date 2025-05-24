@@ -10,6 +10,7 @@ interface FeePaymentFormProps {
 const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) => {
   const [feeTypes, setFeeTypes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     feeTypeId: '',
     amount: '',
@@ -24,16 +25,23 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
 
   const fetchFeeTypes = async () => {
     try {
+      setError(null);
+      
       // Get current academic year
-      const { data: currentYear } = await supabase
+      const { data: academicYears, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
-        .eq('is_current', true)
-        .single();
+        .eq('is_current', true);
 
-      if (!currentYear) {
-        throw new Error('No current academic year found');
+      if (yearError) throw yearError;
+
+      if (!academicYears || academicYears.length === 0) {
+        setError('No active academic year found. Please contact the administrator.');
+        setLoading(false);
+        return;
       }
+
+      const currentYear = academicYears[0];
 
       // Get fee types from fee structure
       const { data, error } = await supabase
@@ -53,9 +61,16 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
 
       if (error) throw error;
 
-      setFeeTypes(data || []);
-    } catch (error) {
+      if (!data || data.length === 0) {
+        setError('No fee structure defined for the current academic year.');
+        setLoading(false);
+        return;
+      }
+
+      setFeeTypes(data);
+    } catch (error: any) {
       console.error('Error fetching fee types:', error);
+      setError(error.message || 'Failed to fetch fee types. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -79,7 +94,25 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId }: FeePaymentFormProps) 
   };
 
   if (loading) {
-    return <div>Loading fee types...</div>;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-gray-600">Loading fee types...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <div className="text-red-600 mb-4">{error}</div>
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={() => fetchFeeTypes()}
+        >
+          Retry
+        </button>
+      </div>
+    );
   }
 
   return (
