@@ -8,3 +8,5 @@
       label: `Class ${i + 1}`
     }))
   ];
+
+export default classOptions
