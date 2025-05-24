@@ -1,82 +1,137 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { User, UserRole } from '../types/user';
+import { mockUsers } from '../data/mockData';
 
 interface AuthContextType {
-  session: Session | null;
-  loading: boolean;
-  error: Error | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signOut: () => Promise<void>;
+  user: User | null;
+  isAuthenticated: boolean;
+  phoneNumber: string;
+  setPhoneNumber: (phoneNumber: string) => void;
+  login: (phoneNumber: string) => { success: boolean; message: string };
+  verifyOtp: (otp: string) => boolean;
+  logout: () => void;
+  sessionTimeout: number | null;
+  setSessionTimeout: (timeout: number | null) => void;
+  resetSession: () => void;
+  rememberDevice: boolean;
+  setRememberDevice: (remember: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
+const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [sessionTimeout, setSessionTimeout] = useState<number | null>(null);
+  const [rememberDevice, setRememberDevice] = useState<boolean>(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    // Check for user in localStorage on component mount
+    const storedUser = localStorage.getItem('user');
+    const storedRememberDevice = localStorage.getItem('rememberDevice') === 'true';
+    
+    if (storedUser) {
+      const parsedUser: User = JSON.parse(storedUser);
+      setUser(parsedUser);
+      setIsAuthenticated(true);
+      setRememberDevice(storedRememberDevice);
+    }
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) throw error;
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to sign in'));
-      throw err;
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (isAuthenticated && !rememberDevice) {
+      timeoutId = setTimeout(() => {
+        logout();
+        navigate('/session-expired');
+      }, SESSION_TIMEOUT);
+
+      setSessionTimeout(Date.now() + SESSION_TIMEOUT);
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [isAuthenticated, rememberDevice, navigate]);
+
+  const resetSession = () => {
+    if (isAuthenticated && !rememberDevice) {
+      setSessionTimeout(Date.now() + SESSION_TIMEOUT);
     }
   };
 
-  const signOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to sign out'));
-      throw err;
+  const login = (enteredPhoneNumber: string) => {
+    const userFound = mockUsers.find(user => user.phoneNumber === enteredPhoneNumber);
+    
+    if (userFound) {
+      setPhoneNumber(enteredPhoneNumber);
+      // In a real app, this would trigger an API call to send OTP
+      console.log(`OTP would be sent to ${enteredPhoneNumber}`);
+      return { success: true, message: 'OTP sent successfully' };
     }
+    
+    return { success: false, message: 'User is not enabled. Contact Admin' };
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        session,
-        loading,
-        error,
-        signIn,
-        signOut,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  const verifyOtp = (otp: string) => {
+    // In a real app, this would validate the OTP with an API
+    if (otp && otp.length === 6) {
+      const userFound = mockUsers.find(user => user.phoneNumber === phoneNumber);
+      
+      if (userFound) {
+        setUser(userFound);
+        setIsAuthenticated(true);
+        // Save user to localStorage
+        localStorage.setItem('user', JSON.stringify(userFound));
+        localStorage.setItem('rememberDevice', rememberDevice.toString());
+        return true;
+      }
+    }
+    
+    return false;
+  };
 
-export function useAuth() {
+  const logout = () => {
+    setUser(null);
+    setIsAuthenticated(false);
+    setPhoneNumber('');
+    setSessionTimeout(null);
+    // Clear user from localStorage
+    localStorage.removeItem('user');
+    localStorage.removeItem('rememberDevice');
+    navigate('/login');
+  };
+
+  const value = {
+    user,
+    isAuthenticated,
+    phoneNumber,
+    setPhoneNumber,
+    login,
+    verifyOtp,
+    logout,
+    sessionTimeout,
+    setSessionTimeout,
+    resetSession,
+    rememberDevice,
+    setRememberDevice
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
+};
