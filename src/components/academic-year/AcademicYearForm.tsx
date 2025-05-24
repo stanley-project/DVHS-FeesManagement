@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface AcademicYearFormProps {
   onSubmit: (data: any) => void;
@@ -13,10 +14,13 @@ const AcademicYearForm = ({ onSubmit, onCancel, initialData }: AcademicYearFormP
     yearName: '',
     startDate: '',
     endDate: '',
-    isCurrent: false
+    isCurrent: false,
+    transitionStatus: 'pending',
+    previousYearId: null,
+    nextYearId: null
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validate year format (YYYY-YYYY)
@@ -44,12 +48,56 @@ const AcademicYearForm = ({ onSubmit, onCancel, initialData }: AcademicYearFormP
       endDate: fixedEndDate
     }));
 
+    // If setting as current year, validate no other current year exists
+    if (formData.isCurrent && !initialData) {
+      const { data: currentYear, error } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        alert('Error checking current academic year. Please try again.');
+        return;
+      }
+
+      if (currentYear) {
+        alert('Another academic year is already set as current. Please update the current year first.');
+        return;
+      }
+    }
+
     setShowConfirmation(true);
   };
 
-  const handleConfirm = () => {
-    onSubmit(formData);
-    setShowConfirmation(false);
+  const handleConfirm = async () => {
+    try {
+      // If this is a new year, check for previous year to link
+      if (!initialData) {
+        const { data: prevYear } = await supabase
+          .from('academic_years')
+          .select('id')
+          .order('end_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (prevYear) {
+          formData.previousYearId = prevYear.id;
+          
+          // Update previous year's next_year_id
+          await supabase
+            .from('academic_years')
+            .update({ nextYearId: formData.id })
+            .eq('id', prevYear.id);
+        }
+      }
+
+      onSubmit(formData);
+      setShowConfirmation(false);
+    } catch (error) {
+      console.error('Error handling academic year:', error);
+      alert('Failed to save academic year. Please try again.');
+    }
   };
 
   const handleYearChange = (yearName: string) => {
