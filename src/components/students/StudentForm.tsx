@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface StudentFormProps {
   onSubmit: (data: any) => void;
@@ -32,6 +33,17 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
     previous_admission_number: '',
   });
 
+  const [feePreview, setFeePreview] = useState({
+    admissionFee: 0,
+    monthlySchoolFee: 0,
+    monthlyBusFee: 0,
+    totalOneTime: 0,
+    totalMonthly: 0,
+    totalAnnual: 0,
+    loading: true,
+    error: null as string | null
+  });
+
   // Class options including pre-primary classes
   const classOptions = [
     { value: 'nursery', label: 'Nursery' },
@@ -49,6 +61,97 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
     { id: 'v2', name: 'Kondapur', distance: 3.8 },
     { id: 'v3', name: 'Gachibowli', distance: 7.5 },
   ];
+
+  useEffect(() => {
+    calculateFees();
+  }, [formData.class, formData.village_id, formData.has_school_bus]);
+
+  const calculateFees = async () => {
+    if (!formData.class) return;
+
+    try {
+      setFeePreview(prev => ({ ...prev, loading: true, error: null }));
+
+      // Get current academic year
+      const { data: academicYear, error: yearError } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (yearError) throw new Error('No active academic year found');
+
+      // Get admission fee if new registration
+      let admissionFee = 0;
+      if (registrationType === 'new') {
+        const { data: admissionFeeData, error: admissionError } = await supabase
+          .from('admission_fee_settings')
+          .select('amount')
+          .eq('academic_year_id', academicYear.id)
+          .eq('is_active', true)
+          .single();
+
+        if (!admissionError && admissionFeeData) {
+          admissionFee = admissionFeeData.amount;
+        }
+      }
+
+      // Get school fees
+      const { data: schoolFees, error: schoolError } = await supabase
+        .from('fee_structure')
+        .select(`
+          amount,
+          is_recurring_monthly,
+          fee_type:fee_types(category)
+        `)
+        .eq('academic_year_id', academicYear.id)
+        .eq('class_id', formData.class);
+
+      if (schoolError) throw schoolError;
+
+      const monthlySchoolFee = schoolFees
+        ?.filter(fee => fee.is_recurring_monthly && fee.fee_type.category === 'school')
+        .reduce((sum, fee) => sum + fee.amount, 0) || 0;
+
+      // Get bus fee if applicable
+      let monthlyBusFee = 0;
+      if (formData.has_school_bus && formData.village_id) {
+        const { data: busFee, error: busError } = await supabase
+          .from('bus_fee_structure')
+          .select('fee_amount')
+          .eq('village_id', formData.village_id)
+          .eq('academic_year_id', academicYear.id)
+          .eq('is_active', true)
+          .single();
+
+        if (!busError && busFee) {
+          monthlyBusFee = busFee.fee_amount;
+        }
+      }
+
+      // Calculate totals
+      const totalMonthly = monthlySchoolFee + monthlyBusFee;
+      const totalAnnual = (totalMonthly * 12) + admissionFee;
+
+      setFeePreview({
+        admissionFee,
+        monthlySchoolFee,
+        monthlyBusFee,
+        totalOneTime: admissionFee,
+        totalMonthly,
+        totalAnnual,
+        loading: false,
+        error: null
+      });
+
+    } catch (error: any) {
+      setFeePreview(prev => ({
+        ...prev,
+        loading: false,
+        error: error.message
+      }));
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,21 +287,6 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
                 required
               />
             </div>
-
-            <div className="space-y-2">
-              <label htmlFor="status" className="block text-sm font-medium">
-                Status
-              </label>
-              <select
-                id="status"
-                className="input"
-                value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
           </div>
         </div>
 
@@ -250,6 +338,51 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Fee Preview */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Fee Preview</h3>
+          {feePreview.loading ? (
+            <div className="text-center py-4 text-muted-foreground">
+              Calculating fees...
+            </div>
+          ) : feePreview.error ? (
+            <div className="bg-error/10 text-error p-4 rounded-md">
+              {feePreview.error}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {registrationType === 'new' && feePreview.admissionFee > 0 && (
+                <div className="bg-muted p-4 rounded-md">
+                  <p className="text-sm text-muted-foreground">One-time Admission Fee</p>
+                  <p className="text-2xl font-bold">₹{feePreview.admissionFee.toLocaleString('en-IN')}</p>
+                </div>
+              )}
+              
+              <div className="bg-muted p-4 rounded-md">
+                <p className="text-sm text-muted-foreground">Monthly School Fee</p>
+                <p className="text-2xl font-bold">₹{feePreview.monthlySchoolFee.toLocaleString('en-IN')}</p>
+              </div>
+
+              {formData.has_school_bus && (
+                <div className="bg-muted p-4 rounded-md">
+                  <p className="text-sm text-muted-foreground">Monthly Bus Fee</p>
+                  <p className="text-2xl font-bold">₹{feePreview.monthlyBusFee.toLocaleString('en-IN')}</p>
+                </div>
+              )}
+
+              <div className="bg-muted p-4 rounded-md">
+                <p className="text-sm text-muted-foreground">Total Monthly Fee</p>
+                <p className="text-2xl font-bold">₹{feePreview.totalMonthly.toLocaleString('en-IN')}</p>
+              </div>
+
+              <div className="bg-muted p-4 rounded-md md:col-span-2">
+                <p className="text-sm text-muted-foreground">Total Annual Fee (including one-time fees)</p>
+                <p className="text-2xl font-bold">₹{feePreview.totalAnnual.toLocaleString('en-IN')}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Rejoining Information (if applicable) */}
@@ -424,8 +557,13 @@ const StudentForm = ({ onSubmit, onCancel, initialData, registrationType }: Stud
             </div>
             <p className="text-muted-foreground mb-6">
               Are you sure you want to {initialData ? 'update' : 'register'} this student?
-              {registrationType === 'new' && ' Admission fee will be applicable.'}
-              {formData.has_school_bus && ' Monthly bus fee will be charged based on village distance.'}
+              {registrationType === 'new' && feePreview.admissionFee > 0 && (
+                <><br />One-time admission fee of ₹{feePreview.admissionFee.toLocaleString('en-IN')} will be charged.</>
+              )}
+              {formData.has_school_bus && (
+                <><br />Monthly bus fee of ₹{feePreview.monthlyBusFee.toLocaleString('en-IN')} will be charged.</>
+              )}
+              <><br />Total monthly fee will be ₹{feePreview.totalMonthly.toLocaleString('en-IN')}.</>
             </p>
             <div className="flex justify-end gap-3">
               <button
