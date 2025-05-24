@@ -161,7 +161,7 @@ CREATE POLICY "All authenticated users can view classes"
   USING (true);
 
 DROP POLICY IF EXISTS "Administrators can manage classes" ON classes;
-CREATE POLICY IF NOT EXISTS "Administrators can manage classes"
+CREATE POLICY "Administrators can manage classes"
   ON classes
   FOR ALL
   TO authenticated
