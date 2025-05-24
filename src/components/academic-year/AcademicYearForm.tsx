@@ -18,12 +18,56 @@ const AcademicYearForm = ({ onSubmit, onCancel, initialData }: AcademicYearFormP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate year format (YYYY-YYYY)
+    const yearPattern = /^(\d{4})-(\d{4})$/;
+    if (!yearPattern.test(formData.yearName)) {
+      alert('Academic year must be in format YYYY-YYYY (e.g., 2025-2026)');
+      return;
+    }
+
+    // Extract years
+    const [startYear, endYear] = formData.yearName.split('-').map(Number);
+    if (endYear !== startYear + 1) {
+      alert('End year must be the next year after start year');
+      return;
+    }
+
+    // Set fixed dates: June 1st to April 30th
+    const fixedStartDate = `${startYear}-06-01`;
+    const fixedEndDate = `${endYear}-04-30`;
+
+    // Update form data with fixed dates
+    setFormData(prev => ({
+      ...prev,
+      startDate: fixedStartDate,
+      endDate: fixedEndDate
+    }));
+
     setShowConfirmation(true);
   };
 
   const handleConfirm = () => {
     onSubmit(formData);
     setShowConfirmation(false);
+  };
+
+  const handleYearChange = (yearName: string) => {
+    if (yearName.length === 9 && yearName.includes('-')) {
+      const [startYear] = yearName.split('-').map(Number);
+      if (!isNaN(startYear)) {
+        const fixedStartDate = `${startYear}-06-01`;
+        const fixedEndDate = `${startYear + 1}-04-30`;
+        setFormData(prev => ({
+          ...prev,
+          yearName,
+          startDate: fixedStartDate,
+          endDate: fixedEndDate
+        }));
+        return;
+      }
+    }
+    setFormData(prev => ({ ...prev, yearName }));
   };
 
   return (
@@ -39,39 +83,44 @@ const AcademicYearForm = ({ onSubmit, onCancel, initialData }: AcademicYearFormP
               type="text"
               className="input"
               value={formData.yearName}
-              onChange={(e) => setFormData({ ...formData, yearName: e.target.value })}
+              onChange={(e) => handleYearChange(e.target.value)}
               placeholder="e.g., 2025-2026"
               required
             />
+            <p className="text-xs text-muted-foreground">
+              Academic year runs from June 1st to April 30th
+            </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="startDate" className="block text-sm font-medium">
-                Start Date *
+                Start Date
               </label>
               <input
                 id="startDate"
                 type="date"
-                className="input"
+                className="input bg-muted"
                 value={formData.startDate}
-                onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                required
+                disabled
+                title="Start date is fixed to June 1st"
               />
+              <p className="text-xs text-muted-foreground">Fixed to June 1st</p>
             </div>
 
             <div className="space-y-2">
               <label htmlFor="endDate" className="block text-sm font-medium">
-                End Date *
+                End Date
               </label>
               <input
                 id="endDate"
                 type="date"
-                className="input"
+                className="input bg-muted"
                 value={formData.endDate}
-                onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
-                required
+                disabled
+                title="End date is fixed to April 30th"
               />
+              <p className="text-xs text-muted-foreground">Fixed to April 30th</p>
             </div>
           </div>
 
@@ -116,6 +165,8 @@ const AcademicYearForm = ({ onSubmit, onCancel, initialData }: AcademicYearFormP
             <p className="text-muted-foreground mb-6">
               Are you sure you want to {initialData ? 'update' : 'create'} this academic year? 
               {formData.isCurrent && ' This will set it as the current academic year.'}
+              <br /><br />
+              Academic year will run from June 1st to April 30th.
             </p>
             <div className="flex justify-end gap-3">
               <button
