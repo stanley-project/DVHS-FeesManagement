@@ -14,12 +14,15 @@ const FeeStructureForm = ({ onSubmit, onCancel, onCopyFromPrevious, initialData 
     academicYearId: '',
     classId: '',
     feeTypes: [
-      { id: '1', name: 'Tuition Fee', amount: '', dueDate: '' },
-      { id: '2', name: 'Development Fee', amount: '', dueDate: '' },
-      { id: '3', name: 'Computer Lab Fee', amount: '', dueDate: '' },
-      { id: '4', name: 'Library Fee', amount: '', dueDate: '' },
-      { id: '5', name: 'Sports Fee', amount: '', dueDate: '' },
-    ]
+      { id: '1', name: 'Tuition Fee', amount: '', dueDate: '', category: 'school', isMonthly: true },
+      { id: '2', name: 'Development Fee', amount: '', dueDate: '', category: 'school', isMonthly: false },
+      { id: '3', name: 'Computer Lab Fee', amount: '', dueDate: '', category: 'school', isMonthly: false },
+      { id: '4', name: 'Library Fee', amount: '', dueDate: '', category: 'school', isMonthly: false },
+      { id: '5', name: 'Sports Fee', amount: '', dueDate: '', category: 'school', isMonthly: false },
+    ],
+    applicableToNewStudentsOnly: false,
+    isRecurringMonthly: false,
+    notes: ''
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -30,6 +33,27 @@ const FeeStructureForm = ({ onSubmit, onCancel, onCopyFromPrevious, initialData 
   const handleConfirm = () => {
     onSubmit(formData);
     setShowConfirmation(false);
+  };
+
+  const calculateMonthlyTotal = () => {
+    return formData.feeTypes.reduce((sum: number, fee: any) => {
+      const amount = Number(fee.amount) || 0;
+      return sum + (fee.isMonthly ? amount : amount / 12);
+    }, 0);
+  };
+
+  const calculateTermTotal = () => {
+    return formData.feeTypes.reduce((sum: number, fee: any) => {
+      const amount = Number(fee.amount) || 0;
+      return sum + (fee.isMonthly ? amount * 4 : amount / 3);
+    }, 0);
+  };
+
+  const calculateAnnualTotal = () => {
+    return formData.feeTypes.reduce((sum: number, fee: any) => {
+      const amount = Number(fee.amount) || 0;
+      return sum + (fee.isMonthly ? amount * 12 : amount);
+    }, 0);
   };
 
   return (
@@ -93,6 +117,8 @@ const FeeStructureForm = ({ onSubmit, onCancel, onCopyFromPrevious, initialData 
                 <thead>
                   <tr className="border-b">
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fee Type</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Frequency</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Amount (₹)</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Due Date</th>
                   </tr>
@@ -101,6 +127,35 @@ const FeeStructureForm = ({ onSubmit, onCancel, onCopyFromPrevious, initialData 
                   {formData.feeTypes.map((feeType: any, index: number) => (
                     <tr key={feeType.id} className="border-b">
                       <td className="px-4 py-3">{feeType.name}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          className="input"
+                          value={feeType.category}
+                          onChange={(e) => {
+                            const newFeeTypes = [...formData.feeTypes];
+                            newFeeTypes[index].category = e.target.value;
+                            setFormData({ ...formData, feeTypes: newFeeTypes });
+                          }}
+                        >
+                          <option value="school">School</option>
+                          <option value="admission">Admission</option>
+                          <option value="bus">Bus</option>
+                        </select>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          className="input"
+                          value={feeType.isMonthly ? 'monthly' : 'term'}
+                          onChange={(e) => {
+                            const newFeeTypes = [...formData.feeTypes];
+                            newFeeTypes[index].isMonthly = e.target.value === 'monthly';
+                            setFormData({ ...formData, feeTypes: newFeeTypes });
+                          }}
+                        >
+                          <option value="monthly">Monthly</option>
+                          <option value="term">Term</option>
+                        </select>
+                      </td>
                       <td className="px-4 py-3">
                         <input
                           type="number"
@@ -132,14 +187,64 @@ const FeeStructureForm = ({ onSubmit, onCancel, onCopyFromPrevious, initialData 
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-muted/50">
-                    <td className="px-4 py-3 font-medium">Total</td>
-                    <td className="px-4 py-3 font-medium">
-                      ₹{formData.feeTypes.reduce((sum: number, fee: any) => sum + (Number(fee.amount) || 0), 0).toLocaleString('en-IN')}
-                    </td>
-                    <td className="px-4 py-3"></td>
+                    <td colSpan={3} className="px-4 py-3 font-medium">Monthly Total</td>
+                    <td className="px-4 py-3 text-right font-medium">₹{calculateMonthlyTotal().toLocaleString('en-IN')}</td>
+                    <td></td>
+                  </tr>
+                  <tr className="bg-muted/50">
+                    <td colSpan={3} className="px-4 py-3 font-medium">Term Total</td>
+                    <td className="px-4 py-3 text-right font-medium">₹{calculateTermTotal().toLocaleString('en-IN')}</td>
+                    <td></td>
+                  </tr>
+                  <tr className="bg-muted/50">
+                    <td colSpan={3} className="px-4 py-3 font-medium">Annual Total</td>
+                    <td className="px-4 py-3 text-right font-medium">₹{calculateAnnualTotal().toLocaleString('en-IN')}</td>
+                    <td></td>
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          </div>
+
+          <div className="space-y-4 mt-6">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="applicableToNewStudents"
+                className="h-4 w-4 rounded border-input"
+                checked={formData.applicableToNewStudentsOnly}
+                onChange={(e) => setFormData({ ...formData, applicableToNewStudentsOnly: e.target.checked })}
+              />
+              <label htmlFor="applicableToNewStudents" className="text-sm font-medium">
+                Applicable to New Students Only
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="isRecurringMonthly"
+                className="h-4 w-4 rounded border-input"
+                checked={formData.isRecurringMonthly}
+                onChange={(e) => setFormData({ ...formData, isRecurringMonthly: e.target.checked })}
+              />
+              <label htmlFor="isRecurringMonthly" className="text-sm font-medium">
+                Enable Monthly Recurring Payments
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="notes" className="block text-sm font-medium">
+                Notes
+              </label>
+              <textarea
+                id="notes"
+                className="input"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={3}
+                placeholder="Add any notes about this fee structure..."
+              />
             </div>
           </div>
         </div>
@@ -170,6 +275,8 @@ const FeeStructureForm = ({ onSubmit, onCancel, onCopyFromPrevious, initialData 
             </div>
             <p className="text-muted-foreground mb-6">
               Are you sure you want to {initialData ? 'update' : 'create'} this fee structure? This action cannot be undone.
+              {formData.applicableToNewStudentsOnly && ' This fee structure will only apply to new students.'}
+              {formData.isRecurringMonthly && ' Monthly recurring payments will be enabled.'}
             </p>
             <div className="flex justify-end gap-3">
               <button
