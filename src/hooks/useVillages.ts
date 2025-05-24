@@ -168,4 +168,92 @@ export function useVillages() {
     updateBusFee,
     refreshVillages: fetchVillages
   };
-}
+};
+
+const checkNetworkStatus = () => {
+  return navigator.onLine;
+};
+
+const validateSession = async () => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error) throw new Error('Authentication error: ' + error.message);
+  if (!session) throw new Error('No active session');
+  return session;
+};
+
+export function useVillages() {
+  const [villages, setVillages] = useState<VillageWithStats[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchVillages = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!checkNetworkStatus()) {
+        throw new Error('No network connection');
+      }
+
+      await validateSession();
+
+      // First fetch all villages with retry
+      const { data: villagesData, error: villagesError } = await withRetry(() =>
+        supabase.from('villages').select('*')
+      );
+
+      if (villagesError) throw villagesError;
+
+      // Then fetch student counts for each village with retry
+      const villagesWithCounts = await Promise.all(
+        villagesData.map(async (village) => {
+          // Get total students count
+          const { count: totalStudents, error: totalError } = await withRetry(() =>
+            supabase
+              .from('students')
+              .select('*', { count: 'exact', head: true })
+              .eq('village_id', village.id)
+          );
+
+          if (totalError) throw totalError;
+
+          // Get bus students count
+          const { count: busStudents, error: busError } = await withRetry(() =>
+            supabase
+              .from('students')
+              .select('*', { count: 'exact', head: true })
+              .eq('village_id', village.id)
+              .eq('has_school_bus', true)
+          );
+
+          if (busError) throw busError;
+
+          // Get current bus fee
+          const { data: busFees, error: busFeesError } = await withRetry(() =>
+            supabase
+              .from('bus_fee_structure')
+              .select('fee_amount')
+              .eq('village_id', village.id)
+              .eq('is_active', true)
+              .maybeSingle()
+          );
+
+          if (busFeesError) throw busFeesError;
+
+          return {
+            ...village,
+            total_students: totalStudents || 0,
+            bus_students: busStudents || 0,
+            current_bus_fee: busFees?.fee_amount || undefined
+          };
+        })
+      );
+
+      setVillages(villagesWithCounts);
+    } catch (err: any) {
+      console.error('Village fetch error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
