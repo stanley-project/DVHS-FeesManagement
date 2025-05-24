@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, ArrowRight, Filter, Download, FileText } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import StudentList from '../components/students/StudentList';
 import FeePaymentForm from '../components/fees/FeePaymentForm';
 import PaymentReceipt from '../components/fees/PaymentReceipt';
@@ -10,54 +11,114 @@ const FeeCollection = () => {
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showDailyCollection, setShowDailyCollection] = useState(false);
+  const [students, setStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [receiptData, setReceiptData] = useState<any>(null);
   
-  // Mock data for students
-  const students = [
-    { 
-      id: 'ST-1001', 
-      name: 'Amit Kumar', 
-      class: 'IX-A', 
-      status: 'pending',
-      pending: '₹15,000'
-    },
-    { 
-      id: 'ST-1002', 
-      name: 'Priya Sharma', 
-      class: 'X-B', 
-      status: 'partial',
-      pending: '₹7,500'
-    },
-    { 
-      id: 'ST-1003', 
-      name: 'Rahul Singh', 
-      class: 'VII-C', 
-      status: 'paid'
-    },
-  ];
+  useEffect(() => {
+    fetchStudents();
+  }, [searchQuery]);
 
-  // Mock receipt data
-  const receiptData = {
-    receiptNumber: 'RC-2025001',
-    date: '2025-08-15',
-    student: {
-      name: 'Amit Kumar',
-      admissionNumber: 'ST-1001',
-      class: 'IX',
-      section: 'A',
-    },
-    payments: [
-      { feeType: 'Term 1 Fee', amount: '15,000' },
-      { feeType: 'Computer Lab Fee', amount: '2,500' },
-    ],
-    total: '17,500',
-    paymentMethod: 'UPI',
-    transactionId: 'UPI123456789',
-    collectedBy: 'John Doe',
+  const fetchStudents = async () => {
+    try {
+      setError(null);
+      setLoading(true);
+
+      // Get current academic year
+      const { data: currentYear, error: yearError } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .single();
+
+      if (yearError) throw yearError;
+
+      // Get students with their fee status
+      let query = supabase
+        .from('students')
+        .select(`
+          id,
+          admission_number,
+          student_name,
+          class:class_id(name),
+          registration_type,
+          status,
+          fee_payments(amount_paid)
+        `)
+        .eq('status', 'active');
+
+      // Add search filter if query exists
+      if (searchQuery) {
+        query = query.or(`admission_number.ilike.%${searchQuery}%,student_name.ilike.%${searchQuery}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Process students data
+      const processedStudents = data.map(student => {
+        const totalPaid = student.fee_payments?.reduce((sum: number, payment: any) => 
+          sum + (payment.amount_paid || 0), 0) || 0;
+
+        // In a real app, get total fee from fee structure
+        const totalFee = 45000; // Mock total fee
+
+        return {
+          id: student.id,
+          name: student.student_name,
+          admissionNumber: student.admission_number,
+          class: student.class?.name,
+          status: totalPaid >= totalFee ? 'paid' : totalPaid > 0 ? 'partial' : 'pending',
+          pending: totalPaid >= totalFee ? '₹0' : `₹${(totalFee - totalPaid).toLocaleString('en-IN')}`,
+          registrationType: student.registration_type
+        };
+      });
+
+      setStudents(processedStudents);
+    } catch (err: any) {
+      console.error('Error fetching students:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePaymentSubmit = (data: any) => {
-    console.log('Payment submitted:', data);
-    setShowReceipt(true);
+  const handlePaymentSubmit = async (paymentData: any) => {
+    try {
+      // Get student details
+      const student = students[selectedStudent!];
+      
+      // Create receipt data
+      const receipt = {
+        receiptNumber: paymentData.receipt_number,
+        date: new Date().toLocaleDateString('en-IN'),
+        student: {
+          name: student.name,
+          admissionNumber: student.admissionNumber,
+          class: student.class?.split('-')[0] || '',
+          section: student.class?.split('-')[1] || '',
+        },
+        payments: [{
+          feeType: 'Fee Payment',
+          amount: paymentData.amount_paid.toLocaleString('en-IN')
+        }],
+        total: paymentData.amount_paid.toLocaleString('en-IN'),
+        paymentMethod: paymentData.payment_method,
+        transactionId: paymentData.transaction_id,
+        collectedBy: 'Admin User' // In real app, get from auth context
+      };
+
+      setReceiptData(receipt);
+      setShowReceipt(true);
+      
+      // Refresh student list
+      await fetchStudents();
+    } catch (err: any) {
+      console.error('Error processing payment:', err);
+      alert('Failed to process payment. Please try again.');
+    }
   };
 
   return (
@@ -107,12 +168,26 @@ const FeeCollection = () => {
                 Filter
               </button>
             </div>
-            
-            <StudentList
-              students={students}
-              selectedStudent={selectedStudent}
-              onSelectStudent={setSelectedStudent}
-            />
+
+            {error ? (
+              <div className="text-center py-4 text-error">
+                {error}
+              </div>
+            ) : loading ? (
+              <div className="text-center py-4 text-muted-foreground">
+                Loading students...
+              </div>
+            ) : students.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                No students found
+              </div>
+            ) : (
+              <StudentList
+                students={students}
+                selectedStudent={selectedStudent}
+                onSelectStudent={setSelectedStudent}
+              />
+            )}
           </div>
         </div>
         
@@ -128,7 +203,7 @@ const FeeCollection = () => {
                 <div>
                   <h3 className="text-lg font-medium">{students[selectedStudent].name}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {students[selectedStudent].id} | {students[selectedStudent].class}
+                    {students[selectedStudent].admissionNumber} | {students[selectedStudent].class}
                   </p>
                 </div>
                 {students[selectedStudent].status !== 'paid' && (
@@ -143,6 +218,8 @@ const FeeCollection = () => {
               <FeePaymentForm
                 onSubmit={handlePaymentSubmit}
                 onCancel={() => setSelectedStudent(null)}
+                studentId={students[selectedStudent].id}
+                registrationType={students[selectedStudent].registrationType}
               />
             </div>
           ) : (
@@ -160,10 +237,13 @@ const FeeCollection = () => {
       </div>
 
       {/* Payment Receipt Modal */}
-      {showReceipt && (
+      {showReceipt && receiptData && (
         <PaymentReceipt
           receipt={receiptData}
-          onClose={() => setShowReceipt(false)}
+          onClose={() => {
+            setShowReceipt(false);
+            setReceiptData(null);
+          }}
         />
       )}
 
