@@ -155,21 +155,6 @@ export function useVillages() {
     }
   };
 
-  useEffect(() => {
-    fetchVillages();
-  }, []);
-
-  return {
-    villages,
-    loading,
-    error,
-    addVillage,
-    updateVillage,
-    updateBusFee,
-    refreshVillages: fetchVillages
-  };
-}
-
 const checkNetworkStatus = () => {
   return navigator.onLine;
 };
@@ -257,3 +242,17 @@ export function useVillages() {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    fetchVillages();
+  }, []);
+
+  return {
+    villages,
+    loading,
+    error,
+    addVillage,
+    updateVillage,
+    updateBusFee,
+    refreshVillages: fetchVillages
+  };
+}
