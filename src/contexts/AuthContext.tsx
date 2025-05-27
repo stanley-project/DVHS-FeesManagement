@@ -1,15 +1,14 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase'; // <--- Import Supabase client
-import { UserRole, User as AppUser } from '../types/user'; // Import your app's User type
-import { Session, User as SupabaseAuthUser } from '@supabase/supabase-js'; // Import Supabase types
+import { supabase } from '../lib/supabase';
+import { UserRole, User as AppUser } from '../types/user';
+import { Session, User as SupabaseAuthUser } from '@supabase/supabase-js';
 
-// Extend SupabaseAuthUser with your custom profile fields from public.users
 interface AuthenticatedUser extends SupabaseAuthUser {
   role?: UserRole;
   name?: string;
   phone_number?: string;
-  email?: string; // Ensure email is available if using it for login
+  email?: string;
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -18,16 +17,14 @@ interface AuthenticatedUser extends SupabaseAuthUser {
 interface AuthContextType {
   user: AuthenticatedUser | null;
   isAuthenticated: boolean;
-  phoneNumber: string;
+  phoneNumber: string; // For the login form state
   setPhoneNumber: (phoneNumber: string) => void;
-  // login: (phoneNumber: string) => Promise<{ success: boolean; message: string }>; // Modified to be async
-  // verifyOtp: (otp: string) => Promise<boolean>; // Modified to be async
-  login: (credentials: { phone?: string; email?: string; password?: string }) => Promise<{ success: boolean; message: string }>;
-  verifyOtp: (phone: string, otp: string) => Promise<boolean>;
-  logout: () => Promise<void>; // Modified to be async
-  authLoading: boolean; // Add authLoading state
-  sessionTimeout: number | null; // This might become less relevant if Supabase handles session timeout
-  setSessionTimeout: (timeout: number | null) => void;
+  login: (phone: string) => Promise<{ success: boolean; message: string }>; // Sends OTP
+  verifyOtp: (phone: string, otp: string) => Promise<boolean>; // Verifies OTP
+  logout: () => Promise<void>;
+  authLoading: boolean;
+  sessionTimeout: number | null;
+  setSessionTimeout: (timeout: number | null) => void; // Keep for display
   resetSession: () => void;
   rememberDevice: boolean;
   setRememberDevice: (remember: boolean) => void;
@@ -35,22 +32,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SESSION_TIMEOUT_THRESHOLD = 5 * 60 * 1000; // Example: Show warning 5 minutes before actual token expiry
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [phoneNumber, setPhoneNumber] = useState<string>(''); // For phone-based login flow
-  const [authLoading, setAuthLoading] = useState(true); // Indicates if Supabase auth state is being determined
-  const [sessionTimeout, setSessionTimeout] = useState<number | null>(null); // For manual session management if needed
+  const [phoneNumber, setPhoneNumber] = useState<string>('');
+  const [authLoading, setAuthLoading] = useState(true);
+  const [sessionTimeout, setSessionTimeout] = useState<number | null>(null);
   const [rememberDevice, setRememberDevice] = useState<boolean>(false);
   const navigate = useNavigate();
+  const isMounted = useRef(true); // To handle unmounted component updates
 
-  // Helper to fetch user profile from public.users
+  useEffect(() => {
+      return () => {
+          isMounted.current = false; // Mark component as unmounted
+      };
+  }, []);
+
   const fetchUserProfile = async (authUserId: string): Promise<AuthenticatedUser | null> => {
     try {
       const { data: publicProfile, error: profileError } = await supabase
-        .from('users') // Your public.users table
+        .from('users')
         .select('id, name, role, phone_number, email, is_active, created_at, updated_at')
         .eq('id', authUserId)
         .single();
@@ -67,35 +68,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Initial session check and listener setup
     const initializeAuth = async () => {
+      if (!isMounted.current) return;
       console.log("AuthContext: Initializing Supabase Auth...");
       setAuthLoading(true);
 
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      if (!isMounted.current) return;
 
       if (sessionError) {
         console.error("AuthContext: Error getting initial session:", sessionError.message);
         setUser(null);
         setSessionTimeout(null);
         setIsAuthenticated(false);
-        setAuthLoading(false);
-        return;
-      }
-
-      if (currentSession) {
-        console.log("AuthContext: Initial session found:", currentSession.user.id);
+      } else if (currentSession) {
+        console.log("AuthContext: Initial session found. User ID:", currentSession.user.id);
         const publicProfile = await fetchUserProfile(currentSession.user.id);
+        if (!isMounted.current) return;
         
         if (publicProfile) {
           setUser({ ...currentSession.user, ...publicProfile });
           setIsAuthenticated(true);
-          // Set session timeout based on JWT expiry (adjust as needed)
-          setSessionTimeout((currentSession.expires_at || 0) * 1000 - Date.now()); // Convert to ms
+          setSessionTimeout((currentSession.expires_at || 0) * 1000); // Expiry time in ms
         } else {
-          // User authenticated with Supabase but no public profile found
           console.warn("AuthContext: User is authenticated but no public profile found. Logging out.");
-          await logout(); // Consider logging them out if no profile
+          await logout(); // Force logout if no profile
         }
       } else {
         console.log("AuthContext: No active Supabase session.");
@@ -109,23 +106,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    // Listen for auth state changes from Supabase
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
+      if (!isMounted.current) return;
       console.log(`AuthContext: Auth state changed: ${_event}`);
       setAuthLoading(true); // Set loading while we process the change
 
       if (currentSession) {
         const publicProfile = await fetchUserProfile(currentSession.user.id);
+        if (!isMounted.current) return;
         if (publicProfile) {
           setUser({ ...currentSession.user, ...publicProfile });
           setIsAuthenticated(true);
-          setSessionTimeout((currentSession.expires_at || 0) * 1000 - Date.now());
+          setSessionTimeout((currentSession.expires_at || 0) * 1000);
         } else {
           console.warn("AuthContext: Auth change, but no public profile found. Logging out.");
           await logout();
         }
       } else {
-        // User logged out
         setUser(null);
         setIsAuthenticated(false);
         setSessionTimeout(null);
@@ -135,66 +132,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
-      console.log("AuthContext: Cleaning up auth state subscription.");
-      subscription.unsubscribe();
+      if (subscription) {
+        console.log("AuthContext: Cleaning up auth state subscription.");
+        subscription.unsubscribe();
+      }
     };
-  }, [navigate]); // navigate is a dependency
+  }, [navigate]);
 
-  // Manual session timeout check (less critical if Supabase handles JWT expiry)
-  // You might still want this for UI warnings or specific app logic
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isAuthenticated && sessionTimeout) {
-      // Set a timer to trigger a "session expired" warning or logout
-      timer = setTimeout(() => {
-        console.log("AuthContext: Session timeout warning/logout triggered.");
-        // This could be a gentle warning, or force logout:
-        // logout();
-        // navigate('/session-expired');
-      }, sessionTimeout - SESSION_TIMEOUT_THRESHOLD); // Fire slightly before actual expiry
-    }
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, sessionTimeout, navigate]);
-
-
-  // Login function using Supabase (for email/password or phone)
-  const login = async ({ phone, email, password }: { phone?: string; email?: string; password?: string }) => {
+  // Login function (sends OTP)
+  const login = async (phone: string) => {
     setAuthLoading(true);
-    let authResponse;
-    if (phone) {
-      authResponse = await supabase.auth.signInWithOtp({ phone });
-    } else if (email && password) {
-      authResponse = await supabase.auth.signInWithPassword({ email, password });
-    } else {
-      setAuthLoading(false);
-      return { success: false, message: 'Invalid login credentials provided.' };
-    }
-
-    const { data, error } = authResponse;
+    // Important: Ensure phone number is in E.164 format (e.g., +12345678900)
+    const { error } = await supabase.auth.signInWithOtp({ phone });
 
     if (error) {
-      console.error("AuthContext: Login error:", error.message);
+      console.error("AuthContext: OTP send error:", error.message);
       setAuthLoading(false);
       return { success: false, message: error.message };
     }
-
-    // If OTP was sent (phone login), the user still needs to verify
-    if (phone && !data.session) {
-      setPhoneNumber(phone); // Keep phone number for OTP verification step
-      setAuthLoading(false);
-      return { success: true, message: 'OTP sent successfully. Please verify.' };
-    }
     
-    // For password-based login or direct phone login that immediately authenticates
-    if (data.session) {
-      // The onAuthStateChange listener will handle setting user state
-      console.log("AuthContext: Login successful. Session established.");
-      setAuthLoading(false);
-      return { success: true, message: 'Logged in successfully!' };
-    }
-
+    console.log("AuthContext: OTP sent successfully.");
+    setPhoneNumber(phone); // Store phone number for verification step
     setAuthLoading(false);
-    return { success: false, message: 'An unexpected login error occurred.' };
+    return { success: true, message: 'OTP sent successfully. Please verify.' };
   };
 
   // Verify OTP function
@@ -209,8 +169,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (data.session) {
-      // The onAuthStateChange listener will handle setting user state
       console.log("AuthContext: OTP verified. Session established.");
+      // The onAuthStateChange listener will handle setting user state
       setPhoneNumber(''); // Clear phone number after successful verification
       setAuthLoading(false);
       return true;
@@ -228,21 +188,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setAuthLoading(false);
       return;
     }
-    // State will be cleared by onAuthStateChange listener
     console.log("AuthContext: User logged out.");
-    setAuthLoading(false);
+    // State will be cleared by onAuthStateChange listener
   };
 
   const resetSession = () => {
-    // This function might need re-evaluation in a Supabase context
-    // Supabase handles session refresh automatically.
-    // If you're using this for idle logout, ensure it doesn't conflict.
+    // This is primarily for maintaining activity if needed, Supabase handles JWT refresh.
     console.log("AuthContext: resetSession called (Supabase handles JWT refresh).");
-    if (isAuthenticated && session?.expires_at) {
-        setSessionTimeout(session.expires_at * 1000 - Date.now());
+    if (user && sessionTimeout) {
+        // Re-calculate sessionTimeout to the full expiry if current user is active.
+        // This might involve re-fetching the session from Supabase to get latest expiry.
+        // For simple use, relying on Supabase's automatic refresh might be enough.
     }
   };
-
 
   const value = {
     user,
@@ -257,7 +215,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSessionTimeout,
     resetSession,
     rememberDevice,
-    setRememberDevice
+    setRememberDevice,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
