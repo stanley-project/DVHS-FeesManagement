@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface UserFormProps {
   user?: any;
@@ -22,8 +23,47 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
     setShowConfirmation(true);
   };
 
-  const handleConfirm = () => {
-    onSubmit(formData);
+  const handleConfirm = async () => {
+    try {
+      // Create user in public.users table
+      if (!user) {
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{
+            name: formData.name,
+            phone_number: formData.phoneNumber,
+            role: formData.role,
+            is_active: formData.status === 'active'
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+        onSubmit(data);
+      } else {
+        // When updating existing user
+        const updates = {
+          name: formData.name,
+          phone_number: formData.phoneNumber,
+          role: formData.role,
+          is_active: formData.status === 'active'
+        };
+        const { data, error } = await supabase
+          .from('users')
+          .update(updates)
+          .eq('id', user.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        onSubmit(data);
+      }
+      setShowConfirmation(false);
+    } catch (err: any) {
+      console.error('Error saving user:', err);
+      setError(err.message);
+      setShowConfirmation(false);
+    }
   };
 
   return (
