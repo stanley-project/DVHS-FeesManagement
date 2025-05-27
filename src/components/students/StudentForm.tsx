@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm } from 'react-hook-form';
 
 // Class options array
-export const classOptions = [
+const classOptions = [
   { value: 'nursery', label: 'Nursery' },
   { value: 'lkg', label: 'LKG' },
   { value: 'ukg', label: 'UKG' },
