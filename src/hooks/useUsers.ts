@@ -52,8 +52,8 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
       if (options.sortBy) {
         publicUsersQuery = publicUsersQuery.order(options.sortBy, {
           ascending: options.sortOrder === 'asc'
-        });*/
-      }
+        });
+      }*/
 
       // Apply pagination to public.users
       if (options.page && options.limit) {
