@@ -179,7 +179,7 @@ const UserManagement = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{user.phoneNumber}</span>
+                        <span>{user.phone_number}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
