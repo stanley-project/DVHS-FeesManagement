@@ -29,27 +29,32 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const handleConfirm = async () => {
     try {
       setError(null);
-
       if (!currentUser || currentUser.role !== 'administrator') {
         throw new Error('Only administrators can manage users');
       }
 
-      // First create auth user
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: `${formData.phoneNumber}@example.com`,
-        phone: formData.phoneNumber,
-        password: 'defaultPassword123', // You should generate a secure random password
-        email_confirm: true,
-        user_metadata: {
-          name: formData.name,
-          role: formData.role
-        }
-      });
-
-      if (authError) throw authError;
-
-      // Then create user in public.users table
       if (!user) {
+        // Create auth user first
+        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+          email: `${formData.phoneNumber}@example.com`,
+          phone: formData.phoneNumber,
+          password: 'defaultPassword123',
+          email_confirm: true,
+          user_metadata: {
+            name: formData.name,
+            role: formData.role
+          }
+        });
+
+        if (authError) {
+          throw new Error(authError.message);
+        }
+
+        if (!authData.user) {
+          throw new Error('Failed to create auth user');
+        }
+
+        // Then create user in public.users table using the auth user's ID
         const { data, error } = await supabaseAdmin
           .from('users')
           .insert([{
@@ -62,7 +67,12 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
           .select()
           .single();
 
-        if (error) throw error;
+        if (error) {
+          // If database insert fails, clean up the auth user
+          await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+          throw error;
+        }
+
         onSubmit(data);
       } else {
         // When updating existing user
@@ -82,10 +92,11 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
         if (error) throw error;
         onSubmit(data);
       }
+
       setShowConfirmation(false);
     } catch (err: any) {
-      setError(err.message);
       console.error('Error saving user:', err);
+      setError(err.message || 'Failed to save user');
       setShowConfirmation(false);
     }
   };
