@@ -1,4 +1,4 @@
-import { ArrowUpDown, Eye, Pencil, ToggleLeft } from 'lucide-react';
+import { useVillageContext } from '../../contexts/VillageContext';
 import { useVillageContext } from '../../contexts/VillageContext';
 
 interface VillageTableProps {
@@ -9,6 +9,7 @@ interface VillageTableProps {
 }
 
 const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTableProps) => {
+  const { villages, loading, error, updateVillage } = useVillageContext();
   const { villages, loading, error, updateVillage } = useVillageContext();
 
   const handleToggleStatus = async (village: any) => {
@@ -27,6 +28,18 @@ const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTabl
     
     return matchesSearch && matchesStatus;
   });
+
+  if (loading) {
+    return <div className="text-center py-8">Loading villages...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-8 text-error">
+        Error loading villages: {error}
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className="text-center py-8">Loading villages...</div>;

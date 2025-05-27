@@ -23,29 +23,22 @@ const checkNetworkStatus = () => {
   return navigator.onLine;
 };
 
-// Removed the standalone validateSession function. Its logic will be integrated
-// by ensuring data fetching functions are only called when a session is available.
-
 export function useVillages() {
   const [villages, setVillages] = useState<VillageWithStats[]>([]);
-  const [loading, setLoading] = useState(true); // Start as loading
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [session, setSession] = useState<Session | null>(null); // To store the Supabase session
+  const [session, setSession] = useState<Session | null>(null);
 
-  // fetchVillages function, now takes the current session as an argument
-  // This ensures it has access to the session if needed, though Supabase client
-  // handles it internally once `supabase.auth.setSession` is called.
   const fetchVillages = async () => {
-    // Basic check, though the useEffect will guard this call more effectively
     if (!session) {
       setError("No active session. Please log in.");
       setLoading(false);
-      setVillages([]); // Clear any stale data
+      setVillages([]);
       return;
     }
 
     try {
-      setLoading(true); // Set loading true before fetch starts
+      setLoading(true);
       setError(null);
 
       if (!checkNetworkStatus()) {
@@ -108,56 +101,49 @@ export function useVillages() {
     } catch (err: any) {
       console.error('Village fetch error:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
-      setVillages([]); // Clear villages on error
+      setVillages([]);
     } finally {
-      setLoading(false); // Always set loading to false when done
+      setLoading(false);
     }
   };
 
   // Effect to set up Supabase authentication listener and get initial session
   useEffect(() => {
-    // Function to get and set initial session
     const getInitialSession = async () => {
       const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
         console.error("Error getting initial session:", sessionError);
         setError("Error getting session: " + sessionError.message);
-        setLoading(false); // Stop loading if there's an error getting session
+        setLoading(false);
         return;
       }
       setSession(initialSession);
-      // The actual data fetching will be triggered by the next useEffect based on `session` state
     };
 
-    getInitialSession(); // Call immediately to get initial session
+    getInitialSession();
 
-    // Listen for authentication state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, currentSession) => {
-        setSession(currentSession); // Update session state on auth changes
+        setSession(currentSession);
       }
     );
 
-    // Clean up the subscription when the component unmounts
     return () => {
       subscription.unsubscribe();
     };
-  }, []); // Run once on mount to set up the listener and initial session check
+  }, []);
 
   // Effect to fetch villages when the session state changes
   useEffect(() => {
     if (session) {
-      // If a session exists, trigger fetching the village data
       fetchVillages();
     } else {
-      // If no session, clear data and set appropriate states
       setVillages([]);
       setError("Please log in to view village data.");
-      setLoading(false); // Important: stop loading when no session
+      setLoading(false);
     }
-  }, [session]); // Re-run this effect whenever the `session` state changes
+  }, [session]);
 
-  // Data modification functions - ensure a session exists before proceeding
   const addVillage = async (villageData: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     if (!session) throw new Error('No active session. Please log in.');
     try {
@@ -168,7 +154,7 @@ export function useVillages() {
         .single();
 
       if (error) throw error;
-      await fetchVillages(); // Refresh list after adding
+      await fetchVillages();
       return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to add village');
@@ -186,7 +172,7 @@ export function useVillages() {
         .single();
 
       if (error) throw error;
-      await fetchVillages(); // Refresh list after updating
+      await fetchVillages();
       return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to update village');
@@ -227,7 +213,7 @@ export function useVillages() {
         .single();
 
       if (error) throw error;
-      await fetchVillages(); // Refresh list after updating bus fee
+      await fetchVillages();
       return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to update bus fee');
@@ -242,7 +228,6 @@ export function useVillages() {
     updateVillage,
     updateBusFee,
     refreshVillages: () => {
-      // Allow refreshing only if a session is active
       if (session) {
         fetchVillages();
       } else {
