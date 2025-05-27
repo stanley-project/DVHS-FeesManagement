@@ -7,12 +7,12 @@ import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
 import './index.css'; // Your global styles
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+//  <React.StrictMode> //
     <Router>
       {/* AuthProvider MUST wrap App */}
       <AuthProvider>
         <App />
       </AuthProvider>
     </Router>
-  </React.StrictMode>,
+//  </React.StrictMode>, //
 );
