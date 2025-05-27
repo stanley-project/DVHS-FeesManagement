@@ -6,13 +6,25 @@ const LoginPage = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, setPhoneNumber: setAuthPhoneNumber } = useAuth();
+  // Destructure login and setAuthPhoneNumber from useAuth
+  // authLoading from useAuth can also be used for better loading state
+  const { login, setPhoneNumber: setAuthPhoneNumber, authLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Redirect if already authenticated and loaded
+  // This helps prevent showing the login page if the user is already logged in
+  useState(() => { // Using useState with an immediate function for initial check
+    if (isAuthenticated && user && !authLoading) {
+      navigate('/');
+    }
+  }, [isAuthenticated, authLoading, user, navigate]);
+
+
+  // Make handleSubmit an async function
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
+    setIsLoading(true); // Start local loading state
 
     // Basic validation
     if (!phoneNumber || phoneNumber.length !== 10 || !/^\d+$/.test(phoneNumber)) {
@@ -21,18 +33,28 @@ const LoginPage = () => {
       return;
     }
 
-    // Try to login
-    const result = login(phoneNumber);
+    // Ensure E.164 format for Supabase
+    // Assuming +91 is the country code, modify if different
+    const formattedPhoneNumber = `+91${phoneNumber}`; 
+
+    // Await the asynchronous login call
+    const result = await login(formattedPhoneNumber); 
     
+    // Check the result from the async operation
     if (result.success) {
-      setAuthPhoneNumber(phoneNumber);
+      // If OTP was successfully sent, store the phone number in AuthContext
+      // and navigate to OTP verification page
+      setAuthPhoneNumber(formattedPhoneNumber); // Store formatted number
       navigate('/verify-otp');
     } else {
       setError(result.message);
     }
     
-    setIsLoading(false);
+    setIsLoading(false); // End local loading state
   };
+
+  // Combine local isLoading with authLoading from context for comprehensive loading state
+  const isFormDisabled = isLoading || authLoading;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">
@@ -42,7 +64,7 @@ const LoginPage = () => {
           <p className="text-muted-foreground">Fee Management System</p>
           <div className="mt-4 flex justify-center">
             <img 
-              src="/src/components/auth/DVHS Logo.jpeg" 
+              src="/src/components/auth/DVHS Logo.jpeg" // Verify this path and if the image exists
               alt="DVHS Logo" 
               className="h-64 w-auto"
             />
@@ -77,6 +99,7 @@ const LoginPage = () => {
                     placeholder="10-digit phone number"
                     className="input rounded-l-none"
                     maxLength={10}
+                    disabled={isFormDisabled} // Disable input while loading
                   />
                 </div>
               </div>
@@ -87,10 +110,10 @@ const LoginPage = () => {
             
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isFormDisabled} // Use combined loading state
               className="btn btn-primary btn-lg w-full"
             >
-              {isLoading ? 'Sending OTP...' : 'Send OTP'}
+              {isFormDisabled ? 'Sending OTP...' : 'Send OTP'}
             </button>
           </form>
           
