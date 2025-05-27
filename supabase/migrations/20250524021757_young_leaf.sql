@@ -148,10 +148,10 @@ CREATE TABLE IF NOT EXISTS academic_years (
 CREATE INDEX IF NOT EXISTS idx_academic_years_is_current ON academic_years(is_current);
 
 -- Trigger for updated_at
-CREATE TRIGGER IF NOT EXISTS update_academic_years_updated_at
-  BEFORE UPDATE ON academic_years
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_academic_years_updated_at
+BEFORE UPDATE ON academic_years
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
 
 -- Enable RLS
 ALTER TABLE academic_years ENABLE ROW LEVEL SECURITY;
