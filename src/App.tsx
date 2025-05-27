@@ -1,5 +1,6 @@
+// src/App.tsx (Revised)
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { useAuth } from './contexts/AuthContext';
+import { useAuth } from './contexts/AuthContext'; // <--- THIS IS NOW OKAY TO USE HERE
 import LoginPage from './pages/auth/LoginPage';
 import OtpVerificationPage from './pages/auth/OtpVerificationPage';
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -18,17 +19,25 @@ import StudentFeeStatus from './pages/StudentFeeStatus';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
-  const { user, isAuthenticated } = useAuth();
+  // Now, useAuth() is correctly within the AuthProvider's scope
+  const { user, isAuthenticated, authLoading } = useAuth(); // Include authLoading here
+
+  // You need a global loading indicator or a pre-authentication splash screen
+  // if authLoading is true initially, as the routes depend on user/isAuthenticated
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background">Authenticating application...</div>;
+  }
 
   return (
     <Routes>
       {/* Public Routes */}
-      <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" />} />
-      <Route path="/verify-otp" element={!isAuthenticated ? <OtpVerificationPage /> : <Navigate to="/" />} />
+      {/* Ensure these don't redirect away prematurely if authLoading is true */}
+      <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} />
+      <Route path="/verify-otp" element={!isAuthenticated ? <OtpVerificationPage /> : <Navigate to="/" replace />} />
       
       {/* Protected Routes */}
       <Route path="/" element={
-        <ProtectedRoute>
+        <ProtectedRoute> {/* ProtectedRoute itself handles isAuthenticated check */}
           <DashboardLayout />
         </ProtectedRoute>
       }>
@@ -37,7 +46,7 @@ function App() {
           user?.role === 'administrator' ? <AdminDashboard /> :
           user?.role === 'accountant' ? <AccountantDashboard /> :
           user?.role === 'teacher' ? <TeacherDashboard /> :
-          <Navigate to="/login" />
+          <Navigate to="/login" replace /> // Fallback if role is null or unrecognized
         } />
         
         {/* Admin Routes */}
