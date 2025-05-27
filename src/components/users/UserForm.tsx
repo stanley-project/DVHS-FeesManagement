@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, supabaseAdmin } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface UserFormProps {
@@ -30,8 +30,12 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
     try {
       setError(null);
 
+      if (!currentUser || currentUser.role !== 'administrator') {
+        throw new Error('Only administrators can manage users');
+      }
+
       // First create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: `${formData.phoneNumber}@example.com`,
         phone: formData.phoneNumber,
         password: 'defaultPassword123', // You should generate a secure random password
@@ -46,7 +50,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
 
       // Then create user in public.users table
       if (!user) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('users')
           .insert([{
             id: authData.user.id, // Use the auth user's ID
@@ -68,7 +72,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
           role: formData.role,
           is_active: formData.status === 'active'
         };
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
           .from('users')
           .update(updates)
           .eq('id', user.id)
