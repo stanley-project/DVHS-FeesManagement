@@ -184,10 +184,10 @@ CREATE TABLE IF NOT EXISTS classes (
 CREATE INDEX IF NOT EXISTS idx_classes_teacher_id ON classes USING btree (teacher_id);
 
 -- Trigger for updated_at
-CREATE TRIGGER IF NOT EXISTS update_classes_updated_at
-  BEFORE UPDATE ON classes
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_classes_updated_at
+BEFORE UPDATE ON classes
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
 
 -- Enable RLS
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
