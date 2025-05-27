@@ -38,7 +38,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
         .select('*', { count: 'exact' }); // Select all columns from public.users
 
       // Apply filters to public.users
-      if (options.search) {
+/*      if (options.search) {
         publicUsersQuery = publicUsersQuery.or(`name.ilike.%${options.search}%,phone_number.ilike.%${options.search}%`);
       }
       if (options.role) {
@@ -52,7 +52,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
       if (options.sortBy) {
         publicUsersQuery = publicUsersQuery.order(options.sortBy, {
           ascending: options.sortOrder === 'asc'
-        });
+        });*/
       }
 
       // Apply pagination to public.users
