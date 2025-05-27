@@ -7,7 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useUsers } from '../hooks/useUsers';
 
 const UserManagement = () => {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, authLoading } = useAuth(); // Added authLoading to track auth status
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -18,10 +18,11 @@ const UserManagement = () => {
   const [showPermissions, setShowPermissions] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   
+  // Destructure values from useUsers hook
   const {
     users,
-    loading,
-    error,
+    loading, // loading status from useUsers
+    error,   // error message from useUsers
     totalCount,
     refreshUsers
   } = useUsers({
@@ -33,6 +34,16 @@ const UserManagement = () => {
     sortBy: 'created_at',
     sortOrder: 'desc'
   });
+
+  // --- BEGIN NEW LOGGING ---
+  console.log("UserManagement: Component rendered.");
+  console.log("  Auth Loading:", authLoading);
+  console.log("  Current User:", currentUser ? currentUser.email : "Not logged in");
+  console.log("  Users Hook - Loading:", loading);
+  console.log("  Users Hook - Error:", error);
+  console.log("  Users Hook - Users Array Length:", users.length);
+  console.log("  Users Hook - Total Count:", totalCount);
+  // --- END NEW LOGGING ---
 
   const handleUserAction = async (action: string, user: any) => {
     setSelectedUser(user);
@@ -49,6 +60,9 @@ const UserManagement = () => {
         // Show confirmation dialog and handle deletion
         if (confirm('Are you sure you want to delete this user?')) {
           console.log('Delete user:', user);
+          // TODO: Implement actual user deletion logic here
+          // After deletion, refresh the user list:
+          // await refreshUsers();
         }
         break;
       case 'permissions':
@@ -64,6 +78,13 @@ const UserManagement = () => {
 
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
+  // You might want to show a general loading/error state if auth is still loading
+  if (authLoading) {
+    console.log("UserManagement: Auth is still loading, showing initial loading screen.");
+    return <div className="text-center py-8">Authenticating...</div>;
+  }
+
+  // Primary rendering logic based on useUsers hook state
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
@@ -123,15 +144,15 @@ const UserManagement = () => {
           </div>
           
           {/* Users Table */}
-          {error ? (
+          {error ? ( // Check for error from useUsers hook
             <div className="text-center py-8 text-error">
-              {error}
+              Error loading users: {error}
             </div>
-          ) : loading ? (
+          ) : loading ? ( // Check for loading from useUsers hook
             <div className="text-center py-8 text-muted-foreground">
               Loading users...
             </div>
-          ) : users.length === 0 ? (
+          ) : users.length === 0 ? ( // Check if no users are found after loading
             <div className="text-center py-8 text-muted-foreground">
               No users found matching your search criteria
             </div>
@@ -162,7 +183,7 @@ const UserManagement = () => {
                         </div>
                         <div>
                           <p className="font-medium">{user.name}</p>
-                          {user.role === 'teacher' && user.assignedClasses.length > 0 && (
+                          {user.role === 'teacher' && user.assignedClasses && user.assignedClasses.length > 0 && ( // Added null check for assignedClasses
                             <p className="text-xs text-muted-foreground">
                               Classes: {user.assignedClasses.join(', ')}
                             </p>
@@ -179,11 +200,11 @@ const UserManagement = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{user.phone_number}</span>
+                        <span>{user.phone_number}</span> {/* Corrected: Use phone_number */}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {user.lastLogin}
+                      {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'} {/* Format date and handle null */}
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
