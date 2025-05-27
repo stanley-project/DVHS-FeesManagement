@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface UserFormProps {
   user?: any;
@@ -9,7 +10,9 @@ interface UserFormProps {
 }
 
 const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
+  const { user: currentUser } = useAuth();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(user || {
     name: '',
     phoneNumber: '',
@@ -25,11 +28,28 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
 
   const handleConfirm = async () => {
     try {
-      // Create user in public.users table
+      setError(null);
+
+      // First create auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: `${formData.phoneNumber}@example.com`,
+        phone: formData.phoneNumber,
+        password: 'defaultPassword123', // You should generate a secure random password
+        email_confirm: true,
+        user_metadata: {
+          name: formData.name,
+          role: formData.role
+        }
+      });
+
+      if (authError) throw authError;
+
+      // Then create user in public.users table
       if (!user) {
         const { data, error } = await supabase
           .from('users')
           .insert([{
+            id: authData.user.id, // Use the auth user's ID
             name: formData.name,
             phone_number: formData.phoneNumber,
             role: formData.role,
@@ -60,8 +80,8 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
       }
       setShowConfirmation(false);
     } catch (err: any) {
-      console.error('Error saving user:', err);
       setError(err.message);
+      console.error('Error saving user:', err);
       setShowConfirmation(false);
     }
   };
@@ -82,6 +102,11 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {error && (
+            <div className="bg-error/10 border border-error/30 text-error rounded-md p-3">
+              {error}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="name" className="block text-sm font-medium">
