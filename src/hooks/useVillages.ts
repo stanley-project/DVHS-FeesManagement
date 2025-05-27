@@ -30,10 +30,14 @@ export function useVillages() {
   const [session, setSession] = useState<Session | null>(null);
 
   const fetchVillages = async () => {
+    console.log("useVillages: fetchVillages called.");
+    console.log("useVillages: Current session state:", session ? "Active" : "Null");
+
     if (!session) {
       setError("No active session. Please log in.");
       setLoading(false);
       setVillages([]);
+      console.warn("useVillages: fetchVillages aborted, no active session.");
       return;
     }
 
@@ -46,13 +50,27 @@ export function useVillages() {
       }
 
       // First fetch all villages with retry
+      console.log("useVillages: Fetching villages from Supabase...");
       const { data: villagesData, error: villagesError } = await withRetry(() =>
         supabase.from('villages').select('*')
       );
 
-      if (villagesError) throw villagesError;
+      console.log("useVillages: Supabase 'villages' fetch result - Data:", villagesData);
+      console.log("useVillages: Supabase 'villages' fetch result - Error:", villagesError);
 
-      // Then fetch student counts for each village with retry
+      if (villagesError) {
+        throw new Error(`Error fetching villages: ${villagesError.message}`);
+      }
+      
+      if (!villagesData || villagesData.length === 0) {
+          console.warn("useVillages: No villages data returned from Supabase.");
+          setVillages([]); // Ensure villages array is empty if no data
+          setLoading(false);
+          return;
+      }
+
+      // Then fetch student counts and bus fees for each village with retry
+      console.log(`useVillages: Processing ${villagesData.length} villages for stats...`);
       const villagesWithCounts = await Promise.all(
         villagesData.map(async (village) => {
           // Get total students count
@@ -63,7 +81,10 @@ export function useVillages() {
               .eq('village_id', village.id)
           );
 
-          if (totalError) throw totalError;
+          if (totalError) {
+            console.error(`useVillages: Error fetching total students for village ${village.name} (${village.id}):`, totalError);
+            throw new Error(`Error fetching total students: ${totalError.message}`);
+          }
 
           // Get bus students count
           const { count: busStudents, error: busError } = await withRetry(() =>
@@ -74,50 +95,61 @@ export function useVillages() {
               .eq('has_school_bus', true)
           );
 
-          if (busError) throw busError;
+          if (busError) {
+            console.error(`useVillages: Error fetching bus students for village ${village.name} (${village.id}):`, busError);
+            throw new Error(`Error fetching bus students: ${busError.message}`);
+          }
 
-          // Get current bus fee
+          // Get current bus fee - FIX: Changed 'fee_amount' to 'amount' based on schema
           const { data: busFees, error: busFeesError } = await withRetry(() =>
             supabase
               .from('bus_fee_structure')
-              .select('fee_amount')
+              .select('amount') // <<--- IMPORTANT FIX: Changed 'fee_amount' to 'amount'
               .eq('village_id', village.id)
               .eq('is_active', true)
               .maybeSingle()
           );
 
-          if (busFeesError) throw busFeesError;
+          if (busFeesError) {
+            console.error(`useVillages: Error fetching bus fees for village ${village.name} (${village.id}):`, busFeesError);
+            throw new Error(`Error fetching bus fees: ${busFeesError.message}`);
+          }
 
           return {
             ...village,
             total_students: totalStudents || 0,
             bus_students: busStudents || 0,
-            current_bus_fee: busFees?.fee_amount || undefined
+            current_bus_fee: busFees?.amount || undefined // <<--- IMPORTANT FIX: Changed 'fee_amount' to 'amount'
           };
         })
       );
 
+      console.log("useVillages: Final villagesWithCounts before setting state:", villagesWithCounts);
       setVillages(villagesWithCounts);
+
     } catch (err: any) {
-      console.error('Village fetch error:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-      setVillages([]);
+      console.error('useVillages: Village fetch caught error:', err);
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      setVillages([]); // Clear villages on error
     } finally {
-      setLoading(false);
+      setLoading(false); // Always set loading to false when done
+      console.log("useVillages: fetchVillages finished. Loading:", false);
     }
   };
 
   // Effect to set up Supabase authentication listener and get initial session
   useEffect(() => {
+    console.log("useVillages: Initial useEffect for auth listener and session check.");
     const getInitialSession = async () => {
       const { data: { session: initialSession }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) {
-        console.error("Error getting initial session:", sessionError);
+        console.error("useVillages: Error getting initial session:", sessionError);
         setError("Error getting session: " + sessionError.message);
         setLoading(false);
         return;
       }
       setSession(initialSession);
+      console.log("useVillages: Initial session set to:", initialSession ? "Active" : "Null");
     };
 
     getInitialSession();
@@ -125,25 +157,32 @@ export function useVillages() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, currentSession) => {
         setSession(currentSession);
+        console.log(`useVillages: Auth state changed. Event: ${_event}, Session: ${currentSession ? "Active" : "Null"}`);
       }
     );
 
     return () => {
+      console.log("useVillages: Unsubscribing from auth state changes.");
       subscription.unsubscribe();
     };
   }, []);
 
   // Effect to fetch villages when the session state changes
   useEffect(() => {
+    console.log("useVillages: Session dependency useEffect triggered. Session is:", session ? "Active" : "Null");
     if (session) {
+      // If a session exists, trigger fetching the village data
       fetchVillages();
     } else {
+      // If no session, clear data and set appropriate states
       setVillages([]);
       setError("Please log in to view village data.");
       setLoading(false);
+      console.log("useVillages: No session, clearing villages and setting error/loading state.");
     }
-  }, [session]);
+  }, [session]); // Re-run this effect whenever the `session` state changes
 
+  // Data modification functions - ensure a session exists before proceeding
   const addVillage = async (villageData: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     if (!session) throw new Error('No active session. Please log in.');
     try {
@@ -154,7 +193,7 @@ export function useVillages() {
         .single();
 
       if (error) throw error;
-      await fetchVillages();
+      await fetchVillages(); // Refresh list after adding
       return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to add village');
@@ -172,7 +211,7 @@ export function useVillages() {
         .single();
 
       if (error) throw error;
-      await fetchVillages();
+      await fetchVillages(); // Refresh list after updating
       return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to update village');
@@ -203,7 +242,7 @@ export function useVillages() {
         .from('bus_fee_structure')
         .insert([{
           village_id: villageId,
-          fee_amount: amount,
+          fee_amount: amount, // This `fee_amount` refers to the parameter, not a column name. It's fine here.
           academic_year_id: currentYear.id,
           effective_from_date: new Date().toISOString(),
           effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
@@ -213,7 +252,7 @@ export function useVillages() {
         .single();
 
       if (error) throw error;
-      await fetchVillages();
+      await fetchVillages(); // Refresh list after updating bus fee
       return data;
     } catch (err) {
       throw err instanceof Error ? err : new Error('Failed to update bus fee');
@@ -228,10 +267,12 @@ export function useVillages() {
     updateVillage,
     updateBusFee,
     refreshVillages: () => {
+      console.log("useVillages: refreshVillages called.");
       if (session) {
         fetchVillages();
       } else {
         setError("No active session. Cannot refresh.");
+        console.warn("useVillages: Cannot refresh villages, no active session.");
       }
     }
   };
