@@ -3,9 +3,15 @@ export type UserRole = 'administrator' | 'accountant' | 'teacher';
 export interface User {
   id: string;
   name: string;
-  phoneNumber: string;
+  phone_number: string; // Updated: Changed from phoneNumber to phone_number to match DB/API
   email: string;
   role: UserRole;
+  is_active: boolean;    // Added: Reflects the 'is_active' column from public.users
+  created_at: string;    // Added: Reflects the 'created_at' column from public.users
+  updated_at: string;    // Added: Reflects the 'updated_at' column from public.users
+  lastLogin?: string;    // Added: Derived from auth.users.last_sign_in_at, made optional as it might be null
+  status: 'active' | 'inactive'; // Added: Derived property for UI display (from 'is_active')
+  assignedClasses?: string[]; // Added: If this field is part of your user data, made optional
 }
 
 export interface NavItem {
@@ -13,19 +19,4 @@ export interface NavItem {
   href: string;
   icon: string;
   allowedRoles: UserRole[];
-}
-
-// src/types/user.ts
-export interface User {
-  id: string;
-  name: string;
-  email: string; // From public.users
-  phone_number: string; // From public.users
-  is_active: boolean; // From public.users
-  role: string; // From public.users
-  created_at: string; // From public.users
-  updated_at: string; // From public.users
-  lastLogin?: string; // This will be mapped from auth.users.last_sign_in_at
-  status: 'active' | 'inactive'; // Derived from is_active
-  assignedClasses?: string[]; // If this field exists and is used elsewhere, keep it. For now, assuming it's an array of strings.
 }
