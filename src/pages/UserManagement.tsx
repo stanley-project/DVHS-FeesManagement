@@ -240,9 +240,10 @@ const UserManagement = () => {
                 </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
+    </div>
 
       {/* User Form Modal */}
       {showUserForm && (
