@@ -106,10 +106,10 @@ CREATE INDEX IF NOT EXISTS idx_users_phone_number ON users USING btree (phone_nu
 CREATE UNIQUE INDEX IF NOT EXISTS users_phone_number_key ON users USING btree (phone_number);
 
 -- Trigger for updated_at
-CREATE TRIGGER IF NOT EXISTS update_users_updated_at
-  BEFORE UPDATE ON users
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_users_updated_at
+BEFORE UPDATE ON users
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
 
 -- Enable RLS
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
