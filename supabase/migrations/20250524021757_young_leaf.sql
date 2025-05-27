@@ -105,7 +105,10 @@ CREATE INDEX IF NOT EXISTS idx_users_phone_number ON users USING btree (phone_nu
 -- Unique index on phone_number
 CREATE UNIQUE INDEX IF NOT EXISTS users_phone_number_key ON users USING btree (phone_number);
 
+
 -- Trigger for updated_at
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+
 CREATE TRIGGER update_users_updated_at
 BEFORE UPDATE ON users
 FOR EACH ROW
