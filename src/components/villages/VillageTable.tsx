@@ -1,5 +1,4 @@
 import { useVillageContext } from '../../contexts/VillageContext';
-import { useVillageContext } from '../../contexts/VillageContext';
 
 interface VillageTableProps {
   searchQuery: string;
