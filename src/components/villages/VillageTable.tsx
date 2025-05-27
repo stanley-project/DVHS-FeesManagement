@@ -9,7 +9,6 @@ interface VillageTableProps {
 
 const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTableProps) => {
   const { villages, loading, error, updateVillage } = useVillageContext();
-  const { villages, loading, error, updateVillage } = useVillageContext();
 
   const handleToggleStatus = async (village: any) => {
     try {
