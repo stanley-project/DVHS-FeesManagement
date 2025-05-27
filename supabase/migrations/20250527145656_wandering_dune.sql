@@ -42,6 +42,8 @@ WITH CHECK (
 );
 
 -- Allow users to view their own profile
+DROP POLICY "Users can view their own profile" ON public.users;
+
 CREATE POLICY "Users can view their own profile"
 ON users
 FOR SELECT
