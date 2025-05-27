@@ -29,14 +29,26 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const handleConfirm = async () => {
     try {
       setError(null);
+      
       if (!currentUser || currentUser.role !== 'administrator') {
         throw new Error('Only administrators can manage users');
       }
 
       if (!user) {
+        // Check if user with phone number already exists
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('phone_number', formData.phoneNumber)
+          .single();
+
+        if (existingUser) {
+          throw new Error('A user with this phone number already exists');
+        }
+
         // Create auth user first
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: `${formData.phoneNumber}@example.com`,
+          email: `user_${formData.phoneNumber}@schoolapp.local`,
           phone: formData.phoneNumber,
           password: 'defaultPassword123',
           email_confirm: true,
@@ -55,7 +67,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
         }
 
         // Then create user in public.users table using the auth user's ID
-        const { data, error } = await supabaseAdmin
+        const { data: userData, error: userError } = await supabaseAdmin
           .from('users')
           .insert([{
             id: authData.user.id, // Use the auth user's ID
@@ -67,13 +79,13 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
           .select()
           .single();
 
-        if (error) {
+        if (userError) {
           // If database insert fails, clean up the auth user
           await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-          throw error;
+          throw userError;
         }
 
-        onSubmit(data);
+        onSubmit(userData);
       } else {
         // When updating existing user
         const updates = {
