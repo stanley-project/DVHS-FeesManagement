@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { supabase, supabaseAdmin } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/AuthContext'; 
+import { z } from 'zod';
 
 interface UserFormProps {
   user?: any;
   onClose: () => void;
   onSubmit: (data: any) => void;
 }
+
+const userSchema = z.object({
+  name: z.string().min(3, 'Name must be at least 3 characters'),
+  phoneNumber: z.string().regex(/^[0-9]{10}$/, 'Phone number must be 10 digits'),
+  role: z.enum(['administrator', 'accountant', 'teacher']),
+  status: z.enum(['active', 'inactive']),
+  assignedClasses: z.array(z.string())
+});
 
 const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const { user: currentUser } = useAuth();
@@ -23,32 +32,48 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setShowConfirmation(true);
+    
+    try {
+      userSchema.parse(formData);
+      setError(null);
+      setShowConfirmation(true);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      }
+    }
   };
 
   const handleConfirm = async () => {
     try {
       setError(null);
+      const email = `user_${formData.phoneNumber}@schoolapp.local`;
       
       if (!currentUser || currentUser.role !== 'administrator') {
         throw new Error('Only administrators can manage users');
       }
 
       if (!user) {
-        // Check if user with phone number already exists
-        const { data: existingUser } = await supabase
+        // Check both auth and public users tables
+        const [{ data: existingPublicUser }, { data: existingAuthUser }] = await Promise.all([
+          supabase
           .from('users')
           .select('*')
-          .eq('phone_number', formData.phoneNumber)
-          .single();
+          .eq('phone_number', formData.phoneNumber),
+          supabaseAdmin.auth.admin.listUsers()
+        ]);
 
-        if (existingUser) {
+        if (existingPublicUser?.length > 0) {
           throw new Error('A user with this phone number already exists');
+        }
+
+        if (existingAuthUser?.users.some(u => u.email === email)) {
+          throw new Error('A user with this email already exists');
         }
 
         // Create auth user first
         const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email: `user_${formData.phoneNumber}@schoolapp.local`,
+          email,
           phone: formData.phoneNumber,
           password: 'defaultPassword123',
           email_confirm: true,
@@ -64,6 +89,16 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
 
         if (!authData.user) {
           throw new Error('Failed to create auth user');
+        }
+
+        // Set custom claims for the user
+        const { error: claimsError } = await supabaseAdmin.auth.admin.updateUserById(
+          authData.user.id,
+          { app_metadata: { role: formData.role } }
+        );
+
+        if (claimsError) {
+          throw claimsError;
         }
 
         // Then create user in public.users table using the auth user's ID
