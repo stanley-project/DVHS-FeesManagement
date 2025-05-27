@@ -10,27 +10,33 @@ const OtpVerificationPage = () => {
   const [timeLeft, setTimeLeft] = useState(60);
   const [canResend, setCanResend] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const { phoneNumber, verifyOtp, login } = useAuth();
+  // Destructure authLoading, isAuthenticated, user from useAuth
+  const { phoneNumber, verifyOtp, login, authLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  // If no phone number is set, redirect to login
+  // Redirect logic:
+  // 1. If no phone number is set in context (user navigated directly or session lost)
+  // 2. If authentication is complete and user is already logged in
   useEffect(() => {
     if (!phoneNumber) {
       navigate('/login');
+    } else if (isAuthenticated && user && !authLoading) {
+      navigate('/'); // User already logged in, go to dashboard
     }
-  }, [phoneNumber, navigate]);
+  }, [phoneNumber, navigate, isAuthenticated, user, authLoading]);
 
   // Timer for OTP resend
   useEffect(() => {
-    if (timeLeft > 0) {
-      const timerId = setTimeout(() => {
+    let timerId: NodeJS.Timeout;
+    if (timeLeft > 0 && !canResend) { // Only run timer if not resendable
+      timerId = setTimeout(() => {
         setTimeLeft(timeLeft - 1);
       }, 1000);
       return () => clearTimeout(timerId);
-    } else {
+    } else if (timeLeft === 0) {
       setCanResend(true);
     }
-  }, [timeLeft]);
+  }, [timeLeft, canResend]); // Added canResend to dependency array for clarity
 
   const handleChange = (index: number, value: string) => {
     // Only allow digits
@@ -41,7 +47,7 @@ const OtpVerificationPage = () => {
     newOtp[index] = value.slice(-1);
     setOtp(newOtp);
 
-    // Auto-focus to next input if a digit is entered
+    // Auto-focus to next input if a digit is entered and not the last input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -55,11 +61,20 @@ const OtpVerificationPage = () => {
       inputRefs.current[index + 1]?.focus();
     } else if (e.key === 'Backspace' && !otp[index] && index > 0) {
       // Move to previous input on backspace if current is empty
+      const newOtp = [...otp];
+      newOtp[index - 1] = ''; // Clear previous input on backspace
+      setOtp(newOtp);
       inputRefs.current[index - 1]?.focus();
+    } else if (e.key === 'Backspace' && otp[index] && index === 0) {
+        // Clear current input on backspace if at first digit
+        const newOtp = [...otp];
+        newOtp[index] = '';
+        setOtp(newOtp);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Make handleSubmit async
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsLoading(true);
@@ -67,17 +82,28 @@ const OtpVerificationPage = () => {
     const otpString = otp.join('');
     
     // Basic validation
-    if (otpString.length !== 6) {
+    if (otpString.length !== 6 || !/^\d{6}$/.test(otpString)) { // Added regex check for all digits
       setError('Please enter a valid 6-digit OTP');
       setIsLoading(false);
       return;
     }
 
-    // Try to verify OTP
-    const isVerified = verifyOtp(otpString);
+    // Ensure phone number is available
+    if (!phoneNumber) {
+        setError('Phone number not found. Please return to login page.');
+        setIsLoading(false);
+        navigate('/login'); // Force redirect if phone number is missing
+        return;
+    }
+
+    // Await the asynchronous verifyOtp call
+    const isVerified = await verifyOtp(phoneNumber, otpString);
     
     if (isVerified) {
-      navigate('/');
+      // The AuthContext's onAuthStateChange listener will handle setting user state
+      // and redirecting to the dashboard ('/') upon successful login.
+      // So, no need to navigate here explicitly, it will happen automatically.
+      console.log('OTP Verified successfully! AuthContext will handle navigation.');
     } else {
       setError('Invalid OTP. Please try again.');
     }
@@ -85,32 +111,45 @@ const OtpVerificationPage = () => {
     setIsLoading(false);
   };
 
-  const handleResendOtp = () => {
+  // Make handleResendOtp async
+  const handleResendOtp = async () => {
     if (!canResend) return;
     
+    setError('');
+    setIsLoading(true);
+
     // Reset timer and resend status
     setTimeLeft(60);
     setCanResend(false);
     
-    // Simulate resending OTP
-    const result = login(phoneNumber);
+    if (!phoneNumber) {
+        setError('Phone number not found. Cannot resend OTP.');
+        setIsLoading(false);
+        return;
+    }
+
+    // Await the asynchronous login call to resend OTP
+    const result = await login(phoneNumber);
     if (!result.success) {
       setError(result.message);
     }
+    setIsLoading(false);
   };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').trim();
-    
-    // Only proceed if it looks like a 6-digit OTP
-    if (/^\d{6}$/.test(pastedData)) {
-      const newOtp = pastedData.split('').slice(0, 6);
-      setOtp(newOtp);
-      // Focus on the last input
-      inputRefs.current[5]?.focus();
-    }
-  };
+  // Combine local isLoading with authLoading from context for comprehensive loading state
+  const isFormDisabled = isLoading || authLoading;
+
+  // Show loading/redirect states
+  if (authLoading) {
+      return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Authenticating...</div>;
+  }
+  if (isAuthenticated && user) { // If authenticated and user object exists, redirect
+      return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Redirecting...</div>;
+  }
+  if (!phoneNumber) { // If no phoneNumber is in context, go back to login (handled by useEffect)
+      return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Redirecting to login...</div>;
+  }
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">
@@ -127,6 +166,7 @@ const OtpVerificationPage = () => {
           <button 
             onClick={() => navigate('/login')}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
+            disabled={isFormDisabled}
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Login
@@ -134,7 +174,8 @@ const OtpVerificationPage = () => {
           
           <h2 className="text-xl font-semibold mb-2">Verify OTP</h2>
           <p className="text-muted-foreground mb-6">
-            Enter the 6-digit code sent to {phoneNumber ? '+91 ' + phoneNumber : 'your phone'}
+            Enter the 6-digit code sent to {phoneNumber ? '+91 ' + phoneNumber.replace('+91', '') : 'your phone'}
+            {/* Added .replace('+91', '') to display only the digits */}
           </p>
           
           {error && (
@@ -159,6 +200,7 @@ const OtpVerificationPage = () => {
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     className="input w-12 h-12 text-center text-xl"
+                    disabled={isFormDisabled} // Disable input while loading
                   />
                 ))}
               </div>
@@ -171,6 +213,7 @@ const OtpVerificationPage = () => {
                     type="button" 
                     onClick={handleResendOtp}
                     className="text-primary hover:underline"
+                    disabled={isFormDisabled} // Disable resend button while loading
                   >
                     Resend OTP
                   </button>
@@ -182,10 +225,10 @@ const OtpVerificationPage = () => {
             
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isFormDisabled} // Use combined loading state
               className="btn btn-primary btn-lg w-full"
             >
-              {isLoading ? 'Verifying...' : 'Verify & Proceed'}
+              {isFormDisabled ? 'Verifying...' : 'Verify & Proceed'}
             </button>
           </form>
           
