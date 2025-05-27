@@ -1,52 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import LoginHistoryModal from '../components/users/LoginHistoryModal';
 import PermissionsModal from '../components/users/PermissionsModal';
 import { useAuth } from '../contexts/AuthContext';
+import { useUsers } from '../hooks/useUsers';
 
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [showUserForm, setShowUserForm] = useState(false);
   const [showLoginHistory, setShowLoginHistory] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   
-  // Mock user data
-  const users = [
-    { 
-      id: '1', 
-      name: 'Admin User', 
-      role: 'administrator', 
-      phoneNumber: '9876543210', 
-      status: 'active',
-      lastLogin: '2025-08-15 09:30 AM',
-      assignedClasses: [],
-    },
-    { 
-      id: '2', 
-      name: 'Accountant User', 
-      role: 'accountant', 
-      phoneNumber: '9876543211', 
-      status: 'active',
-      lastLogin: '2025-08-15 10:15 AM',
-      assignedClasses: [],
-    },
-    { 
-      id: '3', 
-      name: 'Teacher User', 
-      role: 'teacher', 
-      phoneNumber: '9876543212', 
-      status: 'active',
-      lastLogin: '2025-08-15 08:45 AM',
-      assignedClasses: ['IX-A', 'IX-B'],
-    },
-  ];
+  const {
+    users,
+    loading,
+    error,
+    totalCount,
+    refreshUsers
+  } = useUsers({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: searchQuery,
+    role: selectedRole !== 'all' ? selectedRole : undefined,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    sortBy: 'created_at',
+    sortOrder: 'desc'
+  });
 
-  const handleUserAction = (action: string, user: any) => {
+  const handleUserAction = async (action: string, user: any) => {
     setSelectedUser(user);
     
     switch (action) {
@@ -74,16 +62,7 @@ const UserManagement = () => {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.phoneNumber.includes(searchQuery);
-    
-    const matchesRole = selectedRole === 'all' || user.role === selectedRole;
-    const matchesStatus = selectedStatus === 'all' || user.status === selectedStatus;
-    
-    return matchesSearch && matchesRole && matchesStatus;
-  });
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -144,7 +123,20 @@ const UserManagement = () => {
           </div>
           
           {/* Users Table */}
-          <div className="overflow-x-auto">
+          {error ? (
+            <div className="text-center py-8 text-error">
+              {error}
+            </div>
+          ) : loading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Loading users...
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No users found matching your search criteria
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b">
@@ -157,7 +149,7 @@ const UserManagement = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((user) => (
+                {users.map((user) => (
                   <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
@@ -225,11 +217,28 @@ const UserManagement = () => {
                 ))}
               </tbody>
             </table>
-          </div>
-          
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No users found matching your search criteria
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between border-t p-4">
+              <p className="text-sm text-muted-foreground">
+                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} users
+              </p>
+              <div className="flex gap-2">
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </button>
+                <button
+                  className="btn btn-outline btn-sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
