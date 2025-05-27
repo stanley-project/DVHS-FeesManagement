@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react'; // Import useEffect
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -6,25 +6,21 @@ const LoginPage = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  // Destructure login and setAuthPhoneNumber from useAuth
-  // authLoading from useAuth can also be used for better loading state
   const { login, setPhoneNumber: setAuthPhoneNumber, authLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect if already authenticated and loaded
-  // This helps prevent showing the login page if the user is already logged in
-  useState(() => { // Using useState with an immediate function for initial check
+  // Effect to redirect if already authenticated
+  useEffect(() => {
     if (isAuthenticated && user && !authLoading) {
-      navigate('/');
+      navigate('/'); // Redirect to dashboard
     }
   }, [isAuthenticated, authLoading, user, navigate]);
 
 
-  // Make handleSubmit an async function
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => { // Keep async
     e.preventDefault();
     setError('');
-    setIsLoading(true); // Start local loading state
+    setIsLoading(true);
 
     // Basic validation
     if (!phoneNumber || phoneNumber.length !== 10 || !/^\d+$/.test(phoneNumber)) {
@@ -37,24 +33,35 @@ const LoginPage = () => {
     // Assuming +91 is the country code, modify if different
     const formattedPhoneNumber = `+91${phoneNumber}`; 
 
-    // Await the asynchronous login call
+    // Await the asynchronous login call to send OTP
     const result = await login(formattedPhoneNumber); 
     
-    // Check the result from the async operation
     if (result.success) {
-      // If OTP was successfully sent, store the phone number in AuthContext
-      // and navigate to OTP verification page
-      setAuthPhoneNumber(formattedPhoneNumber); // Store formatted number
+      // Store the formatted phone number in AuthContext for the /verify-otp page
+      setAuthPhoneNumber(formattedPhoneNumber); 
+      // Navigate to the separate OTP verification page
       navigate('/verify-otp');
     } else {
       setError(result.message);
     }
     
-    setIsLoading(false); // End local loading state
+    setIsLoading(false);
   };
 
   // Combine local isLoading with authLoading from context for comprehensive loading state
   const isFormDisabled = isLoading || authLoading;
+
+  // If already authenticated and loading has finished, we should be redirecting,
+  // so no need to render the form. This prevents flickering.
+  if (isAuthenticated && user && !authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Redirecting...</div>;
+  }
+  
+  // If auth is still loading, show a general loading message
+  if (authLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Authenticating...</div>;
+  }
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">
@@ -64,7 +71,7 @@ const LoginPage = () => {
           <p className="text-muted-foreground">Fee Management System</p>
           <div className="mt-4 flex justify-center">
             <img 
-              src="/src/components/auth/DVHS Logo.jpeg" // Verify this path and if the image exists
+              src="/src/components/auth/DVHS Logo.jpeg" 
               alt="DVHS Logo" 
               className="h-64 w-auto"
             />
@@ -99,7 +106,7 @@ const LoginPage = () => {
                     placeholder="10-digit phone number"
                     className="input rounded-l-none"
                     maxLength={10}
-                    disabled={isFormDisabled} // Disable input while loading
+                    disabled={isFormDisabled}
                   />
                 </div>
               </div>
@@ -110,7 +117,7 @@ const LoginPage = () => {
             
             <button
               type="submit"
-              disabled={isFormDisabled} // Use combined loading state
+              disabled={isFormDisabled}
               className="btn btn-primary btn-lg w-full"
             >
               {isFormDisabled ? 'Sending OTP...' : 'Send OTP'}
