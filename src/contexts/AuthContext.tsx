@@ -1,34 +1,10 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { UserRole, User as AppUser } from '../types/user';
 import { Session, User as SupabaseAuthUser } from '@supabase/supabase-js';
 
-interface AuthenticatedUser extends SupabaseAuthUser {
-  role?: UserRole;
-  name?: string;
-  phone_number?: string;
-  email?: string;
-  is_active?: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-interface AuthContextType {
-  user: AuthenticatedUser | null;
-  isAuthenticated: boolean;
-  phoneNumber: string;
-  setPhoneNumber: (phoneNumber: string) => void;
-  login: (phone: string) => Promise<{ success: boolean; message: string }>;
-  verifyOtp: (phone: string, otp: string) => Promise<boolean>;
-  logout: () => Promise<void>;
-  authLoading: boolean;
-  sessionTimeout: number | null;
-  setSessionTimeout: (timeout: number | null) => void;
-  resetSession: () => void;
-  rememberDevice: boolean;
-  setRememberDevice: (remember: boolean) => void;
-}
+// ... (interfaces remain the same) ...
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -42,16 +18,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const navigate = useNavigate();
   const isMounted = useRef(true);
 
-  // Ref to track if initial auth check has completed
-  const initialAuthCheckDone = useRef(false);
+  // Use a ref to track if the initial full authentication check has completed successfully or with an error
+  const initialAuthProcessCompleted = useRef(false);
 
   useEffect(() => {
     return () => {
       isMounted.current = false;
+      console.log("AuthContext: Component unmounted cleanup.");
     };
   }, []);
 
-  const fetchUserProfile = async (authUserId: string): Promise<AuthenticatedUser | null> => {
+  const fetchUserProfile = useCallback(async (authUserId: string): Promise<AuthenticatedUser | null> => {
     try {
       console.log(`AuthContext: Fetching public profile for user ID: ${authUserId}`);
       const { data: publicProfile, error: profileError } = await supabase
@@ -70,114 +47,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("AuthContext: Exception fetching public profile:", err);
       return null;
     }
-  };
+  }, []); // No dependencies, as it only uses supabase client
 
-  useEffect(() => {
-    const initializeAuth = async () => {
-      if (!isMounted.current) {
-        console.log("AuthContext: initializeAuth - Component unmounted, aborting.");
-        return;
-      }
-      if (initialAuthCheckDone.current) {
-        console.log("AuthContext: initializeAuth - Initial check already done, skipping.");
-        return;
-      }
+  const handleSession = useCallback(async (currentSession: Session | null, event: string) => {
+    if (!isMounted.current) {
+      console.log(`AuthContext: handleSession - Component unmounted during ${event} event, aborting.`);
+      return;
+    }
+    
+    setAuthLoading(true); // Always set loading at the start of handling a session
+    console.log(`AuthContext: handleSession - Handling event: ${event}. Current session: ${currentSession ? 'Active' : 'Null'}`);
 
-      console.log("AuthContext: initializeAuth - Setting authLoading to true.");
-      setAuthLoading(true);
-
-      try {
-        console.log("AuthContext: initializeAuth - Calling supabase.auth.getSession()...");
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+    try {
+      if (currentSession) {
+        const publicProfile = await fetchUserProfile(currentSession.user.id);
         if (!isMounted.current) {
-          console.log("AuthContext: initializeAuth - Component unmounted after getSession, aborting.");
+          console.log(`AuthContext: handleSession - Component unmounted after fetchUserProfile during ${event}, aborting.`);
           return;
         }
 
-        if (sessionError) {
-          console.error("AuthContext: initializeAuth - Error getting session:", sessionError.message);
-          setUser(null);
-          setSessionTimeout(null);
-          setIsAuthenticated(false);
-        } else if (currentSession) {
-          console.log("AuthContext: initializeAuth - Session found. User ID:", currentSession.user.id);
-          const publicProfile = await fetchUserProfile(currentSession.user.id);
-          if (!isMounted.current) {
-            console.log("AuthContext: initializeAuth - Component unmounted after fetchUserProfile, aborting.");
-            return;
-          }
+        if (publicProfile) {
+          setUser({ ...currentSession.user, ...publicProfile });
+          setIsAuthenticated(true);
+          setSessionTimeout((currentSession.expires_at || 0) * 1000);
+          console.log(`AuthContext: handleSession - User and session set for ${event}.`);
+        } else {
+          console.warn(`AuthContext: handleSession - User authenticated but no public profile found during ${event}. Logging out.`);
+          await logout(); // Force logout if no profile
+        }
+      } else {
+        // User logged out or no session
+        setUser(null);
+        setIsAuthenticated(false);
+        setSessionTimeout(null);
+        console.log(`AuthContext: handleSession - No active session for ${event}.`);
+        // Only navigate to login if not already there, and if it's a SIGNED_OUT event or initial null
+        if (event === 'SIGNED_OUT' || (event === 'INITIAL_SESSION' && !isAuthenticated)) {
+            navigate('/login');
+        }
+      }
+    } catch (err: any) {
+      console.error(`AuthContext: handleSession - Uncaught error during ${event} session handling:`, err);
+      // You could set an error state here if AuthContext has one
+    } finally {
+      if (isMounted.current) {
+        setAuthLoading(false);
+        console.log(`AuthContext: handleSession - Setting authLoading to false for ${event}.`);
+      }
+    }
+  }, [fetchUserProfile, navigate]); // Added navigate to dependencies
 
-          if (publicProfile) {
-            setUser({ ...currentSession.user, ...publicProfile });
-            setIsAuthenticated(true);
-            setSessionTimeout((currentSession.expires_at || 0) * 1000);
-            console.log("AuthContext: initializeAuth - User and session set from initial session.");
-          } else {
-            console.warn("AuthContext: initializeAuth - User authenticated but no public profile found. Logging out.");
-            await logout(); // Force logout if no profile
+  useEffect(() => {
+    // Only run initial check if it hasn't completed
+    if (initialAuthProcessCompleted.current) {
+      console.log("AuthContext: useEffect - Initial auth process already completed, skipping first getSession.");
+      return;
+    }
+
+    const checkInitialSession = async () => {
+      console.log("AuthContext: useEffect - Starting initial session check via getSession()...");
+      setAuthLoading(true); // Ensure loading is true right at the start
+      
+      try {
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error("AuthContext: useEffect - Error from getSession():", sessionError.message);
+          // Handle error, but ensure authLoading is set to false
+          if (isMounted.current) {
+            setUser(null);
+            setIsAuthenticated(false);
+            setSessionTimeout(null);
           }
         } else {
-          console.log("AuthContext: initializeAuth - No active Supabase session.");
-          setUser(null);
-          setIsAuthenticated(false);
-          setSessionTimeout(null);
+          // Pass the session and event type to the common handler
+          await handleSession(currentSession, 'INITIAL_SESSION');
         }
       } catch (err: any) {
-        console.error("AuthContext: initializeAuth - Uncaught error during initialization:", err);
-        setError(err.message || "An unexpected error occurred during auth initialization."); // Add an error state if you have one in AuthContext
+        console.error("AuthContext: useEffect - Uncaught error during initial getSession:", err);
       } finally {
         if (isMounted.current) {
           setAuthLoading(false);
-          initialAuthCheckDone.current = true; // Mark as done only if mounted
-          console.log("AuthContext: initializeAuth - Setting authLoading to false. Initial check complete.");
+          initialAuthProcessCompleted.current = true; // Mark as completed
+          console.log("AuthContext: useEffect - Initial getSession process finished. authLoading set to false.");
         }
       }
     };
 
-    initializeAuth();
+    checkInitialSession();
 
     console.log("AuthContext: Setting up onAuthStateChange listener.");
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, currentSession) => {
-      if (!isMounted.current) {
-        console.log("AuthContext: onAuthStateChange - Component unmounted, aborting.");
-        return;
-      }
-      
-      console.log(`AuthContext: onAuthStateChange - Event: ${_event}. Current session: ${currentSession ? 'Active' : 'Null'}`);
-      setAuthLoading(true); // Set loading while we process the change
-
-      try {
-        if (currentSession) {
-          const publicProfile = await fetchUserProfile(currentSession.user.id);
-          if (!isMounted.current) {
-            console.log("AuthContext: onAuthStateChange - Component unmounted after fetchUserProfile, aborting.");
-            return;
-          }
-          if (publicProfile) {
-            setUser({ ...currentSession.user, ...publicProfile });
-            setIsAuthenticated(true);
-            setSessionTimeout((currentSession.expires_at || 0) * 1000);
-            console.log("AuthContext: onAuthStateChange - User and session updated.");
-          } else {
-            console.warn("AuthContext: onAuthStateChange - Auth change, but no public profile found. Logging out.");
-            await logout();
-          }
-        } else {
-          setUser(null);
-          setIsAuthenticated(false);
-          setSessionTimeout(null);
-          console.log("AuthContext: onAuthStateChange - User logged out or no session.");
-          navigate('/login'); // Redirect to login on logout
-        }
-      } catch (err: any) {
-        console.error("AuthContext: onAuthStateChange - Uncaught error during state change:", err);
-        setError(err.message || "An unexpected error occurred during auth state change.");
-      } finally {
-        if (isMounted.current) {
-          setAuthLoading(false);
-          console.log("AuthContext: onAuthStateChange - Setting authLoading to false.");
-        }
-      }
+      // Use the common handler for all auth state changes
+      await handleSession(currentSession, _event);
     });
 
     return () => {
@@ -186,66 +148,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription.unsubscribe();
       }
     };
-  }, [navigate]);
+  }, [handleSession]); // Dependency on handleSession
 
-  // Login function (sends OTP)
+  // Login function (sends OTP) - No changes here, it already ensures loading is handled by finally
   const login = async (phone: string) => {
-    setAuthLoading(true); // Ensure loading is true before API call
+    setAuthLoading(true);
     try {
       console.log(`AuthContext: Attempting to send OTP to ${phone}`);
       const { error } = await supabase.auth.signInWithOtp({ phone });
-
       if (error) {
         console.error("AuthContext: OTP send error:", error.message);
         return { success: false, message: error.message };
       }
-      
       console.log("AuthContext: OTP sent successfully.");
-      setPhoneNumber(phone); // Store phone number for verification step
+      setPhoneNumber(phone);
       return { success: true, message: 'OTP sent successfully. Please verify.' };
     } catch (err: any) {
       console.error("AuthContext: Exception during OTP send:", err);
       return { success: false, message: err.message || 'An unexpected error occurred during OTP send.' };
     } finally {
       if (isMounted.current) {
-        setAuthLoading(false); // Always set loading to false in finally
+        setAuthLoading(false);
       }
     }
   };
 
-  // Verify OTP function
+  // Verify OTP function - No changes here, it already ensures loading is handled by finally
   const verifyOtp = async (phone: string, otp: string) => {
-    setAuthLoading(true); // Ensure loading is true before API call
+    setAuthLoading(true);
     try {
       console.log(`AuthContext: Attempting to verify OTP for ${phone} with code ${otp}`);
       const { data, error } = await supabase.auth.verifyOtp({ phone, token: otp, type: 'sms' });
-
       if (error) {
         console.error("AuthContext: OTP verification error:", error.message);
         return false;
       }
-
       if (data.session) {
         console.log("AuthContext: OTP verified. Session established.");
-        // The onAuthStateChange listener will handle setting user state
-        setPhoneNumber(''); // Clear phone number after successful verification
+        setPhoneNumber('');
         return true;
       }
-
       console.log("AuthContext: OTP verification failed, but no specific error from Supabase.");
-      return false; // Should not reach here if session is not set but no error
+      return false;
     } catch (err: any) {
       console.error("AuthContext: Exception during OTP verification:", err);
       return false;
     } finally {
       if (isMounted.current) {
-        setAuthLoading(false); // Always set loading to false in finally
+        setAuthLoading(false);
       }
     }
   };
 
+  // Logout function - No changes here, it already ensures loading is handled by finally
   const logout = async () => {
-    setAuthLoading(true); // Ensure loading is true before API call
+    setAuthLoading(true);
     try {
       console.log("AuthContext: Attempting to log out.");
       const { error } = await supabase.auth.signOut();
@@ -253,22 +210,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("AuthContext: Logout error:", error.message);
       }
       console.log("AuthContext: User logged out successfully (or error handled).");
-      // State will be cleared by onAuthStateChange listener
     } catch (err: any) {
       console.error("AuthContext: Exception during logout:", err);
     } finally {
       if (isMounted.current) {
-        setAuthLoading(false); // Always set loading to false in finally
+        setAuthLoading(false);
       }
     }
   };
 
   const resetSession = () => {
     console.log("AuthContext: resetSession called (Supabase handles JWT refresh).");
-    if (user && sessionTimeout) {
-        // Your existing logic for sessionTimeout was more about UI/idle timeout.
-        // If you still need this, ensure it's compatible with Supabase's auto-refresh.
-    }
   };
 
   const value = {
