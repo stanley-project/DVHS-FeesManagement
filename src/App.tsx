@@ -1,6 +1,6 @@
 // src/App.tsx (Revised)
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { useAuth } from './contexts/AuthContext'; // <--- THIS IS NOW OKAY TO USE HERE
+import { useAuth } from './contexts/AuthContext'; // Ensure this path is correct
 import LoginPage from './pages/auth/LoginPage';
 import OtpVerificationPage from './pages/auth/OtpVerificationPage';
 import DashboardLayout from './components/layout/DashboardLayout';
@@ -16,40 +16,41 @@ import UserManagement from './pages/UserManagement';
 import VillageManagement from './pages/VillageManagement';
 import AcademicYearManagement from './pages/AcademicYearManagement';
 import StudentFeeStatus from './pages/StudentFeeStatus';
-import ProtectedRoute from './components/auth/ProtectedRoute';
+import ProtectedRoute from './components/auth/ProtectedRoute'; // Ensure this path is correct
 
 function App() {
-  // Now, useAuth() is correctly within the AuthProvider's scope
-  const { user, isAuthenticated, authLoading } = useAuth(); // Include authLoading here
+  // Use useAuth() to get authentication state and user details
+  const { user, isAuthenticated, authLoading } = useAuth();
 
-  // You need a global loading indicator or a pre-authentication splash screen
-  // if authLoading is true initially, as the routes depend on user/isAuthenticated
+  // Display a global loading indicator while authentication state is being determined.
+  // This prevents rendering routes that depend on auth state before it's known.
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background">Authenticating application...</div>;
   }
 
   return (
     <Routes>
-      {/* Public Routes */}
-      {/* Ensure these don't redirect away prematurely if authLoading is true */}
+      {/* Public Routes: Accessible to all, but redirect if authenticated */}
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} />
       <Route path="/verify-otp" element={!isAuthenticated ? <OtpVerificationPage /> : <Navigate to="/" replace />} />
-      
-      {/* Protected Routes */}
+
+      {/* Protected Routes: Only accessible if isAuthenticated is true */}
       <Route path="/" element={
-        <ProtectedRoute> {/* ProtectedRoute itself handles isAuthenticated check */}
-          <DashboardLayout />
+        // ProtectedRoute component handles the redirection if not authenticated
+        <ProtectedRoute>
+          <DashboardLayout /> {/* Layout for authenticated users */}
         </ProtectedRoute>
       }>
-        {/* Default route - redirects based on role */}
+        {/* Default route for authenticated users, redirects based on user role */}
         <Route index element={
           user?.role === 'administrator' ? <AdminDashboard /> :
           user?.role === 'accountant' ? <AccountantDashboard /> :
           user?.role === 'teacher' ? <TeacherDashboard /> :
-          <Navigate to="/login" replace /> // Fallback if role is null or unrecognized
+          // Fallback: If role is null or unrecognized, redirect to login
+          <Navigate to="/login" replace />
         } />
-        
-        {/* Admin Routes */}
+
+        {/* Admin Routes: Accessible only to 'administrator' role */}
         <Route path="student-registration" element={
           <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
             <StudentRegistration />
@@ -85,16 +86,16 @@ function App() {
             <AcademicYearManagement />
           </ProtectedRoute>
         } />
-        
-        {/* Teacher Routes */}
+
+        {/* Teacher Routes: Accessible only to 'teacher' role */}
         <Route path="student-fee-status" element={
           <ProtectedRoute allowedRoles={['teacher']}>
             <StudentFeeStatus />
           </ProtectedRoute>
         } />
       </Route>
-      
-      {/* 404 Page */}
+
+      {/* 404 Page: Catch-all for undefined routes */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
