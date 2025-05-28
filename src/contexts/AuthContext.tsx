@@ -155,6 +155,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         phone,
         options: {
           channel: 'sms', // Explicitly specify SMS channel for phone authentication
+          shouldCreateUser: false, // <--- IMPORTANT: Prevents new user sign-ups
         },
       });
 
