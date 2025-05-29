@@ -3,6 +3,7 @@ import { X, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext'; 
 import { z } from 'zod';
+import { generateLoginCode } from '../../utils/codeGenerator';
 
 interface UserFormProps {
   user?: any;
@@ -25,6 +26,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const [formData, setFormData] = useState(user || {
     name: '',
     phoneNumber: '',
+    loginCode: user?.login_code || generateLoginCode(),
     role: 'teacher',
     status: 'active',
     assignedClasses: [],
@@ -226,6 +228,36 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
+          </div>
+
+          {/* Login Code Field */}
+          <div className="space-y-2">
+            <label htmlFor="loginCode" className="block text-sm font-medium">
+              Login Code
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="loginCode"
+                type="text"
+                className="input font-mono uppercase"
+                value={formData.loginCode}
+                onChange={(e) => setFormData({ ...formData, loginCode: e.target.value.toUpperCase() })}
+                pattern="[A-HJ-NP-Z2-9]{8}"
+                maxLength={8}
+                required
+                readOnly={!user} // Only allow editing for existing users
+              />
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={() => setFormData({ ...formData, loginCode: generateLoginCode() })}
+              >
+                Generate New Code
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {user ? 'Edit or generate a new login code' : 'Auto-generated login code for this user'}
+            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t">
