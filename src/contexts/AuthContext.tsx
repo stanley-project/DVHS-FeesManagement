@@ -49,9 +49,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
-    }
-  }, []);
-
   // Fetch user profile from public.users table
   const fetchUserProfile = useCallback(async (loginCode: string): Promise<AuthenticatedUser | null> => {
     try {
@@ -73,6 +70,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (err) {
       console.error("AuthContext: Exception fetching public profile:", err);
       return null;
+    }
+  });
+
   // Effect to listen for Supabase authentication state changes
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -138,8 +138,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
     try {
-      // Call the login edge function
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/login-with-code`, {
       if (!phoneNumber) {
         throw new Error('Phone number is required');
       }
