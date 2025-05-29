@@ -4,25 +4,56 @@ import VillageForm from '../components/villages/VillageForm';
 import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
 import VillageImport from '../components/villages/VillageImport';
+import { useVillages } from '../contexts/VillageContext';
+import { Village } from '../types/village';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [selectedVillage, setSelectedVillage] = useState<any>(null);
+  const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const handleSubmit = (data: any) => {
-    console.log('Form submitted:', data);
-    setShowForm(false);
-    setSelectedVillage(null);
+  const { villages, loading, error, addVillage, updateVillage } = useVillages();
+
+  const handleSubmit = async (data: Village) => {
+    try {
+      if (selectedVillage) {
+        await updateVillage(selectedVillage.id, data);
+      } else {
+        await addVillage(data);
+      }
+      setShowForm(false);
+      setSelectedVillage(null);
+    } catch (error) {
+      console.error('Error saving village:', error);
+      // TODO: Add error toast notification
+    }
   };
 
-  const handleImport = (data: any) => {
-    console.log('Import data:', data);
-    setShowImport(false);
+  const handleImport = async (data: any) => {
+    try {
+      // TODO: Implement bulk import
+      console.log('Import data:', data);
+      setShowImport(false);
+    } catch (error) {
+      console.error('Error importing villages:', error);
+      // TODO: Add error toast notification
+    }
   };
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64">Loading villages...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-64 text-red-500">
+        Error loading villages: {error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -89,6 +120,7 @@ const VillageManagement = () => {
 
           {/* Villages Table */}
           <VillageTable
+            villages={villages}
             searchQuery={searchQuery}
             statusFilter={statusFilter}
             onView={(village) => {
