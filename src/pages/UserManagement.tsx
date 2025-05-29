@@ -6,7 +6,7 @@ import PermissionsModal from '../components/users/PermissionsModal';
 import LoginCodeModal from '../components/users/LoginCodeModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useUsers } from '../hooks/useUsers';
-import { supabase } from '../lib/supabase'; // Added missing import
+import { supabase } from '../lib/supabase';
 
 const UserManagement = () => {
   const { user: currentUser, authLoading } = useAuth();
@@ -19,9 +19,9 @@ const UserManagement = () => {
   const [showLoginHistory, setShowLoginHistory] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
   const [showLoginCode, setShowLoginCode] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [showLoginCodes, setShowLoginCodes] = useState(false); // Toggle to show/hide login codes
-  const [copiedUserId, setCopiedUserId] = useState<string | null>(null); // Track copied codes
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showLoginCodes, setShowLoginCodes] = useState(false);
+  const [copiedUserId, setCopiedUserId] = useState(null);
   
   const {
     users,
@@ -47,7 +47,7 @@ const UserManagement = () => {
   console.log("  Users Hook - Users Array Length:", users.length);
   console.log("  Users Hook - Total Count:", totalCount);
 
-  const handleUserAction = async (action: string, user: any) => {
+  const handleUserAction = async (action, user) => {
     setSelectedUser(user);
     
     switch (action) {
@@ -75,7 +75,7 @@ const UserManagement = () => {
     }
   };
 
-  const handleDeleteUser = async (user: any) => {
+  const handleDeleteUser = async (user) => {
     if (!confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) {
       return;
     }
@@ -90,13 +90,13 @@ const UserManagement = () => {
 
       alert('User deleted successfully');
       await refreshUsers();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Delete user error:', err);
       alert(`Failed to delete user: ${err.message}`);
     }
   };
 
-  const handleUpdateUser = async (userData: any) => {
+  const handleUpdateUser = async (userData) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -104,8 +104,8 @@ const UserManagement = () => {
           name: userData.name,
           role: userData.role,
           phone_number: userData.phone_number,
-          email: userData.email,
-          is_active: userData.is_active,
+          login_code: userData.login_code,
+          is_active: userData.status === 'active',
           updated_at: new Date().toISOString()
         })
         .eq('id', userData.id);
@@ -116,43 +116,39 @@ const UserManagement = () => {
       await refreshUsers();
       setShowUserForm(false);
       setSelectedUser(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Update user error:', err);
       alert(`Failed to update user: ${err.message}`);
     }
   };
 
-  const handleCreateUser = async (userData: any) => {
+  const handleCreateUser = async (userData) => {
     try {
-      // Generate a random login code
-      const loginCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
       const { error } = await supabase
         .from('users')
         .insert({
           name: userData.name,
           role: userData.role,
           phone_number: userData.phone_number,
-          email: userData.email,
-          login_code: loginCode,
-          is_active: userData.is_active ?? true,
+          login_code: userData.login_code,
+          is_active: userData.status === 'active',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
 
       if (error) throw error;
 
-      alert(`User created successfully! Login code: ${loginCode}`);
+      alert(`User created successfully! Login code: ${userData.login_code}`);
       await refreshUsers();
       setShowUserForm(false);
       setSelectedUser(null);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Create user error:', err);
       alert(`Failed to create user: ${err.message}`);
     }
   };
 
-  const handleUpdateLoginCode = async (userId: string, newCode: string) => {
+  const handleUpdateLoginCode = async (userId, newCode) => {
     try {
       const { error } = await supabase
         .from('users')
@@ -164,12 +160,12 @@ const UserManagement = () => {
 
       if (error) throw error;
       await refreshUsers();
-    } catch (err: any) {
+    } catch (err) {
       throw new Error(err.message || 'Failed to update login code');
     }
   };
 
-  const copyToClipboard = async (text: string, userId: string) => {
+  const copyToClipboard = async (text, userId) => {
     try {
       await navigator.clipboard.writeText(text);
       setCopiedUserId(userId);
@@ -179,8 +175,7 @@ const UserManagement = () => {
     }
   };
 
-  const formatUserStatus = (user: any) => {
-    // Handle both 'is_active' boolean and 'status' string formats
+  const formatUserStatus = (user) => {
     const isActive = user.is_active !== undefined ? user.is_active : user.status === 'active';
     return isActive ? 'active' : 'inactive';
   };
@@ -191,8 +186,17 @@ const UserManagement = () => {
     return <div className="text-center py-8">Authenticating...</div>;
   }
 
-  // Check if user has admin privileges to view login codes
+  // Check if user has admin privileges
   const canViewLoginCodes = currentUser?.role === 'administrator';
+  const canManageUsers = currentUser?.role === 'administrator';
+
+  if (!canManageUsers) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-error">Access denied. Only administrators can manage users.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -250,8 +254,6 @@ const UserManagement = () => {
                 <option value="administrator">Administrator</option>
                 <option value="accountant">Accountant</option>
                 <option value="teacher">Teacher</option>
-                <option value="student">Student</option>
-                <option value="parent">Parent</option>
               </select>
               
               <select
@@ -312,9 +314,6 @@ const UserManagement = () => {
                             </div>
                             <div>
                               <p className="font-medium">{user.name}</p>
-                              {user.email && (
-                                <p className="text-xs text-muted-foreground">{user.email}</p>
-                              )}
                             </div>
                           </div>
                         </td>
@@ -440,10 +439,8 @@ const UserManagement = () => {
           }}
           onSubmit={async (data) => {
             if (selectedUser) {
-              // Update existing user
               await handleUpdateUser({ ...data, id: selectedUser.id });
             } else {
-              // Create new user
               await handleCreateUser(data);
             }
           }}
