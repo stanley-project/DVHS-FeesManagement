@@ -7,6 +7,9 @@ import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
 import { VillageProvider } from './contexts/VillageContext';
 import './index.css'; // Your global styles
 
+function App() {
+  return (
+    <VillageProvider>
 ReactDOM.createRoot(document.getElementById('root')!).render(
 //  <React.StrictMode> //
     <Router>
@@ -19,3 +22,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </Router>
 //  </React.StrictMode>, //
 );
+
+    </VillageProvider>
+  );
+}
