@@ -116,7 +116,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (!userData) {
         console.log('AuthContext: User no longer active, logging out');
-        await logout();
+        await logout(); // Make sure this logout call uses the fixed version
         return;
       }
 
@@ -139,7 +139,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.log('AuthContext: Session reset successful');
     } catch (error) {
       console.error('AuthContext: Failed to reset session:', error);
-      await logout();
+      await logout(); // Make sure this logout call uses the fixed version
     }
   };
 
@@ -171,7 +171,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (error) {
         console.error('AuthContext: Database query error:', error);
         
-        if (error.code === 'PGRST116') {
+        if (error.code === 'PGRST116') { // PGRST116: "Query result returned no rows"
           throw new Error('Invalid phone number or login code');
         }
         
@@ -179,6 +179,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       if (!userData) {
+        // This case should ideally be caught by PGRST116, but as a fallback:
         throw new Error('Invalid phone number or login code');
       }
 
@@ -225,33 +226,48 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // Logout function
+  // --- MODIFIED LOGOUT FUNCTION ---
   const logout = async (): Promise<void> => {
     setAuthLoading(true);
-    
+    console.log('AuthContext: Logging out user...');
+
+    // Attempt to sign out from Supabase (best effort).
+    // Since your login is custom and doesn't use supabase.auth.signIn,
+    // a Supabase session might not exist or be relevant.
+    // This step is to clear any potential Supabase session if one was somehow set.
     try {
-      console.log('AuthContext: Logging out user...');
-      
-      // Sign out from Supabase
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      
-      // Clear session and state
-      clearUserSession();
+      const { error: supabaseSignOutError } = await supabase.auth.signOut();
+      if (supabaseSignOutError) {
+        // Log the error but do not throw, as local logout is paramount.
+        console.warn('AuthContext: Supabase signOut reported an error (proceeding with local logout):', supabaseSignOutError.message);
+      }
+    } catch (e) {
+      // Catch any unexpected synchronous errors from supabase.auth.signOut() itself
+      console.warn('AuthContext: Exception during Supabase signOut (proceeding with local logout):', e);
+    }
+
+    // Always perform local logout operations (clear session, update state)
+    try {
+      clearUserSession(); // Clear from localStorage
       setUser(null);
       setIsAuthenticated(false);
-      setPhoneNumber('');
-      
-      // Navigate to login page
-      navigate('/login');
-      
-      console.log('AuthContext: Logout successful');
+      setPhoneNumber(''); // Clear phone number state
+
+      console.log('AuthContext: Local session cleared. Navigating to /login.');
+      navigate('/login'); // Navigate to the login page
+      // Note: console.log after navigate might not always execute if navigation unmounts this component immediately.
     } catch (error) {
-      console.error('AuthContext: Logout error:', error);
+      console.error('AuthContext: Error during local logout operations (clearing session, updating state, or navigation):', error);
+      // If local operations fail, the user might be in an inconsistent state,
+      // but we ensure authLoading is reset in the finally block.
     } finally {
       setAuthLoading(false);
+      // Moved console.log here to ensure it's seen even if navigation is very fast.
+      console.log('AuthContext: Logout process finished.');
     }
   };
+  // --- END OF MODIFIED LOGOUT FUNCTION ---
+
 
   // Helper function to get redirect path based on role
   const getRedirectPath = (role: UserRole): string => {
@@ -267,7 +283,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       case 'parent':
         return '/parent/dashboard';
       default:
-        return '/dashboard';
+        return '/dashboard'; // A generic dashboard if role doesn't match
     }
   };
 
@@ -300,20 +316,22 @@ export const useRequireAuth = (requiredRoles?: UserRole[]) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!isAuthenticated) {
-        navigate('/login');
-        return;
-      }
+    if (authLoading) { // Wait until auth state is determined
+      return;
+    }
 
-      if (requiredRoles && user && !requiredRoles.includes(user.role)) {
-        navigate('/unauthorized');
-        return;
-      }
+    if (!isAuthenticated) {
+      navigate('/login', { replace: true }); // Use replace to avoid login page in history
+      return;
+    }
+
+    if (user && requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
+      navigate('/unauthorized', { replace: true }); // Use replace
+      return;
     }
   }, [user, isAuthenticated, authLoading, requiredRoles, navigate]);
 
-  return { user, isAuthenticated, authLoading };
+  return { user, isAuthenticated, authLoading }; // Return values for potential use in component
 };
 
 // --- Role Check Utility ---
