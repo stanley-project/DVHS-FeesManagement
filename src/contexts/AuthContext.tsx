@@ -232,6 +232,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       console.log('AuthContext: Logging out user...');
       
+      // Sign out from Supabase
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
       // Clear session and state
       clearUserSession();
       setUser(null);
