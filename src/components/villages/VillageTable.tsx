@@ -1,32 +1,19 @@
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Village } from '../../types/village';
-import { Eye, Pencil } from 'lucide-react';
 
 interface VillageTableProps {
   villages: Village[];
-  searchQuery: string;
-  statusFilter: string;
   onView: (village: Village) => void;
   onEdit: (village: Village) => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
 const VillageTable = ({
-  villages,
-  searchQuery,
-  statusFilter,
+  villages = [], // Provide default empty array
   onView,
   onEdit,
+  onDelete
 }: VillageTableProps) => {
-  // Filter villages based on search query and status
-  const filteredVillages = villages.filter((village) => {
-    const matchesSearch = village.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesStatus =
-      statusFilter === 'all' ? true : village.is_active === (statusFilter === 'active');
-    return matchesSearch && matchesStatus;
-  });
-
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
@@ -55,14 +42,14 @@ const VillageTable = ({
           </tr>
         </thead>
         <tbody>
-          {filteredVillages.length === 0 ? (
+          {villages.length === 0 ? (
             <tr>
               <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                 No villages found
               </td>
             </tr>
           ) : (
-            filteredVillages.map((village) => (
+            villages.map((village) => (
               <tr key={village.id} className="border-b hover:bg-muted/50">
                 <td className="px-4 py-3 font-medium">{village.name}</td>
                 <td className="px-4 py-3">{village.distance_from_school}</td>
@@ -94,6 +81,13 @@ const VillageTable = ({
                     >
                       <Pencil className="h-4 w-4" />
                     </button>
+                    <button
+                      onClick={() => onDelete(village.id)}
+                      className="p-1 hover:bg-muted rounded-md text-error"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -102,10 +96,9 @@ const VillageTable = ({
         </tbody>
       </table>
 
-      {/* Pagination can be added here later */}
       <div className="p-4 border-t flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Showing {filteredVillages.length} villages
+          Showing {villages.length} villages
         </p>
       </div>
     </div>
