@@ -58,41 +58,57 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
+  // Improved phone number normalization for Indian numbers
+  const normalizePhoneNumber = (phone: string): string => {
+    // Remove all non-digits
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    console.log(`AuthContext: Normalizing phone: ${phone} -> cleaned: ${cleanPhone}`);
+    
+    // Handle Indian numbers specifically
+    if (cleanPhone.length === 10 && /^[6-9]/.test(cleanPhone)) {
+      // Valid 10-digit Indian mobile number (starts with 6,7,8,9)
+      const normalized = `+91${cleanPhone}`;
+      console.log(`AuthContext: 10-digit number normalized to: ${normalized}`);
+      return normalized;
+    } else if (cleanPhone.length === 12 && cleanPhone.startsWith('91') && /^91[6-9]/.test(cleanPhone)) {
+      // 12-digit number starting with 91
+      const normalized = `+${cleanPhone}`;
+      console.log(`AuthContext: 12-digit number normalized to: ${normalized}`);
+      return normalized;
+    } else if (phone.startsWith('+91') && cleanPhone.length === 12) {
+      // Already in correct format
+      console.log(`AuthContext: Number already in E.164 format: ${phone}`);
+      return phone;
+    }
+    
+    throw new Error(`Invalid Indian phone number format: ${phone}. Expected 10-digit mobile number.`);
+  };
+
   // Check if phone number exists in pre-defined users
   const checkUserExists = useCallback(async (phone: string): Promise<{ exists: boolean; userData?: any }> => {
     try {
       console.log(`AuthContext: Checking if user exists for phone: ${phone}`);
       
-      // Clean phone number (remove all non-digits)
-      const cleanPhone = phone.replace(/\D/g, '');
-      console.log(`AuthContext: Cleaned phone number: ${cleanPhone}`);
-      
-      // For Indian numbers, remove country code if present
-      let phoneToMatch = cleanPhone;
-      if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
-        // Remove +91 country code for Indian numbers
-        phoneToMatch = cleanPhone.substring(2);
-        console.log(`AuthContext: Removed country code, searching for: ${phoneToMatch}`);
+      // Normalize the phone number first
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhoneNumber(phone);
+      } catch (error) {
+        console.error("AuthContext: Phone normalization failed:", error);
+        return { exists: false };
       }
       
-      // Try multiple variations of the phone number
-      const phoneVariations = [
-        phone,                    // Original format (+918978469095)
-        cleanPhone,              // All digits (918978469095)
-        phoneToMatch,            // Without country code (8978469095)
-        `+91${phoneToMatch}`,    // With +91 prefix
-        `91${phoneToMatch}`      // With 91 prefix
-      ];
+      // Extract just the 10-digit number for database comparison
+      const tenDigitPhone = normalizedPhone.replace('+91', '');
+      console.log(`AuthContext: Searching for 10-digit phone: ${tenDigitPhone}`);
       
-      console.log(`AuthContext: Trying phone variations:`, phoneVariations);
-      
-      // Create OR condition for all phone variations
-      const orConditions = phoneVariations.map(p => `phone_number.eq.${p}`).join(',');
-      
+      // Search in your users table using the 10-digit format
       const { data: userData, error } = await supabase
         .from('users')
         .select('*')
-        .or(orConditions)
+        .eq('phone_number', tenDigitPhone)
+        .eq('is_active', true)
         .maybeSingle();
 
       if (error) {
@@ -100,7 +116,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { exists: false };
       }
 
-      if (userData && userData.is_active !== false) {
+      if (userData) {
         console.log("AuthContext: Pre-defined user found:", userData);
         return { exists: true, userData };
       }
@@ -114,13 +130,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   // Fetch user profile from public.users table
-  const fetchUserProfile = useCallback(async (authUserId: string): Promise<AuthenticatedUser | null> => {
+  const fetchUserProfile = useCallback(async (phoneNumber: string): Promise<AuthenticatedUser | null> => {
     try {
-      console.log(`AuthContext: Fetching public profile for user ID: ${authUserId}`);
+      console.log(`AuthContext: Fetching public profile for phone: ${phoneNumber}`);
+      
+      // Extract 10-digit phone for database lookup
+      const tenDigitPhone = phoneNumber.replace('+91', '').replace(/\D/g, '');
+      
       const { data: publicProfile, error: profileError } = await supabase
         .from('users')
         .select('id, name, role, phone_number, email, is_active, created_at, updated_at')
-        .eq('id', authUserId)
+        .eq('phone_number', tenDigitPhone)
+        .eq('is_active', true)
         .single();
 
       if (profileError) {
@@ -147,9 +168,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAuthLoading(true);
 
       try {
-        if (session?.user) {
+        if (session?.user && session.user.phone) {
           // If a user session exists, fetch their custom role from the public.users table
-          const publicProfile = await fetchUserProfile(session.user.id);
+          const publicProfile = await fetchUserProfile(session.user.phone);
 
           if (!isMounted.current) return;
 
@@ -159,8 +180,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             console.log(`AuthContext: User and session set for ${event}. User Role: ${publicProfile.role}`);
           } else {
             console.warn(`AuthContext: User authenticated but no public profile found during ${event}.`);
-            setUser({ ...session.user, role: undefined });
-            setIsAuthenticated(true);
+            // If no profile found, sign out as this shouldn't happen for pre-defined users
+            await supabase.auth.signOut();
+            setUser(null);
+            setIsAuthenticated(false);
           }
         } else {
           setUser(null);
@@ -169,6 +192,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
       } catch (err: any) {
         console.error(`AuthContext: Uncaught error during ${event} session handling:`, err);
+        setUser(null);
+        setIsAuthenticated(false);
       } finally {
         if (isMounted.current) {
           setAuthLoading(false);
@@ -181,27 +206,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       authListener.unsubscribe();
     };
   }, [fetchUserProfile]);
-
-  // Normalize phone number to E.164 format
-  const normalizePhoneNumber = (phone: string): string => {
-    // Remove all non-digits
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    // Handle Indian numbers
-    if (cleanPhone.length === 10) {
-      // If it's a 10-digit number, assume it's Indian and add +91
-      return `+91${cleanPhone}`;
-    } else if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
-      // If it starts with 91 and is 12 digits, add + prefix
-      return `+${cleanPhone}`;
-    } else if (cleanPhone.length === 11 && cleanPhone.startsWith('91')) {
-      // Edge case: sometimes country code gets truncated
-      return `+${cleanPhone}`;
-    }
-    
-    // If already has + or other format, return as is
-    return phone.startsWith('+') ? phone : `+${cleanPhone}`;
-  };
 
   // Function to send OTP (only for pre-defined users)
   const login = async (phone: string) => {
@@ -221,25 +225,63 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       // Normalize phone number for Twilio/Supabase
-      const normalizedPhone = normalizePhoneNumber(phone);
+      let normalizedPhone: string;
+      try {
+        normalizedPhone = normalizePhoneNumber(phone);
+      } catch (error: any) {
+        console.error("AuthContext: Phone normalization failed:", error);
+        return { success: false, message: error.message };
+      }
+      
       console.log(`AuthContext: Normalized phone number for OTP: ${normalizedPhone}`);
 
-      // If user exists in our table, proceed with OTP
+      // Send OTP using Supabase Auth
       const { error } = await supabase.auth.signInWithOtp({
         phone: normalizedPhone,
         options: {
           channel: 'sms',
-          shouldCreateUser: true, // We need this to be true for phone auth to work
+          shouldCreateUser: false, // Important: don't create new users
         },
       });
 
       if (error) {
         console.error("AuthContext: OTP send error:", error.message);
-        return { success: false, message: error.message };
+        
+        // If user doesn't exist in auth.users, we need to create them first
+        if (error.message.includes('User not found') || error.message.includes('signup_disabled')) {
+          console.log("AuthContext: User not in auth.users, attempting to create...");
+          
+          // Try to sign up the user first (this creates the auth record)
+          const { error: signUpError } = await supabase.auth.signUp({
+            phone: normalizedPhone,
+            password: 'temp-password-will-not-be-used', // Required but won't be used
+          });
+          
+          if (signUpError && !signUpError.message.includes('already registered')) {
+            console.error("AuthContext: Sign up error:", signUpError.message);
+            return { success: false, message: signUpError.message };
+          }
+          
+          // Now try to send OTP again
+          const { error: retryError } = await supabase.auth.signInWithOtp({
+            phone: normalizedPhone,
+            options: {
+              channel: 'sms',
+              shouldCreateUser: false,
+            },
+          });
+          
+          if (retryError) {
+            console.error("AuthContext: Retry OTP send error:", retryError.message);
+            return { success: false, message: retryError.message };
+          }
+        } else {
+          return { success: false, message: error.message };
+        }
       }
       
       console.log("AuthContext: OTP sent successfully to pre-defined user.");
-      setPhoneNumber(normalizedPhone); // Store normalized phone number
+      setPhoneNumber(normalizedPhone);
       return { success: true, message: 'OTP sent successfully! Please check your phone.' };
     } catch (err: any) {
       console.error("AuthContext: Exception during OTP send:", err);
