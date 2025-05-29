@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter, Key } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter, Key, Eye, EyeOff, Copy } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import LoginHistoryModal from '../components/users/LoginHistoryModal';
 import PermissionsModal from '../components/users/PermissionsModal';
 import LoginCodeModal from '../components/users/LoginCodeModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useUsers } from '../hooks/useUsers';
+import { supabase } from '../lib/supabase'; // Added missing import
 
 const UserManagement = () => {
-  const { user: currentUser, authLoading } = useAuth(); // Added authLoading to track auth status
+  const { user: currentUser, authLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
@@ -19,12 +20,13 @@ const UserManagement = () => {
   const [showPermissions, setShowPermissions] = useState(false);
   const [showLoginCode, setShowLoginCode] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [showLoginCodes, setShowLoginCodes] = useState(false); // Toggle to show/hide login codes
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null); // Track copied codes
   
-  // Destructure values from useUsers hook
   const {
     users,
-    loading, // loading status from useUsers
-    error,   // error message from useUsers
+    loading,
+    error,
     totalCount,
     refreshUsers
   } = useUsers({
@@ -37,15 +39,13 @@ const UserManagement = () => {
     sortOrder: 'desc'
   });
 
-  // --- BEGIN NEW LOGGING ---
   console.log("UserManagement: Component rendered.");
   console.log("  Auth Loading:", authLoading);
-  console.log("  Current User:", currentUser ? currentUser.email : "Not logged in");
+  console.log("  Current User:", currentUser ? currentUser.name : "Not logged in");
   console.log("  Users Hook - Loading:", loading);
   console.log("  Users Hook - Error:", error);
   console.log("  Users Hook - Users Array Length:", users.length);
   console.log("  Users Hook - Total Count:", totalCount);
-  // --- END NEW LOGGING ---
 
   const handleUserAction = async (action: string, user: any) => {
     setSelectedUser(user);
@@ -59,13 +59,7 @@ const UserManagement = () => {
           alert('You cannot delete your own account!');
           return;
         }
-        // Show confirmation dialog and handle deletion
-        if (confirm('Are you sure you want to delete this user?')) {
-          console.log('Delete user:', user);
-          // TODO: Implement actual user deletion logic here
-          // After deletion, refresh the user list:
-          // await refreshUsers();
-        }
+        await handleDeleteUser(user);
         break;
       case 'permissions':
         setShowPermissions(true);
@@ -81,11 +75,91 @@ const UserManagement = () => {
     }
   };
 
+  const handleDeleteUser = async (user: any) => {
+    if (!confirm(`Are you sure you want to delete ${user.name}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      alert('User deleted successfully');
+      await refreshUsers();
+    } catch (err: any) {
+      console.error('Delete user error:', err);
+      alert(`Failed to delete user: ${err.message}`);
+    }
+  };
+
+  const handleUpdateUser = async (userData: any) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          name: userData.name,
+          role: userData.role,
+          phone_number: userData.phone_number,
+          email: userData.email,
+          is_active: userData.is_active,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userData.id);
+
+      if (error) throw error;
+
+      alert('User updated successfully');
+      await refreshUsers();
+      setShowUserForm(false);
+      setSelectedUser(null);
+    } catch (err: any) {
+      console.error('Update user error:', err);
+      alert(`Failed to update user: ${err.message}`);
+    }
+  };
+
+  const handleCreateUser = async (userData: any) => {
+    try {
+      // Generate a random login code
+      const loginCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      const { error } = await supabase
+        .from('users')
+        .insert({
+          name: userData.name,
+          role: userData.role,
+          phone_number: userData.phone_number,
+          email: userData.email,
+          login_code: loginCode,
+          is_active: userData.is_active ?? true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      alert(`User created successfully! Login code: ${loginCode}`);
+      await refreshUsers();
+      setShowUserForm(false);
+      setSelectedUser(null);
+    } catch (err: any) {
+      console.error('Create user error:', err);
+      alert(`Failed to create user: ${err.message}`);
+    }
+  };
+
   const handleUpdateLoginCode = async (userId: string, newCode: string) => {
     try {
       const { error } = await supabase
         .from('users')
-        .update({ login_code: newCode })
+        .update({ 
+          login_code: newCode,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', userId);
 
       if (error) throw error;
@@ -95,30 +169,58 @@ const UserManagement = () => {
     }
   };
 
+  const copyToClipboard = async (text: string, userId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedUserId(userId);
+      setTimeout(() => setCopiedUserId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  };
+
+  const formatUserStatus = (user: any) => {
+    // Handle both 'is_active' boolean and 'status' string formats
+    const isActive = user.is_active !== undefined ? user.is_active : user.status === 'active';
+    return isActive ? 'active' : 'inactive';
+  };
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
-  // You might want to show a general loading/error state if auth is still loading
   if (authLoading) {
-    console.log("UserManagement: Auth is still loading, showing initial loading screen.");
     return <div className="text-center py-8">Authenticating...</div>;
   }
 
-  // Primary rendering logic based on useUsers hook state
+  // Check if user has admin privileges to view login codes
+  const canViewLoginCodes = currentUser?.role === 'administrator';
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
-        <h1>User Management</h1>
+        <h1 className="text-2xl font-bold">User Management</h1>
         
-        <button 
-          className="btn btn-primary btn-md inline-flex items-center"
-          onClick={() => {
-            setSelectedUser(null);
-            setShowUserForm(true);
-          }}
-        >
-          <UserPlus className="mr-2 h-4 w-4" />
-          Add New User
-        </button>
+        <div className="flex gap-2">
+          {canViewLoginCodes && (
+            <button 
+              className="btn btn-outline btn-md inline-flex items-center"
+              onClick={() => setShowLoginCodes(!showLoginCodes)}
+            >
+              {showLoginCodes ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+              {showLoginCodes ? 'Hide' : 'Show'} Login Codes
+            </button>
+          )}
+          
+          <button 
+            className="btn btn-primary btn-md inline-flex items-center"
+            onClick={() => {
+              setSelectedUser(null);
+              setShowUserForm(true);
+            }}
+          >
+            <UserPlus className="mr-2 h-4 w-4" />
+            Add New User
+          </button>
+        </div>
       </div>
       
       <div className="bg-card rounded-lg shadow overflow-hidden">
@@ -148,6 +250,8 @@ const UserManagement = () => {
                 <option value="administrator">Administrator</option>
                 <option value="accountant">Accountant</option>
                 <option value="teacher">Teacher</option>
+                <option value="student">Student</option>
+                <option value="parent">Parent</option>
               </select>
               
               <select
@@ -163,136 +267,168 @@ const UserManagement = () => {
           </div>
           
           {/* Users Table */}
-          {error ? ( // Check for error from useUsers hook
+          {error ? (
             <div className="text-center py-8 text-error">
               Error loading users: {error}
             </div>
-          ) : loading ? ( // Check for loading from useUsers hook
+          ) : loading ? (
             <div className="text-center py-8 text-muted-foreground">
               Loading users...
             </div>
-          ) : users.length === 0 ? ( // Check if no users are found after loading
+          ) : users.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No users found matching your search criteria
             </div>
           ) : (
             <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Phone Number</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Last Login</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                          user.role === 'administrator' ? 'bg-primary text-primary-foreground' :
-                          user.role === 'accountant' ? 'bg-secondary text-secondary-foreground' :
-                          'bg-accent text-accent-foreground'
-                        }`}>
-                          {user.name.charAt(0)}
-                        </div>
-                        <div>
-                          <p className="font-medium">{user.name}</p>
-                          {user.role === 'teacher' && user.assignedClasses && user.assignedClasses.length > 0 && ( // Added null check for assignedClasses
-                            <p className="text-xs text-muted-foreground">
-                              Classes: {user.assignedClasses.join(', ')}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-muted-foreground" />
-                        <span className="capitalize">{user.role}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{user.phone_number}</span> {/* Show login code if admin */}
-                        {currentUser?.role === 'administrator' && (
-                          <button
-                            onClick={() => handleUserAction('loginCode', user)}
-                            className="ml-2 p-1 hover:bg-muted rounded-md"
-                            title="Manage Login Code"
-                          >
-                            <Key className="h-4 w-4 text-primary" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground">
-                      {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'} {/* Format date and handle null */}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        user.status === 'active' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
-                      }`}>
-                        {user.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
-                        <button 
-                          className="p-1 hover:bg-muted rounded-md" 
-                          title="Edit User"
-                          onClick={() => handleUserAction('edit', user)}
-                        >
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </button>
-                        <button 
-                          className="p-1 hover:bg-muted rounded-md" 
-                          title="Delete User"
-                          onClick={() => handleUserAction('delete', user)}
-                          disabled={user.id === currentUser?.id}
-                        >
-                          <Trash2 className={`h-4 w-4 ${
-                            user.id === currentUser?.id ? 'text-muted-foreground' : 'text-error'
-                          }`} />
-                        </button>
-                      </div>
-                    </td>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Role</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Phone Number</th>
+                    {canViewLoginCodes && showLoginCodes && (
+                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Login Code</th>
+                    )}
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Last Login</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {users.map((user) => {
+                    const userStatus = formatUserStatus(user);
+                    return (
+                      <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                              user.role === 'administrator' ? 'bg-primary text-primary-foreground' :
+                              user.role === 'accountant' ? 'bg-secondary text-secondary-foreground' :
+                              user.role === 'teacher' ? 'bg-accent text-accent-foreground' :
+                              'bg-muted text-muted-foreground'
+                            }`}>
+                              {user.name?.charAt(0)?.toUpperCase() || '?'}
+                            </div>
+                            <div>
+                              <p className="font-medium">{user.name}</p>
+                              {user.email && (
+                                <p className="text-xs text-muted-foreground">{user.email}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-muted-foreground" />
+                            <span className="capitalize">{user.role}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-muted-foreground" />
+                            <span>{user.phone_number}</span>
+                          </div>
+                        </td>
+                        {canViewLoginCodes && showLoginCodes && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                                {user.login_code || 'Not Set'}
+                              </code>
+                              {user.login_code && (
+                                <button
+                                  onClick={() => copyToClipboard(user.login_code, user.id)}
+                                  className="p-1 hover:bg-muted rounded-md"
+                                  title="Copy Login Code"
+                                >
+                                  <Copy className={`h-4 w-4 ${
+                                    copiedUserId === user.id ? 'text-success' : 'text-muted-foreground'
+                                  }`} />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleUserAction('loginCode', user)}
+                                className="p-1 hover:bg-muted rounded-md"
+                                title="Manage Login Code"
+                              >
+                                <Key className="h-4 w-4 text-primary" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-4 py-3 text-sm text-muted-foreground">
+                          {user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            userStatus === 'active' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
+                          }`}>
+                            {userStatus === 'active' ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              className="p-1 hover:bg-muted rounded-md" 
+                              title="Edit User"
+                              onClick={() => handleUserAction('edit', user)}
+                            >
+                              <Pencil className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                            {canViewLoginCodes && !showLoginCodes && (
+                              <button
+                                onClick={() => handleUserAction('loginCode', user)}
+                                className="p-1 hover:bg-muted rounded-md"
+                                title="Manage Login Code"
+                              >
+                                <Key className="h-4 w-4 text-primary" />
+                              </button>
+                            )}
+                            <button 
+                              className="p-1 hover:bg-muted rounded-md" 
+                              title="Delete User"
+                              onClick={() => handleUserAction('delete', user)}
+                              disabled={user.id === currentUser?.id}
+                            >
+                              <Trash2 className={`h-4 w-4 ${
+                                user.id === currentUser?.id ? 'text-muted-foreground' : 'text-error'
+                              }`} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between border-t p-4">
-              <p className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} users
-              </p>
-              <div className="flex gap-2">
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </button>
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </button>
+              {/* Pagination */}
+              <div className="flex items-center justify-between border-t p-4">
+                <p className="text-sm text-muted-foreground">
+                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} users
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Previous
+                  </button>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
 
       {/* User Form Modal */}
       {showUserForm && (
@@ -302,10 +438,14 @@ const UserManagement = () => {
             setShowUserForm(false);
             setSelectedUser(null);
           }}
-          onSubmit={(data) => {
-            console.log('Form submitted:', data);
-            setShowUserForm(false);
-            setSelectedUser(null);
+          onSubmit={async (data) => {
+            if (selectedUser) {
+              // Update existing user
+              await handleUpdateUser({ ...data, id: selectedUser.id });
+            } else {
+              // Create new user
+              await handleCreateUser(data);
+            }
           }}
         />
       )}
