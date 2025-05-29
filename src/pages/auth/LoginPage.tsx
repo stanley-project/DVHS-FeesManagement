@@ -2,11 +2,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext'; // Ensure this path is correct
-import { School } from 'lucide-react'; // Assuming you want to keep the School icon
+import { School, Eye, EyeOff } from 'lucide-react';
 
 const LoginPage = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loginCode, setLoginCode] = useState('');
+  const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, setPhoneNumber: setAuthPhoneNumber } = useAuth();
@@ -25,6 +26,13 @@ const LoginPage = () => {
     }
 
     // Basic validation for login code
+    if (!loginCode || !/^[A-HJ-NP-Z2-9]{8}$/.test(loginCode)) {
+      setError('Please enter a valid login code');
+      setIsLoading(false);
+      return;
+    }
+
+    // Validate login code format (8 characters, uppercase letters A-H,J-N,P-Z and numbers 2-9)
     if (!loginCode || !/^[A-HJ-NP-Z2-9]{8}$/.test(loginCode)) {
       setError('Please enter a valid login code');
       setIsLoading(false);
@@ -74,7 +82,7 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-foreground">
+              <label htmlFor="phoneNumber" className="block text-sm font-medium">
                 Phone Number
               </label>
               <div className="mt-1">
@@ -93,24 +101,36 @@ const LoginPage = () => {
                     maxLength={10}
                   />
                 </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter your registered phone number
+                </p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="loginCode" className="block text-sm font-medium text-foreground">
+              <label htmlFor="loginCode" className="block text-sm font-medium">
                 Login Code
               </label>
-              <input
-                id="loginCode"
-                name="loginCode"
-                type="text"
-                value={loginCode}
-                onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
-                placeholder="Enter your login code"
-                className="input"
-                maxLength={8}
-                style={{ letterSpacing: '0.25em' }}
-              />
+              <div className="relative">
+                <input
+                  id="loginCode"
+                  name="loginCode"
+                  type={showCode ? "text" : "password"}
+                  value={loginCode}
+                  onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
+                  placeholder="Enter your assigned code"
+                  className="input pr-10"
+                  maxLength={8}
+                  style={{ letterSpacing: showCode ? '0.25em' : 'normal' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCode(!showCode)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showCode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <p className="text-xs text-muted-foreground">
                 Enter your assigned login code
               </p>
@@ -121,16 +141,16 @@ const LoginPage = () => {
               disabled={isLoading}
               className="btn btn-primary btn-lg w-full"
             >
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? 'Authenticating...' : 'Login'}
             </button>
           </form>
           
           <div className="mt-6 text-center text-sm">
             <p className="text-muted-foreground">
               For demo purposes, use:<br />
-              Admin: 9876543210 / ADMIN123<br />
-              Accountant: 9876543211 / ACCT123<br />
-              Teacher: 9876543212 / TCHR123
+              Admin: 9876543210 / ADMN2025<br />
+              Accountant: 9876543211 / ACCT2025<br />
+              Teacher: 9876543212 / TCHR2025
             </p>
           </div>
         </div>
