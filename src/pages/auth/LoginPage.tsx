@@ -5,12 +5,12 @@ import { useAuth } from '../../contexts/AuthContext'; // Ensure this path is cor
 import { School } from 'lucide-react'; // Assuming you want to keep the School icon
 
 const LoginPage = () => {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [loginCode, setLoginCode] = useState('');
   const [error, setError] = useState(''); // Local state for displaying errors
   const [isLoading, setIsLoading] = useState(false); // Local loading state for form submission
 
   // Destructure necessary states and functions from useAuth
-  const { login, setPhoneNumber: setAuthPhoneNumber, authLoading, isAuthenticated, user } = useAuth();
+  const { login, authLoading, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
 
   // Effect to redirect if already authenticated
@@ -27,27 +27,19 @@ const LoginPage = () => {
     setError(''); // Clear previous errors
     setIsLoading(true); // Start local loading for this submission
 
-    // Basic validation for phone number format
-    if (!phoneNumber || phoneNumber.length !== 10 || !/^\d+$/.test(phoneNumber)) {
-      setError('Please enter a valid 10-digit phone number');
+    // Basic validation for login code format
+    if (!loginCode || !/^[A-HJ-NP-Z2-9]{8}$/.test(loginCode)) {
+      setError('Please enter a valid 8-character login code');
       setIsLoading(false); // End local loading
       return;
     }
 
-    // Supabase requires phone numbers in E.164 format (e.g., +919876543210)
-    const formattedPhoneNumber = `+91${phoneNumber}`; // Assuming +91 for India
-
-    // Call the login function from AuthContext to send the OTP
-    const result = await login(formattedPhoneNumber);
+    // Call the login function from AuthContext to verify the code
+    const result = await login(loginCode);
 
     if (result.success) {
-      // If OTP sending was successful, store the formatted phone number in AuthContext
-      // This is crucial for OtpVerificationPage to know which number to verify
-      setAuthPhoneNumber(formattedPhoneNumber);
-      // Navigate to the OTP verification page
-      navigate('/verify-otp');
+      navigate('/'); // Redirect to dashboard on successful login
     } else {
-      // Display error message from the login function
       setError(result.message);
     }
 
@@ -95,29 +87,27 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label htmlFor="phoneNumber" className="block text-sm font-medium text-foreground">
-                Phone Number
+              <label htmlFor="loginCode" className="block text-sm font-medium text-foreground">
+                Login Code
               </label>
               <div className="mt-1">
-                <div className="flex rounded-md shadow-sm">
-                  <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
-                    +91
-                  </span>
-                  <input
-                    id="phoneNumber"
-                    name="phoneNumber"
-                    type="tel"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    placeholder="10-digit phone number"
-                    className="input rounded-l-none"
-                    maxLength={10}
-                    disabled={isFormDisabled} // Disable input while loading
-                  />
-                </div>
+                <input
+                  id="loginCode"
+                  name="loginCode"
+                  type="text"
+                  value={loginCode}
+                  onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
+                  placeholder="Enter your 8-character code"
+                  className="input"
+                  maxLength={8}
+                  pattern="[A-HJ-NP-Z2-9]{8}"
+                  disabled={isFormDisabled}
+                  style={{ letterSpacing: '0.25em' }}
+                />
               </div>
               <p className="text-xs text-muted-foreground">
-                Enter your registered phone number to receive an OTP
+                Enter your login code provided by the administrator.
+                Codes only use letters A-H, J-N, P-Z and numbers 2-9.
               </p>
             </div>
 
@@ -126,13 +116,13 @@ const LoginPage = () => {
               disabled={isFormDisabled} // Use combined loading state
               className="btn btn-primary btn-lg w-full"
             >
-              {isFormDisabled ? 'Sending OTP...' : 'Send OTP'}
+              {isFormDisabled ? 'Logging in...' : 'Login'}
             </button>
           </form>
 
           <div className="mt-6 text-center text-sm">
             <p className="text-muted-foreground">
-              For demo purposes, use: 9876543210 (Admin), 9876543211 (Accountant), or 9876543212 (Teacher)
+              For demo purposes, use: ADMIN123 (Admin), ACCT123 (Accountant), or TCHR123 (Teacher)
             </p>
           </div>
         </div>
