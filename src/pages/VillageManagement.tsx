@@ -16,17 +16,27 @@ const VillageManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  console.log('Villages in component:', villages); // Debug log
-  
-  const { 
-    villages, 
-    loading, 
-    error, 
-    addVillage, 
-    updateVillage, 
-    deleteVillage,
-    refreshVillages 
-  } = useVillages();
+  const { villages, loading, error, addVillage, updateVillage, deleteVillage } = useVillages();
+
+  if (loading) {
+    return <div className="flex justify-center items-center h-64">Loading villages...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex justify-center items-center h-64 text-red-500">
+        Error loading villages: {error.message}
+      </div>
+    );
+  }
+
+  const filteredVillages = villages.filter(village => {
+    const matchesSearch = village.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === 'all' 
+      ? true 
+      : statusFilter === 'active' ? village.is_active : !village.is_active;
+    return matchesSearch && matchesStatus;
+  });
 
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -39,7 +49,6 @@ const VillageManagement = () => {
       }
       setShowForm(false);
       setSelectedVillage(null);
-      refreshVillages();
     } catch (error) {
       console.error('Error saving village:', error);
       toast.error('Failed to save village');
