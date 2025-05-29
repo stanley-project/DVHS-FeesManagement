@@ -197,7 +197,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } finally {
       if (isMounted.current) {
         setAuthLoading(false);
-        setLoginCode(null);
+//        setLoginCode(null);
       }
     }
   };
