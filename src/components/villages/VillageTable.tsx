@@ -1,4 +1,4 @@
-import { useVillageContext } from '../../contexts/VillageContext';
+import { useVillages } from '../../contexts/VillageContext';
 // Assuming these are imported from somewhere, e.g., @lucide/react
 import { ArrowUpDown, Eye, Pencil, ToggleLeft } from 'lucide-react'; 
 
