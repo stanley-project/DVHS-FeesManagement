@@ -8,7 +8,7 @@ interface VillageFormProps {
 }
 
 const VillageForm = ({ village, onClose }: VillageFormProps) => {
-  const { addVillage, updateVillage } = useVillageContext();
+  const { addVillage, updateVillage } = useVillages();
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [formData, setFormData] = useState(village || {
     name: '',
