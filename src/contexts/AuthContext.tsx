@@ -240,7 +240,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         phone: normalizedPhone,
         options: {
           channel: 'sms',
-          shouldCreateUser: false, // Important: don't create new users
+          shouldCreateUser: true, // Important: don't create new users
         },
       });
 
@@ -267,7 +267,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             phone: normalizedPhone,
             options: {
               channel: 'sms',
-              shouldCreateUser: false,
+              shouldCreateUser: true,
             },
           });
           
