@@ -1,144 +1,64 @@
-import { useState } from 'react';
-import { Plus, Upload, Download, Search, Filter, Eye, Pencil, ToggleLeft } from 'lucide-react';
-import VillageForm from '../components/villages/VillageForm';
-import VillageDetails from '../components/villages/VillageDetails';
-import VillageTable from '../components/villages/VillageTable';
-import VillageImport from '../components/villages/VillageImport';
+// src/contexts/VillageContext.tsx
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useVillages } from '../hooks/useVillages'; // Ensure this path is correct for your project structure
+import { useAuth } from './AuthContext'; // Ensure this path is correct
 
-const VillageManagement = () => {
-  const [showForm, setShowForm] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [selectedVillage, setSelectedVillage] = useState<any>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+// The VillageContextType will infer its structure from the return type of useVillages
+// and add an isInitialized flag.
+// This means whatever useVillages returns (e.g., villages, loading, error, addVillage, etc.)
+// will be part of this type, plus our additional isInitialized.
+export interface VillageContextType extends ReturnType<typeof useVillages> {
+  /**
+   * Indicates if the authentication process has completed.
+   * True when authLoading (from AuthContext) is false.
+   * This helps components determine if they can reliably check isAuthenticated.
+   */
+  isInitialized: boolean;
+}
 
-  const handleSubmit = (data: any) => {
-    console.log('Form submitted:', data);
-    setShowForm(false);
-    setSelectedVillage(null);
-  };
+const VillageContext = createContext<VillageContextType | undefined>(undefined);
 
-  const handleImport = (data: any) => {
-    console.log('Import data:', data);
-    setShowImport(false);
+interface VillageProviderProps {
+  children: ReactNode;
+}
+
+export function VillageProvider({ children }: VillageProviderProps) {
+  const { authLoading } = useAuth(); // We primarily need authLoading to determine initialization.
+                                     // isAuthenticated is used internally by useVillages.
+  
+  const villagesHookData = useVillages(); // This hook manages fetching villages based on auth state
+
+  // The value provided by the context.
+  // It includes all data and functions returned by useVillages,
+  // plus the isInitialized flag.
+  const contextValue: VillageContextType = {
+    ...villagesHookData,
+    isInitialized: !authLoading, // True once authentication loading is finished
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="flex items-center justify-between">
-        <h1>Village Management</h1>
-        <div className="flex gap-2">
-          <button
-            className="btn btn-outline btn-md inline-flex items-center"
-            onClick={() => setShowImport(true)}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import Villages
-          </button>
-          
-          <button
-            className="btn btn-outline btn-md inline-flex items-center"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </button>
-          
-          <button
-            className="btn btn-primary btn-md inline-flex items-center"
-            onClick={() => {
-              setSelectedVillage(null);
-              setShowForm(true);
-            }}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add New Village
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-lg shadow overflow-hidden">
-        <div className="p-4 md:p-6">
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <input
-                type="text"
-                placeholder="Search villages..."
-                className="input pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex gap-2">
-              <select
-                className="input"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Villages Table */}
-          <VillageTable
-            searchQuery={searchQuery}
-            statusFilter={statusFilter}
-            onView={(village) => {
-              setSelectedVillage(village);
-              setShowDetails(true);
-            }}
-            onEdit={(village) => {
-              setSelectedVillage(village);
-              setShowForm(true);
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Village Form Modal */}
-      {showForm && (
-        <VillageForm
-          village={selectedVillage}
-          onClose={() => {
-            setShowForm(false);
-            setSelectedVillage(null);
-          }}
-          onSubmit={handleSubmit}
-        />
-      )}
-
-      {/* Village Details Modal */}
-      {showDetails && selectedVillage && (
-        <VillageDetails
-          village={selectedVillage}
-          onClose={() => {
-            setShowDetails(false);
-            setSelectedVillage(null);
-          }}
-          onEdit={() => {
-            setShowDetails(false);
-            setShowForm(true);
-          }}
-        />
-      )}
-
-      {/* Import Modal */}
-      {showImport && (
-        <VillageImport
-          onClose={() => setShowImport(false)}
-          onImport={handleImport}
-        />
-      )}
-    </div>
+    <VillageContext.Provider value={contextValue}>
+      {children}
+    </VillageContext.Provider>
   );
-};
+}
 
-export default VillageManagement;
+/**
+ * Custom hook to consume the VillageContext.
+ * Provides access to village data, loading states, error states,
+ * and village-related actions.
+ */
+export function useVillageContext() {
+  const context = useContext(VillageContext);
+  if (context === undefined) {
+    throw new Error('useVillageContext must be used within a VillageProvider. Ensure VillageProvider wraps the component tree.');
+  }
+  
+  // Components using this hook can check:
+  // 1. context.isInitialized: To know if auth state is settled.
+  // 2. context.loading: For village data loading state.
+  // 3. context.error: For errors during village data operations.
+  // 4. context.villages: The actual village data.
+  // 5. context.isAuthenticated (from useAuth, if needed directly, though useVillages handles it)
+  return context;
+}
