@@ -1,68 +1,33 @@
 import { useState } from 'react';
-import { Plus, Upload, Download, Search } from 'lucide-react';
-import { toast } from 'react-hot-toast';
+import { Plus, Upload, Download, Search, Filter, Eye, Pencil, ToggleLeft } from 'lucide-react';
 import VillageForm from '../components/villages/VillageForm';
 import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
 import VillageImport from '../components/villages/VillageImport';
-import { useVillages } from '../hooks/useVillages';
-import { Village } from '../types/village';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
+  const [selectedVillage, setSelectedVillage] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [statusFilter, setStatusFilter] = useState('all');
 
-  const { villages, loading, error, addVillage, updateVillage, deleteVillage } = useVillages();
-
-  const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
-    try {
-      if (selectedVillage) {
-        await updateVillage(selectedVillage.id, data);
-        toast.success('Village updated successfully');
-      } else {
-        await addVillage(data);
-        toast.success('Village added successfully');
-      }
-      setShowForm(false);
-      setSelectedVillage(null);
-    } catch (error) {
-      console.error('Error saving village:', error);
-      toast.error('Failed to save village');
-    }
+  const handleSubmit = (data: any) => {
+    console.log('Form submitted:', data);
+    setShowForm(false);
+    setSelectedVillage(null);
   };
 
-  const handleImport = async (data: any[]) => {
-    try {
-      // TODO: Implement bulk import
-      console.log('Import data:', data);
-      setShowImport(false);
-      toast.success('Villages imported successfully');
-    } catch (error) {
-      console.error('Error importing villages:', error);
-      toast.error('Failed to import villages');
-    }
+  const handleImport = (data: any) => {
+    console.log('Import data:', data);
+    setShowImport(false);
   };
-
-  if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading villages...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center h-64 text-red-500">
-        Error loading villages: {error.message}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Village Management</h1>
+        <h1>Village Management</h1>
         <div className="flex gap-2">
           <button
             className="btn btn-outline btn-md inline-flex items-center"
@@ -94,6 +59,7 @@ const VillageManagement = () => {
 
       <div className="bg-card rounded-lg shadow overflow-hidden">
         <div className="p-4 md:p-6">
+          {/* Search and Filters */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -102,7 +68,7 @@ const VillageManagement = () => {
               <input
                 type="text"
                 placeholder="Search villages..."
-                className="input pl-10 w-full"
+                className="input pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -112,7 +78,7 @@ const VillageManagement = () => {
               <select
                 className="input"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -121,14 +87,10 @@ const VillageManagement = () => {
             </div>
           </div>
 
+          {/* Villages Table */}
           <VillageTable
-            villages={villages.filter(village => {
-              const matchesSearch = village.name.toLowerCase().includes(searchQuery.toLowerCase());
-              const matchesStatus = statusFilter === 'all' 
-                ? true 
-                : statusFilter === 'active' ? village.is_active : !village.is_active;
-              return matchesSearch && matchesStatus;
-            })}
+            searchQuery={searchQuery}
+            statusFilter={statusFilter}
             onView={(village) => {
               setSelectedVillage(village);
               setShowDetails(true);
@@ -137,11 +99,11 @@ const VillageManagement = () => {
               setSelectedVillage(village);
               setShowForm(true);
             }}
-            onDelete={deleteVillage}
           />
         </div>
       </div>
 
+      {/* Village Form Modal */}
       {showForm && (
         <VillageForm
           village={selectedVillage}
@@ -153,6 +115,7 @@ const VillageManagement = () => {
         />
       )}
 
+      {/* Village Details Modal */}
       {showDetails && selectedVillage && (
         <VillageDetails
           village={selectedVillage}
@@ -167,6 +130,7 @@ const VillageManagement = () => {
         />
       )}
 
+      {/* Import Modal */}
       {showImport && (
         <VillageImport
           onClose={() => setShowImport(false)}
