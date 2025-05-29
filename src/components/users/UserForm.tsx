@@ -1,95 +1,49 @@
-import { useState, useEffect } from 'react'; import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter, Key, Eye, EyeOff, Copy } from 'lucide-react'; import UserForm from '../components/users/UserForm'; import LoginHistoryModal from '../components/users/LoginHistoryModal'; import PermissionsM
-
-pasted
-
-
-import { useState } from 'react'; import { X, AlertCircle } from 'lucide-react'; import { supabase } from '../../lib/supabase'; import { useAuth } from '../../contexts/AuthContext'; import { z } from 'zod'; import { generateLoginCode } from '../../utils/codeGenerator'; interface UserFormProps {
-
-pasted
-
-Hi. I have created a web-app using bolt.new where pre-defined users are allowed to access the app. Users can login using phone Number+login code and only Administrators can control user updates or user addition. 
-1) User updates or User addition is not working
-2) User email is not required but existing login code is required to be displayed
-3) There are only 3 roles: Administrator, Accountant and Teacher. Remove all other roles and any code relavant to other roles. 
-Review and make changes to attached User Management and User form code
-
-Edit
-Looking at your code, I can identify several issues that need to be fixed. Let me create updated versions of both components to address your concerns.
-
-
-Updated UserManagement.jsx
-Code 
-
-Updated UserForm.jsx
-Code 
-
-
-
-
-You are out of free messages until 7:30 PM
-
-
 import { useState } from 'react';
-import { X, AlertCircle, Copy } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { X, AlertCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext'; 
+import { z } from 'zod';
+import { generateLoginCode } from '../../utils/codeGenerator';
 
-// Simple login code generator function (no external dependency)
-const generateLoginCode = () => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding I, O, 0, 1 for clarity
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
+interface UserFormProps {
+  user?: any;
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+}
 
-const UserForm = ({ user, onClose, onSubmit }) => {
+const userSchema = z.object({
+  name: z.string().min(3, 'Name must be at least 3 characters'),
+  phoneNumber: z.string().regex(/^[0-9]{10}$/, 'Phone number must be 10 digits'),
+  role: z.enum(['administrator', 'accountant', 'teacher']),
+  status: z.enum(['active', 'inactive']),
+  assignedClasses: z.array(z.string())
+});
+
+const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const { user: currentUser } = useAuth();
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [error, setError] = useState(null);
-  const [copiedCode, setCopiedCode] = useState(false);
-  
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    phone_number: user?.phone_number || '',
-    login_code: user?.login_code || generateLoginCode(),
-    role: user?.role || 'teacher',
-    status: user ? (user.is_active ? 'active' : 'inactive') : 'active'
+  const [error, setError] = useState<string | null>(null);
+  const [formData, setFormData] = useState(user || {
+    name: '',
+    phoneNumber: '',
+    loginCode: user?.login_code || generateLoginCode(),
+    role: 'teacher',
+    status: 'active',
+    assignedClasses: [],
   });
 
-  const validateForm = () => {
-    if (!formData.name || formData.name.length < 3) {
-      setError('Name must be at least 3 characters');
-      return false;
-    }
-    
-    if (!formData.phone_number || !/^(\+91)?[6-9]\d{9}$/.test(formData.phone_number)) {
-      setError('Please enter a valid 10-digit phone number');
-      return false;
-    }
-    
-    if (!formData.login_code || formData.login_code.length < 4) {
-      setError('Login code must be at least 4 characters');
-      return false;
-    }
-    
-    if (!['administrator', 'accountant', 'teacher'].includes(formData.role)) {
-      setError('Please select a valid role');
-      return false;
-    }
-    
-    return true;
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
+    try {
+      userSchema.parse(formData);
+      setError(null);
+      setShowConfirmation(true);
+    } catch (err) {
+      if (err instanceof z.ZodError) {
+        setError(err.errors[0].message);
+      }
     }
-    
-    setError(null);
-    setShowConfirmation(true);
   };
 
   const handleConfirm = async () => {
@@ -100,46 +54,63 @@ const UserForm = ({ user, onClose, onSubmit }) => {
         throw new Error('Only administrators can manage users');
       }
 
-      // Ensure phone number has country code
-      let phoneNumber = formData.phone_number;
-      if (!phoneNumber.startsWith('+91')) {
-        phoneNumber = `+91${phoneNumber.replace(/^\+?91?/, '')}`;
+      if (!user) {
+        // Call the Edge Function to create user
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            phone_number: `+91${formData.phoneNumber}`, // Add country code
+            role: formData.role,
+            email_suffix: 'deepthischool.edu',
+            status: formData.status
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create user');
+        }
+
+        const result = await response.json();
+        onSubmit(result);
+      } else {
+        // When updating existing user
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: user.id,
+            name: formData.name,
+            phone_number: `+91${formData.phoneNumber}`,
+            role: formData.role,
+            status: formData.status,
+            action: 'update'
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update user');
+        }
+
+        const result = await response.json();
+        onSubmit(result);
       }
 
-      const userData = {
-        name: formData.name.trim(),
-        phone_number: phoneNumber,
-        login_code: formData.login_code.toUpperCase(),
-        role: formData.role,
-        status: formData.status
-      };
-
-      await onSubmit(userData);
       setShowConfirmation(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving user:', err);
       setError(err.message || 'Failed to save user');
       setShowConfirmation(false);
     }
-  };
-
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy to clipboard:', err);
-    }
-  };
-
-  const formatPhoneNumber = (value) => {
-    // Remove all non-digits and limit to 10 digits
-    let cleaned = value.replace(/\D/g, '');
-    if (cleaned.length > 10) {
-      cleaned = cleaned.slice(0, 10);
-    }
-    return cleaned;
   };
 
   return (
@@ -163,7 +134,6 @@ const UserForm = ({ user, onClose, onSubmit }) => {
               {error}
             </div>
           )}
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="name" className="block text-sm font-medium">
@@ -191,13 +161,11 @@ const UserForm = ({ user, onClose, onSubmit }) => {
                   id="phoneNumber"
                   type="tel"
                   className="input rounded-l-none"
-                  value={formData.phone_number.replace(/^\+?91/, '')}
-                  onChange={(e) => setFormData({ 
-                    ...formData, 
-                    phone_number: formatPhoneNumber(e.target.value)
-                  })}
-                  placeholder="10-digit phone number"
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                  pattern="[0-9]{10}"
                   maxLength={10}
+                  placeholder="10-digit phone number"
                   required
                 />
               </div>
@@ -220,6 +188,32 @@ const UserForm = ({ user, onClose, onSubmit }) => {
               </select>
             </div>
 
+            {formData.role === 'teacher' && (
+              <div className="space-y-2 md:col-span-2">
+                <label htmlFor="classes" className="block text-sm font-medium">
+                  Assigned Classes
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {['IX-A', 'IX-B', 'X-A', 'X-B', 'XI-A', 'XI-B', 'XII-A', 'XII-B'].map((cls) => (
+                    <label key={cls} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.assignedClasses.includes(cls)}
+                        onChange={(e) => {
+                          const classes = e.target.checked
+                            ? [...formData.assignedClasses, cls]
+                            : formData.assignedClasses.filter((c: string) => c !== cls);
+                          setFormData({ ...formData, assignedClasses: classes });
+                        }}
+                        className="h-4 w-4 rounded border-input"
+                      />
+                      <span className="text-sm">{cls}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="status" className="block text-sm font-medium">
                 Status
@@ -236,43 +230,33 @@ const UserForm = ({ user, onClose, onSubmit }) => {
             </div>
           </div>
 
-          {/* Login Code Field - Full Width */}
+          {/* Login Code Field */}
           <div className="space-y-2">
             <label htmlFor="loginCode" className="block text-sm font-medium">
-              Login Code *
+              Login Code
             </label>
             <div className="flex gap-2">
               <input
                 id="loginCode"
                 type="text"
-                className="input font-mono uppercase flex-1"
-                value={formData.login_code}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  login_code: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '') 
-                })}
+                className="input font-mono uppercase"
+                value={formData.loginCode}
+                onChange={(e) => setFormData({ ...formData, loginCode: e.target.value.toUpperCase() })}
+                pattern="[A-HJ-NP-Z2-9]{8}"
                 maxLength={8}
                 required
+                readOnly={!user} // Only allow editing for existing users
               />
               <button
                 type="button"
                 className="btn btn-outline btn-sm"
-                onClick={() => setFormData({ ...formData, login_code: generateLoginCode() })}
+                onClick={() => setFormData({ ...formData, loginCode: generateLoginCode() })}
               >
-                Generate New
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => copyToClipboard(formData.login_code)}
-                title="Copy Login Code"
-              >
-                <Copy className={`h-4 w-4 ${copiedCode ? 'text-success' : ''}`} />
+                Generate New Code
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              {user ? 'Current login code - modify if needed' : 'Auto-generated login code for this user'}
-              {copiedCode && <span className="text-success ml-2">✓ Copied!</span>}
+              {user ? 'Edit or generate a new login code' : 'Auto-generated login code for this user'}
             </p>
           </div>
 
@@ -300,29 +284,12 @@ const UserForm = ({ user, onClose, onSubmit }) => {
           <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <AlertCircle className="h-6 w-6 text-warning" />
-              <h3 className="text-lg font-semibold">Confirm Action</h3>
+              <h3 className="text-lg font-semibold">Confirm Submission</h3>
             </div>
-            <div className="space-y-3 mb-6">
-              <p className="text-muted-foreground">
-                Are you sure you want to {user ? 'update' : 'create'} this user?
-              </p>
-              {!user && (
-                <div className="bg-muted/50 p-3 rounded-md">
-                  <p className="text-sm font-medium">Login Code:</p>
-                  <code className="text-sm font-mono bg-background px-2 py-1 rounded">
-                    {formData.login_code}
-                  </code>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Make sure to save this login code - the user will need it to log in.
-                  </p>
-                </div>
-              )}
-              {formData.status === 'inactive' && (
-                <p className="text-warning text-sm">
-                  ⚠️ This user will be inactive and cannot log in.
-                </p>
-              )}
-            </div>
+            <p className="text-muted-foreground mb-6">
+              Are you sure you want to {user ? 'update' : 'create'} this user?
+              {formData.status === 'inactive' && ' This user will not be able to log in.'}
+            </p>
             <div className="flex justify-end gap-3">
               <button
                 className="btn btn-outline btn-sm"
