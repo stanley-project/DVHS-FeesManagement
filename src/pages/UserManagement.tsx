@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter, Key } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import LoginHistoryModal from '../components/users/LoginHistoryModal';
 import PermissionsModal from '../components/users/PermissionsModal';
+import LoginCodeModal from '../components/users/LoginCodeModal';
 import { useAuth } from '../contexts/AuthContext';
 import { useUsers } from '../hooks/useUsers';
 
@@ -16,6 +17,7 @@ const UserManagement = () => {
   const [showUserForm, setShowUserForm] = useState(false);
   const [showLoginHistory, setShowLoginHistory] = useState(false);
   const [showPermissions, setShowPermissions] = useState(false);
+  const [showLoginCode, setShowLoginCode] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   
   // Destructure values from useUsers hook
@@ -71,8 +73,25 @@ const UserManagement = () => {
       case 'history':
         setShowLoginHistory(true);
         break;
+      case 'loginCode':
+        setShowLoginCode(true);
+        break;
       default:
         break;
+    }
+  };
+
+  const handleUpdateLoginCode = async (userId: string, newCode: string) => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({ login_code: newCode })
+        .eq('id', userId);
+
+      if (error) throw error;
+      await refreshUsers();
+    } catch (err: any) {
+      throw new Error(err.message || 'Failed to update login code');
     }
   };
 
@@ -200,7 +219,16 @@ const UserManagement = () => {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{user.phone_number}</span> {/* Corrected: Use phone_number */}
+                        <span>{user.phone_number}</span> {/* Show login code if admin */}
+                        {currentUser?.role === 'administrator' && (
+                          <button
+                            onClick={() => handleUserAction('loginCode', user)}
+                            className="ml-2 p-1 hover:bg-muted rounded-md"
+                            title="Manage Login Code"
+                          >
+                            <Key className="h-4 w-4 text-primary" />
+                          </button>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground">
@@ -290,6 +318,18 @@ const UserManagement = () => {
             setShowLoginHistory(false);
             setSelectedUser(null);
           }}
+        />
+      )}
+
+      {/* Login Code Modal */}
+      {showLoginCode && selectedUser && (
+        <LoginCodeModal
+          user={selectedUser}
+          onClose={() => {
+            setShowLoginCode(false);
+            setSelectedUser(null);
+          }}
+          onUpdate={handleUpdateLoginCode}
         />
       )}
 
