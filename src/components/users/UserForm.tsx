@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
-import { supabase, supabaseAdmin } from '../../lib/supabase';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext'; 
 import { z } from 'zod';
 
@@ -47,66 +47,60 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const handleConfirm = async () => {
     try {
       setError(null);
-      const email = `user_${formData.phoneNumber}@schoolapp.local`;
       
       if (!currentUser || currentUser.role !== 'administrator') {
         throw new Error('Only administrators can manage users');
       }
 
       if (!user) {
-        // Check for existing user
-        const { data: existingUser, error: checkError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('phone_number', formData.phoneNumber);
-
-        if (checkError) {
-          throw checkError;
-        }
-
-        if (existingUser && existingUser.length > 0) {
-          throw new Error('A user with this phone number already exists');
-        }
-
         // Call the Edge Function to create user
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             name: formData.name,
             phone_number: `+91${formData.phoneNumber}`, // Add country code
             role: formData.role,
-            email_suffix: 'deepthischool.edu'
+            email_suffix: 'deepthischool.edu',
+            status: formData.status
           })
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.message || 'Failed to create user');
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create user');
         }
 
         const result = await response.json();
         onSubmit(result);
       } else {
         // When updating existing user
-        const updates = {
-          name: formData.name,
-          phone_number: formData.phoneNumber,
-          role: formData.role,
-          is_active: formData.status === 'active'
-        };
-        const { data, error } = await supabaseAdmin
-          .from('users') // Use regular client for updates
-          .update(updates)
-          .eq('id', user.id)
-          .select()
-          .single();
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: user.id,
+            name: formData.name,
+            phone_number: `+91${formData.phoneNumber}`,
+            role: formData.role,
+            status: formData.status,
+            action: 'update'
+          })
+        });
 
-        if (error) throw error;
-        onSubmit(data);
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update user');
+        }
+
+        const result = await response.json();
+        onSubmit(result);
       }
 
       setShowConfirmation(false);
