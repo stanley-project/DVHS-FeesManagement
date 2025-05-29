@@ -1,6 +1,7 @@
 // src/App.tsx (Revised)
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext'; // Ensure this path is correct
+import { Toaster } from 'react-hot-toast';
 import LoginPage from './pages/auth/LoginPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import AdminDashboard from './pages/dashboard/AdminDashboard';
