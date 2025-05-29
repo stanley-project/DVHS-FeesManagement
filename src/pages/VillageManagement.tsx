@@ -18,26 +18,6 @@ const VillageManagement = () => {
 
   const { villages, loading, error, addVillage, updateVillage, deleteVillage } = useVillages();
 
-  if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading villages...</div>;
-  }
-
-  if (error) {
-    return (
-      <div className="flex justify-center items-center h-64 text-red-500">
-        Error loading villages: {error.message}
-      </div>
-    );
-  }
-
-  const filteredVillages = villages.filter(village => {
-    const matchesSearch = village.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' 
-      ? true 
-      : statusFilter === 'active' ? village.is_active : !village.is_active;
-    return matchesSearch && matchesStatus;
-  });
-
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (selectedVillage) {
@@ -55,37 +35,17 @@ const VillageManagement = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteVillage(id);
-      toast.success('Village deleted successfully');
-      refreshVillages();
-    } catch (error) {
-      console.error('Error deleting village:', error);
-      toast.error('Failed to delete village');
-    }
-  };
-
   const handleImport = async (data: any[]) => {
     try {
       // TODO: Implement bulk import
       console.log('Import data:', data);
       setShowImport(false);
       toast.success('Villages imported successfully');
-      refreshVillages();
     } catch (error) {
       console.error('Error importing villages:', error);
       toast.error('Failed to import villages');
     }
   };
-
-  const filteredVillages = villages.filter(village => {
-    const matchesSearch = village.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' 
-      ? true 
-      : statusFilter === 'active' ? village.is_active : !village.is_active;
-    return matchesSearch && matchesStatus;
-  });
 
   if (loading) {
     return <div className="flex justify-center items-center h-64">Loading villages...</div>;
@@ -162,7 +122,13 @@ const VillageManagement = () => {
           </div>
 
           <VillageTable
-            villages={filteredVillages}
+            villages={villages.filter(village => {
+              const matchesSearch = village.name.toLowerCase().includes(searchQuery.toLowerCase());
+              const matchesStatus = statusFilter === 'all' 
+                ? true 
+                : statusFilter === 'active' ? village.is_active : !village.is_active;
+              return matchesSearch && matchesStatus;
+            })}
             onView={(village) => {
               setSelectedVillage(village);
               setShowDetails(true);
@@ -171,7 +137,7 @@ const VillageManagement = () => {
               setSelectedVillage(village);
               setShowForm(true);
             }}
-            onDelete={handleDelete}
+            onDelete={deleteVillage}
           />
         </div>
       </div>
