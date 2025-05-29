@@ -16,9 +16,6 @@ const VillageManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
-  const { villages, loading, error } = useVillages();
-
-  console.log('Villages in component:', villages); // Debug log
 
   const { 
     villages, 
