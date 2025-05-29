@@ -2,7 +2,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext'; // Ensure this path is correct
 import LoginPage from './pages/auth/LoginPage';
-import OtpVerificationPage from './pages/auth/OtpVerificationPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import AdminDashboard from './pages/dashboard/AdminDashboard';
 import AccountantDashboard from './pages/dashboard/AccountantDashboard';
@@ -32,7 +31,6 @@ function App() {
     <Routes>
       {/* Public Routes: Accessible to all, but redirect if authenticated */}
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} />
-      <Route path="/verify-otp" element={!isAuthenticated ? <OtpVerificationPage /> : <Navigate to="/" replace />} />
 
       {/* Protected Routes: Only accessible if isAuthenticated is true */}
       <Route path="/" element={
