@@ -10,7 +10,11 @@ interface VillageTableProps {
 }
 
 const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTableProps) => {
-  const { villages, loading, error, updateVillage } = useVillageContext();
+  const { villages, loading, error, updateVillage, isInitialized } = useVillageContext();
+
+  if (!isInitialized) {
+    return <div className="text-center py-8">Initializing village data...</div>;
+  }
 
   console.log("VillageTable: Data from useVillageContext:");
   console.log("  villages:", villages);

@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter as Router } from 'react-router-dom'; // Assuming you import Router here
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
+import { VillageProvider } from './contexts/VillageContext';
 import './index.css'; // Your global styles
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Router>
       {/* AuthProvider MUST wrap App */}
       <AuthProvider>
-        <App />
+        <VillageProvider>
+          <App />
+        </VillageProvider>
       </AuthProvider>
     </Router>
 //  </React.StrictMode>, //
