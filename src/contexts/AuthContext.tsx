@@ -1,3 +1,8 @@
+` block that I provided earlier.**
+
+Here's a reminder of the correct content that should be in your `src/contexts/AuthContext.tsx` file:
+
+```typescript
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { createClient, User, Session } from '@supabase/supabase-js';
@@ -251,3 +256,10 @@ export const useAuth = () => {
   }
   return context;
 };
+```
+
+**Please ensure that the `login` function in your local `src/contexts/AuthContext.tsx` file contains the `supabase.auth.signInWithOtp` call as shown above.** If it has a different implementation (like using mock data), that is why you are seeing the Supabase-related errors.
+
+Once you have confirmed that the `AuthContext.tsx` file in your project matches the provided Supabase-integrated version, the authentication flow should start working correctly, assuming your Supabase backend is also configured as discussed previously (phone provider enabled, etc.).
+
+Let me know if you find that your local `AuthContext.tsx` was indeed different. This would explain the discrepancy we've been seeing.
