@@ -38,7 +38,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
         .select('*', { count: 'exact' }); // Select all columns from public.users
 
       // Apply filters to public.users
-/*      if (options.search) {
+      if (options.search) {
         publicUsersQuery = publicUsersQuery.or(`name.ilike.%${options.search}%,phone_number.ilike.%${options.search}%`);
       }
       if (options.role) {
@@ -53,7 +53,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
         publicUsersQuery = publicUsersQuery.order(options.sortBy, {
           ascending: options.sortOrder === 'asc'
         });
-      }*/
+      }
 
       // Apply pagination to public.users
       if (options.page && options.limit) {
@@ -79,7 +79,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
       const userIds = publicUsersData.map(user => user.id);
       
       const { data: authUsersData, error: authUsersError } = await supabase
-        .from('auth.users') // Explicitly query the auth schema
+        .from('users') // Changed: Use public.users since we can't directly query auth.users
         .select('id, last_sign_in_at, created_at, email, phone') // Select only the fields you need
         .in('id', userIds); // Fetch auth data only for the users we got from public.users
 

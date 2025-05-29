@@ -54,73 +54,42 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
       }
 
       if (!user) {
-        // Check both auth and public users tables
-        const [{ data: existingPublicUser }, { data: existingAuthUser }] = await Promise.all([
-          supabase
+        // Check for existing user
+        const { data: existingUser, error: checkError } = await supabase
           .from('users')
           .select('*')
-          .eq('phone_number', formData.phoneNumber),
-          supabaseAdmin.auth.admin.listUsers()
-        ]);
+          .eq('phone_number', formData.phoneNumber);
 
-        if (existingPublicUser?.length > 0) {
+        if (checkError) {
+          throw checkError;
+        }
+
+        if (existingUser && existingUser.length > 0) {
           throw new Error('A user with this phone number already exists');
         }
 
-        if (existingAuthUser?.users.some(u => u.email === email)) {
-          throw new Error('A user with this email already exists');
-        }
-
-        // Create auth user first
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-          email,
-          phone: formData.phoneNumber,
-          password: 'defaultPassword123',
-          email_confirm: true,
-          user_metadata: {
+        // Call the Edge Function to create user
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             name: formData.name,
-            role: formData.role
-          }
+            phone_number: `+91${formData.phoneNumber}`, // Add country code
+            role: formData.role,
+            email_suffix: 'deepthischool.edu'
+          })
         });
 
-        if (authError) {
-          throw new Error(authError.message);
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to create user');
         }
 
-        if (!authData.user) {
-          throw new Error('Failed to create auth user');
-        }
-
-        // Set custom claims for the user
-        const { error: claimsError } = await supabaseAdmin.auth.admin.updateUserById(
-          authData.user.id,
-          { app_metadata: { role: formData.role } }
-        );
-
-        if (claimsError) {
-          throw claimsError;
-        }
-
-        // Then create user in public.users table using the auth user's ID
-        const { data: userData, error: userError } = await supabaseAdmin
-          .from('users')
-          .insert([{
-            id: authData.user.id, // Use the auth user's ID
-            name: formData.name,
-            phone_number: formData.phoneNumber,
-            role: formData.role,
-            is_active: formData.status === 'active'
-          }])
-          .select()
-          .single();
-
-        if (userError) {
-          // If database insert fails, clean up the auth user
-          await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-          throw userError;
-        }
-
-        onSubmit(userData);
+        const result = await response.json();
+        onSubmit(result);
       } else {
         // When updating existing user
         const updates = {
@@ -130,7 +99,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
           is_active: formData.status === 'active'
         };
         const { data, error } = await supabaseAdmin
-          .from('users')
+          .from('users') // Use regular client for updates
           .update(updates)
           .eq('id', user.id)
           .select()
