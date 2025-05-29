@@ -1,17 +1,8 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback, ReactNode } from 'react';
-import { createClient, User, Session } from '@supabase/supabase-js';
+import { User } from '@supabase/supabase-js';
 import { useNavigate } from 'react-router-dom';
-
-// --- Supabase Client Setup ---
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error("Supabase URL and Anon Key must be set in environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)");
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { supabase } from '../lib/supabase';
 
 // --- Type Definitions ---
 export type UserRole = 'administrator' | 'accountant' | 'teacher' | 'student' | 'parent' | 'guest';
@@ -30,9 +21,9 @@ interface AuthContextType {
   user: AuthenticatedUser | null;
   isAuthenticated: boolean;
   authLoading: boolean;
-  loginCode: string | null;
-  setLoginCode: (code: string | null) => void;
-  login: (code: string) => Promise<{ success: boolean; message: string }>;
+  phoneNumber: string;
+  setPhoneNumber: (phone: string) => void;
+  login: (code: string) => Promise<{ success: boolean; message: string; data?: any }>;
   logout: () => Promise<void>;
 }
 
@@ -47,8 +38,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  const [loginCode, setLoginCode] = useState<string | null>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
   const isMounted = useRef(true);
+  const navigate = useNavigate();
 
   useEffect(() => {
     return () => {
@@ -57,34 +49,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, []);
 
-  // Check if login code exists and is valid
-  const checkLoginCode = useCallback(async (code: string): Promise<{ exists: boolean; userData?: any }> => {
-    try {
-      console.log(`AuthContext: Checking login code: ${code}`);
-      
-      // Search for user with this login code
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('login_code', code)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (error) {
-        console.error("AuthContext: Error checking login code:", error);
-        return { exists: false };
-      }
-
-      if (userData) {
-        console.log("AuthContext: Valid login code found:", userData);
-        return { exists: true, userData };
-      }
-
-      console.log("AuthContext: Invalid or expired login code");
-      return { exists: false };
-    } catch (err) {
-      console.error("AuthContext: Exception checking login code:", err);
-      return { exists: false };
     }
   }, []);
 
@@ -109,9 +73,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (err) {
       console.error("AuthContext: Exception fetching public profile:", err);
       return null;
-    }
-  }, []);
-
   // Effect to listen for Supabase authentication state changes
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -124,26 +85,36 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setAuthLoading(true);
 
       try {
-        if (session?.user && session.user.phone) {
+        if (session?.user) {
           // If a user session exists, fetch their custom role from the public.users table
-          const publicProfile = await fetchUserProfile(session.user.phone);
+          const { data: publicProfile, error: profileError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profileError) throw profileError;
 
           if (!isMounted.current) return;
 
           if (publicProfile) {
             setUser({ ...session.user, ...publicProfile, role: publicProfile.role });
             setIsAuthenticated(true);
-            console.log(`AuthContext: User and session set for ${event}. User Role: ${publicProfile.role}`);
+            navigate('/');
           } else {
             console.warn(`AuthContext: User authenticated but no public profile found during ${event}.`);
             // If no profile found, sign out as this shouldn't happen for pre-defined users
             await supabase.auth.signOut();
             setUser(null);
             setIsAuthenticated(false);
+            navigate('/login');
           }
         } else {
           setUser(null);
           setIsAuthenticated(false);
+          if (event !== 'INITIAL') {
+            navigate('/login');
+          }
           console.log(`AuthContext: No active session for ${event}.`);
         }
       } catch (err: any) {
@@ -163,11 +134,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, [fetchUserProfile]);
 
-  // Function to verify login code
+  // Function to login with code
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
     try {
       // Call the login edge function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/login-with-code`, {
+      if (!phoneNumber) {
+        throw new Error('Phone number is required');
+      }
+
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/login-with-code`, {
         method: 'POST',
         headers: {
@@ -186,17 +162,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error(data.error || 'Failed to authenticate');
       }
 
-      // Set the session using the returned magic link token
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: data.user.email,
-        password: code, // Use login code as password
-      }); 
+      // Sign in with the magic link token
+      const { error: signInError } = await supabase.auth.signInWithOtp({
+        phone: phoneNumber,
+        token: data.session.token,
+      });
 
       if (signInError) {
         throw signInError;
       }
       
-      setLoginCode(code);
       return { success: true, message: 'Login successful!' };
       
     } catch (err: any) {
@@ -233,8 +208,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user,
     isAuthenticated,
     authLoading,
-    loginCode,
-    setLoginCode,
+    phoneNumber,
+    setPhoneNumber,
     login,
     logout,
   };
