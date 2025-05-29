@@ -3,10 +3,11 @@ import { useVillageContext } from '../../contexts/VillageContext';
 import { ArrowUpDown, Eye, Pencil, ToggleLeft } from 'lucide-react'; 
 
 interface VillageTableProps {
+  villages: Village[];
   searchQuery: string;
   statusFilter: string;
-  onView: (village: any) => void;
-  onEdit: (village: any) => void;
+  onView: (village: Village) => void;
+  onEdit: (village: Village) => void;
 }
 
 const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTableProps) => {
