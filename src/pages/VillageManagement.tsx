@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Plus, Upload, Download, Search } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import VillageForm from '../components/villages/VillageForm';
 import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
 import VillageImport from '../components/villages/VillageImport';
 import { useVillages } from '../hooks/useVillages';
 import { Village } from '../types/village';
-import { toast } from 'react-hot-toast';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
