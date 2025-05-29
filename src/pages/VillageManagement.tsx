@@ -1,7 +1,7 @@
 // src/contexts/VillageContext.tsx
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useVillages } from 'src/hooks/useVillages'; // Ensure this path is correct for your project structure
-import { useAuth } from '../../contexts/AuthContext'; // Ensure this path is correct
+import { useAuth } from './AuthContext'; // Ensure this path is correct
 
 // The VillageContextType will infer its structure from the return type of useVillages
 // and add an isInitialized flag.
@@ -62,3 +62,5 @@ export function useVillageContext() {
   // 5. context.isAuthenticated (from useAuth, if needed directly, though useVillages handles it)
   return context;
 }
+
+export default useVillageContext
