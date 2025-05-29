@@ -1,178 +1,131 @@
-// src/hooks/useVillages.tsx
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase'; // Ensure this path is correct
-import { useAuth } from '../contexts/AuthContext';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 export interface Village {
-  id: string;
+  id: number;
   name: string;
-  distance_from_school: number;
-  is_active: boolean;
-  bus_number: string;
+  status: 'active' | 'inactive';
+  distance: number;
+  bus_fee_structure_id: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface VillageWithStats extends Village {
-  total_students: number;
-  bus_students: number;
-  current_bus_fee?: number;
+interface UseVillagesReturn {
+  villages: Village[];
+  loading: boolean;
+  error: Error | null;
+  addVillage: (village: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => Promise<Village>;
+  updateVillage: (id: number, village: Partial<Village>) => Promise<Village>;
+  deleteVillage: (id: number) => Promise<void>;
+  refreshVillages: () => Promise<void>;
 }
 
-// Types for data manipulation functions (can be refined)
-export type NewVillageData = Omit<Village, 'id'>;
-export type VillageUpdateData = Partial<Omit<Village, 'id'>>;
+export function useVillages(): UseVillagesReturn {
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-
-export function useVillages() {
-  const [villages, setVillages] = useState<VillageWithStats[]>([]);
-  const [loading, setLoading] = useState(true); // Start true as fetch is usually initial
-  const [error, setError] = useState<string | null>(null);
-  const { isAuthenticated } = useAuth();
-
-  const fetchVillagesInternal = useCallback(async () => {
-    // This function assumes isAuthenticated is true when called by useEffect or refreshVillages
-    console.log("useVillages: Fetching villages data...");
+  const fetchVillages = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const { data: villagesData, error: villagesError } = await supabase
+      const { data, error: supabaseError } = await supabase
         .from('villages')
-        .select('*');
+        .select('*')
+        .order('name');
 
-      if (villagesError) {
-        throw new Error(`Error fetching villages: ${villagesError.message}`);
-      }
-      
-      if (!villagesData || villagesData.length === 0) {
-        setVillages([]);
-        // setLoading(false); // Handled in finally block
-        console.log("useVillages: No villages found.");
-        return;
+      if (supabaseError) {
+        throw supabaseError;
       }
 
-      console.log(`useVillages: Found ${villagesData.length} villages. Fetching stats...`);
-      const villagesWithCounts = await Promise.all(
-        villagesData.map(async (village) => {
-          // Get total students count
-          const { count: totalStudents, error: totalError } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('village_id', village.id);
-
-          if (totalError) {
-            console.error(`useVillages: Error fetching total students for village ${village.id}:`, totalError);
-            throw new Error(`Error fetching total students for ${village.name}: ${totalError.message}`);
-          }
-
-          // Get bus students count
-          const { count: busStudents, error: busError } = await supabase
-            .from('students')
-            .select('*', { count: 'exact', head: true })
-            .eq('village_id', village.id)
-            .eq('has_school_bus', true);
-
-          if (busError) {
-            console.error(`useVillages: Error fetching bus students for village ${village.id}:`, busError);
-            throw new Error(`Error fetching bus students for ${village.name}: ${busError.message}`);
-          }
-
-          // Get current bus fee
-          const { data: busFeeData, error: busFeesError } = await supabase
-            .from('bus_fee_structure')
-            .select('amount')
-            .eq('village_id', village.id)
-            .eq('is_active', true)
-            .maybeSingle(); // Use maybeSingle to handle 0 or 1 row
-
-          if (busFeesError) {
-            console.error(`useVillages: Error fetching bus fees for village ${village.id}:`, busFeesError);
-            throw new Error(`Error fetching bus fees for ${village.name}: ${busFeesError.message}`);
-          }
-
-          return {
-            ...village,
-            total_students: totalStudents || 0,
-            bus_students: busStudents || 0,
-            current_bus_fee: busFeeData?.amount // Access amount safely
-          };
-        })
-      );
-
-      setVillages(villagesWithCounts);
-      console.log("useVillages: Successfully fetched villages with stats.");
-    } catch (err: any) {
-      console.error('useVillages: Error in fetchVillagesInternal:', err);
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
-      setVillages([]);
+      setVillages(data || []);
+    } catch (err) {
+      console.error('Error fetching villages:', err);
+      setError(err instanceof Error ? err : new Error('Failed to fetch villages'));
     } finally {
       setLoading(false);
     }
-  }, [supabase]); // supabase client is stable. setLoading, setError, setVillages are stable.
+  };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchVillagesInternal();
-    } else {
-      // If user becomes unauthenticated (e.g. logout), clear data
-      console.log("useVillages: User not authenticated. Clearing village data.");
-      setVillages([]);
-      setLoading(false); // No active loading operation
-      setError(null);
-    }
-  }, [isAuthenticated, fetchVillagesInternal]);
+    fetchVillages();
+  }, []);
 
-  // Exposed refresh function
-  const refreshVillages = useCallback(() => {
-    if (isAuthenticated) {
-      console.log("useVillages: Refreshing villages...");
-      fetchVillagesInternal();
-    } else {
-      console.warn("useVillages: Not authenticated, skipping refresh. Clearing data.");
-      setVillages([]);
-      setLoading(false);
-      setError(null);
-    }
-  }, [isAuthenticated, fetchVillagesInternal]);
+  const addVillage = async (village: Omit<Village, 'id' | 'created_at' | 'updated_at'>): Promise<Village> => {
+    try {
+      const { data, error: supabaseError } = await supabase
+        .from('villages')
+        .insert([village])
+        .select()
+        .single();
 
-  // STUB: Add Village Function
-  const addVillage = useCallback(async (villageData: NewVillageData): Promise<VillageWithStats | null> => {
-    console.warn('addVillage function is not implemented yet.', villageData);
-    if (!isAuthenticated) {
-      setError('User not authenticated to add village.');
-      return null;
-    }
-    // TODO: Implement actual Supabase insert and then refresh or update local state
-    // For now, set an error or do nothing
-    setError('Add village functionality is not yet implemented.');
-    // Example: await supabase.from('villages').insert([villageData]); refreshVillages();
-    return null;
-  }, [isAuthenticated, supabase, refreshVillages]); // refreshVillages is a dependency
+      if (supabaseError) {
+        throw supabaseError;
+      }
 
-  // STUB: Update Village Function
-  const updateVillage = useCallback(async (villageId: string, updates: VillageUpdateData): Promise<VillageWithStats | null> => {
-    console.warn('updateVillage function is not implemented yet.', villageId, updates);
-    if (!isAuthenticated) {
-      setError('User not authenticated to update village.');
-      return null;
-    }
-    // TODO: Implement actual Supabase update and then refresh or update local state
-    setError('Update village functionality is not yet implemented.');
-    // Example: await supabase.from('villages').update(updates).eq('id', villageId); refreshVillages();
-    return null;
-  }, [isAuthenticated, supabase, refreshVillages]);
+      if (!data) {
+        throw new Error('No data returned from insert operation');
+      }
 
-  // STUB: Update Bus Fee Function
-  const updateBusFee = useCallback(async (villageId: string, newFee: number): Promise<boolean> => {
-    console.warn('updateBusFee function is not implemented yet.', villageId, newFee);
-    if (!isAuthenticated) {
-      setError('User not authenticated to update bus fee.');
-      return false;
+      setVillages(prevVillages => [...prevVillages, data]);
+      return data;
+    } catch (err) {
+      console.error('Error adding village:', err);
+      throw err instanceof Error ? err : new Error('Failed to add village');
     }
-    // TODO: Implement actual Supabase update (likely to bus_fee_structure table) and refresh
-    setError('Update bus fee functionality is not yet implemented.');
-    // Example: Complex logic to update/insert into bus_fee_structure, then refreshVillages();
-    return false;
-  }, [isAuthenticated, supabase, refreshVillages]);
+  };
+
+  const updateVillage = async (id: number, villageUpdate: Partial<Village>): Promise<Village> => {
+    try {
+      const { data, error: supabaseError } = await supabase
+        .from('villages')
+        .update(villageUpdate)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (supabaseError) {
+        throw supabaseError;
+      }
+
+      if (!data) {
+        throw new Error('No data returned from update operation');
+      }
+
+      setVillages(prevVillages =>
+        prevVillages.map(village =>
+          village.id === id ? { ...village, ...data } : village
+        )
+      );
+      
+      return data;
+    } catch (err) {
+      console.error('Error updating village:', err);
+      throw err instanceof Error ? err : new Error('Failed to update village');
+    }
+  };
+
+  const deleteVillage = async (id: number): Promise<void> => {
+    try {
+      const { error: supabaseError } = await supabase
+        .from('villages')
+        .delete()
+        .eq('id', id);
+
+      if (supabaseError) {
+        throw supabaseError;
+      }
+
+      setVillages(prevVillages =>
+        prevVillages.filter(village => village.id !== id)
+      );
+    } catch (err) {
+      console.error('Error deleting village:', err);
+      throw err instanceof Error ? err : new Error('Failed to delete village');
+    }
+  };
 
   return {
     villages,
@@ -180,7 +133,7 @@ export function useVillages() {
     error,
     addVillage,
     updateVillage,
-    updateBusFee,
-    refreshVillages
+    deleteVillage,
+    refreshVillages: fetchVillages
   };
 }
