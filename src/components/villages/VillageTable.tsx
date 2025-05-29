@@ -17,7 +17,7 @@ const VillageTable = ({ searchQuery, statusFilter, onView, onEdit }: VillageTabl
     return <div className="text-center py-8">Initializing village data...</div>;
   }
 
-  console.log("VillageTable: Data from useVillageContext:");
+  console.log("VillageTable: Data from useVillages:");
   console.log("  villages:", villages);
   console.log("  loading:", loading);
   console.log("  error:", error);
