@@ -182,6 +182,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
   }, [fetchUserProfile]);
 
+  // Normalize phone number to E.164 format
+  const normalizePhoneNumber = (phone: string): string => {
+    // Remove all non-digits
+    const cleanPhone = phone.replace(/\D/g, '');
+    
+    // Handle Indian numbers
+    if (cleanPhone.length === 10) {
+      // If it's a 10-digit number, assume it's Indian and add +91
+      return `+91${cleanPhone}`;
+    } else if (cleanPhone.length === 12 && cleanPhone.startsWith('91')) {
+      // If it starts with 91 and is 12 digits, add + prefix
+      return `+${cleanPhone}`;
+    } else if (cleanPhone.length === 11 && cleanPhone.startsWith('91')) {
+      // Edge case: sometimes country code gets truncated
+      return `+${cleanPhone}`;
+    }
+    
+    // If already has + or other format, return as is
+    return phone.startsWith('+') ? phone : `+${cleanPhone}`;
+  };
+
   // Function to send OTP (only for pre-defined users)
   const login = async (phone: string) => {
     setAuthLoading(true);
@@ -199,9 +220,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         };
       }
 
+      // Normalize phone number for Twilio/Supabase
+      const normalizedPhone = normalizePhoneNumber(phone);
+      console.log(`AuthContext: Normalized phone number for OTP: ${normalizedPhone}`);
+
       // If user exists in our table, proceed with OTP
       const { error } = await supabase.auth.signInWithOtp({
-        phone,
+        phone: normalizedPhone,
         options: {
           channel: 'sms',
           shouldCreateUser: true, // We need this to be true for phone auth to work
@@ -214,7 +239,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
       
       console.log("AuthContext: OTP sent successfully to pre-defined user.");
-      setPhoneNumber(phone);
+      setPhoneNumber(normalizedPhone); // Store normalized phone number
       return { success: true, message: 'OTP sent successfully! Please check your phone.' };
     } catch (err: any) {
       console.error("AuthContext: Exception during OTP send:", err);
@@ -230,11 +255,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const verifyOtp = async (phone: string, otp: string) => {
     setAuthLoading(true);
     try {
-      console.log(`AuthContext: Attempting to verify OTP for ${phone} with code ${otp}`);
+      // Use the stored normalized phone number, or normalize the provided one
+      const phoneToVerify = phoneNumber || normalizePhoneNumber(phone);
+      console.log(`AuthContext: Attempting to verify OTP for ${phoneToVerify} with code ${otp}`);
       
       // Verify the OTP with Supabase Auth
       const { data, error } = await supabase.auth.verifyOtp({
-        phone,
+        phone: phoneToVerify,
         token: otp,
         type: 'sms',
       });
