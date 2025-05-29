@@ -129,6 +129,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
+  // Create auth user if they don't exist (for pre-defined users only)
+  const ensureAuthUserExists = async (phone: string): Promise<boolean> => {
+    try {
+      console.log(`AuthContext: Ensuring auth user exists for ${phone}`);
+      
+      // Try to sign up with a dummy password (won't be used for OTP)
+      const { data, error } = await supabase.auth.signUp({
+        phone: phone,
+        password: Math.random().toString(36), // Random password, won't be used
+      });
+
+      if (error) {
+        // User might already exist, which is fine
+        if (error.message.includes('already registered') || error.message.includes('User already registered')) {
+          console.log("AuthContext: Auth user already exists");
+          return true;
+        }
+        console.error("AuthContext: Error creating auth user:", error);
+        return false;
+      }
+      
+      console.log("AuthContext: Auth user created or already exists");
+      return true;
+    } catch (err) {
+      console.error("AuthContext: Exception creating auth user:", err);
+      return false;
+    }
+  };
+
   // Fetch user profile from public.users table
   const fetchUserProfile = useCallback(async (phoneNumber: string): Promise<AuthenticatedUser | null> => {
     try {
@@ -208,7 +237,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [fetchUserProfile]);
 
   // Function to send OTP (only for pre-defined users)
-  const login = async (phone: string) => {
+  const login = async (phone: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
     try {
       console.log(`AuthContext: Attempting to send OTP to ${phone}`);
@@ -235,54 +264,54 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       console.log(`AuthContext: Normalized phone number for OTP: ${normalizedPhone}`);
 
+      // Ensure the user exists in auth.users table first
+      const authUserExists = await ensureAuthUserExists(normalizedPhone);
+      if (!authUserExists) {
+        return { success: false, message: 'Failed to prepare user for authentication' };
+      }
+
       // Send OTP using Supabase Auth
+      // CRITICAL FIX: Remove shouldCreateUser option - let Supabase handle it
       const { error } = await supabase.auth.signInWithOtp({
         phone: normalizedPhone,
         options: {
           channel: 'sms',
-          shouldCreateUser: true, // Important: don't create new users
+          // Removed shouldCreateUser: true - this was causing issues
         },
       });
 
       if (error) {
         console.error("AuthContext: OTP send error:", error.message);
         
-        // If user doesn't exist in auth.users, we need to create them first
-        if (error.message.includes('User not found') || error.message.includes('signup_disabled')) {
-          console.log("AuthContext: User not in auth.users, attempting to create...");
-          
-          // Try to sign up the user first (this creates the auth record)
-          const { error: signUpError } = await supabase.auth.signUp({
-            phone: normalizedPhone,
-            password: 'temp-password-will-not-be-used', // Required but won't be used
-          });
-          
-          if (signUpError && !signUpError.message.includes('already registered')) {
-            console.error("AuthContext: Sign up error:", signUpError.message);
-            return { success: false, message: signUpError.message };
-          }
-          
-          // Now try to send OTP again
-          const { error: retryError } = await supabase.auth.signInWithOtp({
-            phone: normalizedPhone,
-            options: {
-              channel: 'sms',
-              shouldCreateUser: true,
-            },
-          });
-          
-          if (retryError) {
-            console.error("AuthContext: Retry OTP send error:", retryError.message);
-            return { success: false, message: retryError.message };
-          }
-        } else {
-          return { success: false, message: error.message };
+        // Handle specific Twilio errors
+        if (error.message.includes('60200') || error.message.includes('Invalid parameter')) {
+          return { 
+            success: false, 
+            message: 'Invalid phone number format. Please check your phone number.' 
+          };
         }
+        
+        if (error.message.includes('21211') || error.message.includes('invalid phone number')) {
+          return { 
+            success: false, 
+            message: 'Phone number is not valid for SMS delivery.' 
+          };
+        }
+        
+        if (error.message.includes('trial')) {
+          return { 
+            success: false, 
+            message: 'Trial account limitation. Please verify your phone number with Twilio first.' 
+          };
+        }
+        
+        return { success: false, message: error.message };
       }
       
       console.log("AuthContext: OTP sent successfully to pre-defined user.");
       setPhoneNumber(normalizedPhone);
       return { success: true, message: 'OTP sent successfully! Please check your phone.' };
+      
     } catch (err: any) {
       console.error("AuthContext: Exception during OTP send:", err);
       return { success: false, message: err.message || 'An unexpected error occurred during OTP send.' };
@@ -294,7 +323,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Function to verify OTP
-  const verifyOtp = async (phone: string, otp: string) => {
+  const verifyOtp = async (phone: string, otp: string): Promise<boolean> => {
     setAuthLoading(true);
     try {
       // Use the stored normalized phone number, or normalize the provided one
@@ -341,7 +370,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Function to log out the user
-  const logout = async () => {
+  const logout = async (): Promise<void> => {
     setAuthLoading(true);
     try {
       console.log("AuthContext: Attempting to log out.");
