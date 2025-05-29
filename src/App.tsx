@@ -19,9 +19,7 @@ import StudentFeeStatus from './pages/StudentFeeStatus';
 import ProtectedRoute from './components/auth/ProtectedRoute'; // Ensure this path is correct
 
 function App() {
-   return (
-    <>
-      <Toaster position="top-right" /> 
+
   // Use useAuth() to get authentication state and user details
   const { user, isAuthenticated, authLoading } = useAuth();
 
@@ -100,9 +98,6 @@ function App() {
       {/* 404 Page: Catch-all for undefined routes */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
-  );
-}
-    </>
   );
 }
 
