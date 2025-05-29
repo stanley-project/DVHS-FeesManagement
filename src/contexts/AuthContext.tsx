@@ -167,31 +167,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
     try {
-      console.log(`AuthContext: Attempting to verify login code: ${code}`);
-      
-      // Check if login code is valid
-      const { exists, userData } = await checkLoginCode(code);
-      
-      if (!exists) {
-        console.log("AuthContext: Invalid login code");
-        return { 
-          success: false, 
-          message: 'Invalid login code. Please try again.' 
-        };
-      }
-
-      // Sign in with email/password using the login code as password
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: userData.email,
-        password: code,
+      // Call the login edge function
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/login-with-code`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          login_code: code,
+        }),
       });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to authenticate');
+      }
 
-      if (error) {
-        console.error("AuthContext: Login error:", error.message);
-        return { success: false, message: error.message };
+      // Set the session using the returned magic link token
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: data.user.email,
+        password: code, // Use login code as password
+      }); 
+
+      if (signInError) {
+        throw signInError;
       }
       
-      console.log("AuthContext: Login successful");
       setLoginCode(code);
       return { success: true, message: 'Login successful!' };
       
