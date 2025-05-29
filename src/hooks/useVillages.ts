@@ -1,23 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-
-export interface Village {
-  id: number;
-  name: string;
-  status: 'active' | 'inactive';
-  distance: number;
-  bus_fee_structure_id: number | null;
-  created_at: string;
-  updated_at: string;
-}
+import { Village } from '../types/village';
 
 interface UseVillagesReturn {
   villages: Village[];
   loading: boolean;
   error: Error | null;
   addVillage: (village: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => Promise<Village>;
-  updateVillage: (id: number, village: Partial<Village>) => Promise<Village>;
-  deleteVillage: (id: number) => Promise<void>;
+  updateVillage: (id: string, village: Partial<Village>) => Promise<Village>;
+  deleteVillage: (id: string) => Promise<void>;
   refreshVillages: () => Promise<void>;
 }
 
@@ -77,7 +68,7 @@ export function useVillages(): UseVillagesReturn {
     }
   };
 
-  const updateVillage = async (id: number, villageUpdate: Partial<Village>): Promise<Village> => {
+  const updateVillage = async (id: string, villageUpdate: Partial<Village>): Promise<Village> => {
     try {
       const { data, error: supabaseError } = await supabase
         .from('villages')
@@ -107,7 +98,7 @@ export function useVillages(): UseVillagesReturn {
     }
   };
 
-  const deleteVillage = async (id: number): Promise<void> => {
+  const deleteVillage = async (id: string): Promise<void> => {
     try {
       const { error: supabaseError } = await supabase
         .from('villages')
