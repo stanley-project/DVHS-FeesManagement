@@ -1,28 +1,19 @@
-// src/main.tsx (or index.js)
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter as Router } from 'react-router-dom'; // Assuming you import Router here
+import { BrowserRouter as Router } from 'react-router-dom';
 import App from './App';
-import { AuthProvider } from './contexts/AuthContext'; // Import AuthProvider
+import { AuthProvider } from './contexts/AuthContext';
 import { VillageProvider } from './contexts/VillageContext';
-import './index.css'; // Your global styles
+import './index.css';
 
-function App() {
-  return (
-    <VillageProvider>
 ReactDOM.createRoot(document.getElementById('root')!).render(
-//  <React.StrictMode> //
+  <React.StrictMode>
     <Router>
-      {/* AuthProvider MUST wrap App */}
       <AuthProvider>
         <VillageProvider>
           <App />
         </VillageProvider>
       </AuthProvider>
     </Router>
-//  </React.StrictMode>, //
+  </React.StrictMode>
 );
-
-    </VillageProvider>
-  );
-}
