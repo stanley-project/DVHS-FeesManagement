@@ -25,6 +25,7 @@ interface AuthContextType {
   setPhoneNumber: (phone: string) => void;
   login: (code: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
+  resetSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -89,6 +90,58 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     initializeAuth();
   }, []);
+
+  // Reset session function
+  const resetSession = async (): Promise<void> => {
+    try {
+      console.log('AuthContext: Resetting session...');
+      
+      if (!user) {
+        console.log('AuthContext: No active user session to reset');
+        return;
+      }
+
+      // Query the users table to verify the user is still active
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('id, name, role, phone_number, email, is_active, created_at, updated_at')
+        .eq('id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (error) {
+        console.error('AuthContext: Session reset error:', error);
+        throw error;
+      }
+
+      if (!userData) {
+        console.log('AuthContext: User no longer active, logging out');
+        await logout();
+        return;
+      }
+
+      // Update the session with fresh user data
+      const updatedUser: AuthenticatedUser = {
+        id: userData.id,
+        name: userData.name,
+        role: userData.role as UserRole,
+        phone_number: userData.phone_number,
+        email: userData.email,
+        is_active: userData.is_active,
+        created_at: userData.created_at,
+        updated_at: userData.updated_at,
+      };
+
+      saveUserSession(updatedUser);
+      setUser(updatedUser);
+      setIsAuthenticated(true);
+      
+      console.log('AuthContext: Session reset successful');
+    } catch (error) {
+      console.error('AuthContext: Failed to reset session:', error);
+      await logout();
+    }
+  };
 
   // Login function with pre-defined code
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
@@ -222,6 +275,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setPhoneNumber,
     login,
     logout,
+    resetSession,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
