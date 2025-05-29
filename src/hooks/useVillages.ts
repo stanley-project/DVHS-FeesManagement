@@ -27,6 +27,8 @@ export function useVillages(): UseVillagesReturn {
         .select('*')
         .order('name');
 
+      console.log('Fetched villages data:', data); // Debug log
+      
       if (supabaseError) {
         throw supabaseError;
       }
