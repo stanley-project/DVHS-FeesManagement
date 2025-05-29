@@ -84,7 +84,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
         </button>
 
         <h1 className="text-lg font-semibold md:text-xl ml-2 lg:ml-0">
-          {user ? `Welcome, ${user.name}` : 'Welcome'}
+          {user ? `Welcome ${user.name}` : 'Welcome'}
         </h1>
       </div>
 
