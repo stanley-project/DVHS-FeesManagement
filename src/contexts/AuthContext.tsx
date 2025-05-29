@@ -63,13 +63,36 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       console.log(`AuthContext: Checking if user exists for phone: ${phone}`);
       
-      // Clean phone number (remove spaces, dashes, etc.)
+      // Clean phone number (remove all non-digits)
       const cleanPhone = phone.replace(/\D/g, '');
+      console.log(`AuthContext: Cleaned phone number: ${cleanPhone}`);
+      
+      // For Indian numbers, remove country code if present
+      let phoneToMatch = cleanPhone;
+      if (cleanPhone.startsWith('91') && cleanPhone.length === 12) {
+        // Remove +91 country code for Indian numbers
+        phoneToMatch = cleanPhone.substring(2);
+        console.log(`AuthContext: Removed country code, searching for: ${phoneToMatch}`);
+      }
+      
+      // Try multiple variations of the phone number
+      const phoneVariations = [
+        phone,                    // Original format (+918978469095)
+        cleanPhone,              // All digits (918978469095)
+        phoneToMatch,            // Without country code (8978469095)
+        `+91${phoneToMatch}`,    // With +91 prefix
+        `91${phoneToMatch}`      // With 91 prefix
+      ];
+      
+      console.log(`AuthContext: Trying phone variations:`, phoneVariations);
+      
+      // Create OR condition for all phone variations
+      const orConditions = phoneVariations.map(p => `phone_number.eq.${p}`).join(',');
       
       const { data: userData, error } = await supabase
         .from('users')
         .select('*')
-        .or(`phone_number.eq.${phone},phone_number.eq.${cleanPhone},phone_number.eq.+${cleanPhone}`)
+        .or(orConditions)
         .maybeSingle();
 
       if (error) {
