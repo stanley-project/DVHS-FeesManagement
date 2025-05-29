@@ -1,8 +1,4 @@
-` block that I provided earlier.**
 
-Here's a reminder of the correct content that should be in your `src/contexts/AuthContext.tsx` file:
-
-```typescript
 // src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { createClient, User, Session } from '@supabase/supabase-js';
