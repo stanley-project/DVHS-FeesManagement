@@ -5,57 +5,44 @@ import { useAuth } from '../../contexts/AuthContext'; // Ensure this path is cor
 import { School } from 'lucide-react'; // Assuming you want to keep the School icon
 
 const LoginPage = () => {
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [loginCode, setLoginCode] = useState('');
-  const [error, setError] = useState(''); // Local state for displaying errors
-  const [isLoading, setIsLoading] = useState(false); // Local loading state for form submission
-
-  // Destructure necessary states and functions from useAuth
-  const { login, authLoading, isAuthenticated, user } = useAuth();
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const { login, setPhoneNumber: setAuthPhoneNumber } = useAuth();
   const navigate = useNavigate();
 
-  // Effect to redirect if already authenticated
-  useEffect(() => {
-    // Only redirect if authentication is complete and user is logged in
-    if (isAuthenticated && user && !authLoading) {
-      navigate('/'); // Redirect to dashboard
-    }
-  }, [isAuthenticated, authLoading, user, navigate]);
-
-
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault(); // Prevent default form submission behavior
-    setError(''); // Clear previous errors
-    setIsLoading(true); // Start local loading for this submission
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
 
-    // Basic validation for login code format
-    if (!loginCode || !/^[A-HJ-NP-Z2-9]{8}$/.test(loginCode)) {
-      setError('Please enter a valid 8-character login code');
-      setIsLoading(false); // End local loading
+    // Basic validation for phone number
+    if (!phoneNumber || !/^\d{10}$/.test(phoneNumber)) {
+      setError('Please enter a valid phone number');
+      setIsLoading(false);
       return;
     }
 
-    // Call the login function from AuthContext to verify the code
-    const result = await login(loginCode);
+    // Basic validation for login code
+    if (!loginCode || !/^[A-HJ-NP-Z2-9]{8}$/.test(loginCode)) {
+      setError('Please enter a valid login code');
+      setIsLoading(false);
+      return;
+    }
 
+    // Try to login
+    setAuthPhoneNumber(phoneNumber);
+    const result = await login(loginCode);
+    
     if (result.success) {
-      navigate('/'); // Redirect to dashboard on successful login
+      navigate('/');
     } else {
       setError(result.message);
     }
 
-    setIsLoading(false); // End local loading
+    setIsLoading(false);
   };
-
-  // Combine local isLoading with authLoading from context for comprehensive form disable state
-  const isFormDisabled = isLoading || authLoading;
-
-  // Show loading/redirect states to prevent flickering or incorrect UI rendering
-  if (authLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Authenticating...</div>;
-  }
-  if (isAuthenticated && user) { // If authenticated and user object exists, redirect
-    return <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">Redirecting...</div>;
-  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 md:p-6">
@@ -87,42 +74,63 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
+              <label htmlFor="phoneNumber" className="block text-sm font-medium text-foreground">
+                Phone Number
+              </label>
+              <div className="mt-1">
+                <div className="flex rounded-md shadow-sm">
+                  <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
+                    +91
+                  </span>
+                  <input
+                    id="phoneNumber"
+                    name="phoneNumber"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="10-digit phone number"
+                    className="input rounded-l-none"
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label htmlFor="loginCode" className="block text-sm font-medium text-foreground">
                 Login Code
               </label>
-              <div className="mt-1">
-                <input
-                  id="loginCode"
-                  name="loginCode"
-                  type="text"
-                  value={loginCode}
-                  onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
-                  placeholder="Enter your 8-character code"
-                  className="input"
-                  maxLength={8}
-                  pattern="[A-HJ-NP-Z2-9]{8}"
-                  disabled={isFormDisabled}
-                  style={{ letterSpacing: '0.25em' }}
-                />
-              </div>
+              <input
+                id="loginCode"
+                name="loginCode"
+                type="text"
+                value={loginCode}
+                onChange={(e) => setLoginCode(e.target.value.toUpperCase())}
+                placeholder="Enter your login code"
+                className="input"
+                maxLength={8}
+                style={{ letterSpacing: '0.25em' }}
+              />
               <p className="text-xs text-muted-foreground">
-                Enter your login code provided by the administrator.
-                Codes only use letters A-H, J-N, P-Z and numbers 2-9.
+                Enter your assigned login code
               </p>
             </div>
 
             <button
               type="submit"
-              disabled={isFormDisabled} // Use combined loading state
+              disabled={isLoading}
               className="btn btn-primary btn-lg w-full"
             >
-              {isFormDisabled ? 'Logging in...' : 'Login'}
+              {isLoading ? 'Logging in...' : 'Login'}
             </button>
           </form>
-
+          
           <div className="mt-6 text-center text-sm">
             <p className="text-muted-foreground">
-              For demo purposes, use: ADMIN123 (Admin), ACCT123 (Accountant), or TCHR123 (Teacher)
+              For demo purposes, use:<br />
+              Admin: 9876543210 / ADMIN123<br />
+              Accountant: 9876543211 / ACCT123<br />
+              Teacher: 9876543212 / TCHR123
             </p>
           </div>
         </div>
