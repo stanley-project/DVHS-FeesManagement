@@ -10,7 +10,7 @@ const LoginPage = () => {
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login, setPhoneNumber: setAuthPhoneNumber } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,9 +39,8 @@ const LoginPage = () => {
       return;
     }
 
-    // Try to login
-    setAuthPhoneNumber(phoneNumber);
-    const result = await login(loginCode);
+    // Try to login with both phoneNumber and loginCode
+    const result = await login(phoneNumber, loginCode);
     
     if (result.success) {
       navigate('/');
@@ -147,7 +146,7 @@ const LoginPage = () => {
           
           <div className="mt-6 text-center text-sm">
             <p className="text-muted-foreground">
-              For demo purposes, use:<br />
+               // For demo purposes, use:<br /> 
               Admin: 9876543210 / ADMN2025<br />
               Accountant: 9876543211 / ACCT2025<br />
               Teacher: 9876543212 / TCHR2025
