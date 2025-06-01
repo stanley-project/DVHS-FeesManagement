@@ -30,35 +30,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// --- Session Management ---
-const SESSION_KEY = 'school_app_session';
-
-const saveUserSession = (user: AuthenticatedUser): void => {
-  try {
-    localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-  } catch (error) {
-    console.error('Failed to save user session:', error);
-  }
-};
-
-const getUserSession = (): AuthenticatedUser | null => {
-  try {
-    const sessionData = localStorage.getItem(SESSION_KEY);
-    return sessionData ? JSON.parse(sessionData) : null;
-  } catch (error) {
-    console.error('Failed to retrieve user session:', error);
-    return null;
-  }
-};
-
-const clearUserSession = (): void => {
-  try {
-    localStorage.removeItem(SESSION_KEY);
-  } catch (error) {
-    console.error('Failed to clear user session:', error);
-  }
-};
-
 // --- AuthProvider Component ---
 interface AuthProviderProps {
   children: ReactNode;
@@ -71,57 +42,32 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const navigate = useNavigate();
 
-  // Initialize auth state from localStorage on mount
-  useEffect(() => {
-    const initializeAuth = () => {
-      console.log('AuthContext: Initializing authentication state...');
-      const savedUser = getUserSession();
-      
-      if (savedUser) {
-        console.log('AuthContext: Found saved user session:', savedUser.name);
-        setUser(savedUser);
-        setIsAuthenticated(true);
-      } else {
-        console.log('AuthContext: No saved user session found');
-      }
-      
+  const getSupabaseSessionAndUser = async () => {
+    const {
+      data: { session },
+      error: getSessionError,
+    } = await supabase.auth.getSession();
+
+    if (getSessionError) {
+      console.error("Error getting Supabase session:", getSessionError);
       setAuthLoading(false);
-    };
+      return;
+    }
 
-    initializeAuth();
-  }, []);
-
-  // Reset session function
-  const resetSession = async (): Promise<void> => {
-    try {
-      console.log('AuthContext: Resetting session...');
-      
-      if (!user) {
-        console.log('AuthContext: No active user session to reset');
-        return;
-      }
-
-      // Query the users table to verify the user is still active
-      const { data: userData, error } = await supabase
+    if (session) {
+      const { data: userData, error: getUserDataError } = await supabase
         .from('users')
         .select('id, name, role, phone_number, email, is_active, created_at, updated_at')
-        .eq('id', user.id)
-        .eq('is_active', true)
+        .eq('id', session.user.id)
         .single();
 
-      if (error) {
-        console.error('AuthContext: Session reset error:', error);
-        throw error;
-      }
-
-      if (!userData) {
-        console.log('AuthContext: User no longer active, logging out');
-        await logout(); // Make sure this logout call uses the fixed version
+      if (getUserDataError) {
+        console.error("Error getting user data:", getUserDataError);
+        setAuthLoading(false);
         return;
       }
 
-      // Update the session with fresh user data
-      const updatedUser: AuthenticatedUser = {
+      const authenticatedUser: AuthenticatedUser = {
         id: userData.id,
         name: userData.name,
         role: userData.role as UserRole,
@@ -131,28 +77,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         created_at: userData.created_at,
         updated_at: userData.updated_at,
       };
-
-      saveUserSession(updatedUser);
-      setUser(updatedUser);
+      setUser(authenticatedUser);
       setIsAuthenticated(true);
-      
-      console.log('AuthContext: Session reset successful');
-    } catch (error) {
-      console.error('AuthContext: Failed to reset session:', error);
-      await logout(); // Make sure this logout call uses the fixed version
+    } else {
+      setUser(null);
+      setIsAuthenticated(false);
     }
+    setAuthLoading(false);
   };
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        getSupabaseSessionAndUser();
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setIsAuthenticated(false);
+        navigate('/login');
+      }
+    });
+
+    getSupabaseSessionAndUser();
+
+    return () => subscription.unsubscribe();
+
+  }, [navigate]);
+
 
   // Login function with pre-defined code
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
-    
+
     try {
       // Validate inputs
       if (!phoneNumber.trim()) {
         throw new Error('Phone number is required');
       }
-      
+
       if (!code.trim()) {
         throw new Error('Login code is required');
       }
@@ -181,41 +142,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       console.log('AuthContext: Login successful for user:', userData.name);
 
-      // Create authenticated user object
-      const authenticatedUser: AuthenticatedUser = {
-        id: userData.id,
-        name: userData.name,
-        role: userData.role as UserRole,
-        phone_number: userData.phone_number,
-        email: userData.email,
-        is_active: userData.is_active,
-        created_at: userData.created_at,
-        updated_at: userData.updated_at,
-      };
-
-      // Save session and update state
-      saveUserSession(authenticatedUser);
-      setUser(authenticatedUser);
-      setIsAuthenticated(true);
-      
-      // Clear the phone number after successful login
-      setPhoneNumber('');
 
       // Navigate based on role
-      const redirectPath = getRedirectPath(authenticatedUser.role);
+      const redirectPath = getRedirectPath(userData.role as UserRole);
       navigate(redirectPath);
 
-      return { 
-        success: true, 
-        message: `Welcome back, ${authenticatedUser.name}!` 
+      return {
+        success: true,
+        message: `Welcome back, ${userData.name}!`,
       };
 
     } catch (error: any) {
       console.error('AuthContext: Login error:', error);
-      
-      return { 
-        success: false, 
-        message: error.message || 'An unexpected error occurred during login.' 
+
+      return {
+        success: false,
+        message: error.message || 'An unexpected error occurred during login.',
       };
     } finally {
       setAuthLoading(false);
@@ -226,43 +168,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = async (): Promise<void> => {
     setAuthLoading(true);
     console.log('AuthContext: Logging out user...');
-
-    // Attempt to sign out from Supabase (best effort).
-    // Since your login is custom and doesn't use supabase.auth.signIn,
-    // a Supabase session might not exist or be relevant.
-    // This step is to clear any potential Supabase session if one was somehow set.
     try {
-      const { error: supabaseSignOutError } = await supabase.auth.signOut();
-      if (supabaseSignOutError) {
-        // Log the error but do not throw, as local logout is paramount.
-        console.warn('AuthContext: Supabase signOut reported an error (proceeding with local logout):', supabaseSignOutError.message);
-      }
-    } catch (e) {
-      // Catch any unexpected synchronous errors from supabase.auth.signOut() itself
-      console.warn('AuthContext: Exception during Supabase signOut (proceeding with local logout):', e);
-    }
-
-    // Always perform local logout operations (clear session, update state)
-    try {
-      clearUserSession(); // Clear from localStorage
-      setUser(null);
-      setIsAuthenticated(false);
-      setPhoneNumber(''); // Clear phone number state
-
-      console.log('AuthContext: Local session cleared. Navigating to /login.');
-      navigate('/login'); // Navigate to the login page
-      // Note: console.log after navigate might not always execute if navigation unmounts this component immediately.
+      await supabase.auth.signOut();
     } catch (error) {
-      console.error('AuthContext: Error during local logout operations (clearing session, updating state, or navigation):', error);
-      // If local operations fail, the user might be in an inconsistent state,
-      // but we ensure authLoading is reset in the finally block.
+      console.error('AuthContext: Error signing out from Supabase:', error);
     } finally {
       setAuthLoading(false);
-      // Moved console.log here to ensure it's seen even if navigation is very fast.
       console.log('AuthContext: Logout process finished.');
     }
   };
   // --- END OF MODIFIED LOGOUT FUNCTION ---
+
+  const resetSession = async (): Promise<void> => {
+    await getSupabaseSessionAndUser();
+  };
 
 
   // Helper function to get redirect path based on role
