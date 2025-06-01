@@ -1,20 +1,51 @@
 import { useState } from 'react';
-import { Plus, Upload, Download, Search } from 'lucide-react';
+import { Plus, Download, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import * as XLSX from 'xlsx';
 import VillageForm from '../components/villages/VillageForm';
 import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
-import VillageImport from '../components/villages/VillageImport';
 import { useVillages } from '../hooks/useVillages';
 import { Village } from '../types/village';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
-  const [showImport, setShowImport] = useState(false);
   const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  const handleExport = () => {
+    try {
+      // Prepare data for export
+      const exportData = villages.map(village => ({
+        'Village Name': village.name,
+        'Distance (km)': village.distance_from_school,
+        'Bus Number': village.bus_number || 'N/A',
+        'Status': village.is_active ? 'Active' : 'Inactive',
+        'Created At': new Date(village.created_at).toLocaleDateString(),
+        'Last Updated': new Date(village.updated_at).toLocaleDateString()
+      }));
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Villages');
+
+      // Generate filename with current date
+      const date = new Date().toISOString().split('T')[0];
+      const fileName = `Village_Details_${date}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, fileName);
+      toast.success('Villages exported successfully');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export villages');
+    }
+  };
 
   const { 
     villages = [], 
@@ -85,14 +116,7 @@ const VillageManagement = () => {
         <div className="flex gap-2">
           <button
             className="btn btn-outline btn-md inline-flex items-center"
-            onClick={() => setShowImport(true)}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import Villages
-          </button>
-          
-          <button
-            className="btn btn-outline btn-md inline-flex items-center"
+            onClick={handleExport}
           >
             <Download className="h-4 w-4 mr-2" />
             Export
@@ -177,13 +201,6 @@ const VillageManagement = () => {
             setShowDetails(false);
             setShowForm(true);
           }}
-        />
-      )}
-
-      {showImport && (
-        <VillageImport
-          onClose={() => setShowImport(false)}
-          onImport={handleImport}
         />
       )}
     </div>

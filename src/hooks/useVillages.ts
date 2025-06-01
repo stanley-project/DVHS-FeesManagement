@@ -12,11 +12,15 @@ export function useVillages() {
       setLoading(true);
       setError(null); // Reset error state before fetching
 
+    console.log('Fetching villages with auth...');
+      
       const { data, error: supabaseError } = await supabase
         .from('villages')
         .select('*')
         .order('name');
 
+    console.log('Villages response:', { data, error: supabaseError });
+      
       if (supabaseError) {
         console.error('Supabase error:', supabaseError);
         throw new Error(supabaseError.message);
@@ -28,6 +32,7 @@ export function useVillages() {
       }
 
       console.log('Fetched villages:', data); // Debug log
+      
       setVillages(data);
       setError(null);
     } catch (err) {

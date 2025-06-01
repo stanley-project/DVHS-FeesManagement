@@ -1,17 +1,15 @@
-// src/contexts/AuthContext.tsx
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 // --- Type Definitions ---
-export type UserRole = 'administrator' | 'accountant' | 'teacher' | 'student' | 'parent' | 'guest';
+export type UserRole = 'administrator' | 'accountant' | 'teacher';
 
 export interface AuthenticatedUser {
   id: string;
   name: string;
   role: UserRole;
   phone_number: string;
-  email?: string;
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -30,6 +28,44 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// --- Session Management ---
+const SESSION_KEY = 'school_app_session';
+
+interface StoredSession {
+  user: AuthenticatedUser;
+  timestamp: number;
+}
+
+const saveUserSession = (user: AuthenticatedUser): void => {
+  try {
+    const session: StoredSession = {
+      user,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch (error) {
+    console.error('Failed to save user session:', error);
+  }
+};
+
+const getUserSession = (): StoredSession | null => {
+  try {
+    const sessionData = localStorage.getItem(SESSION_KEY);
+    return sessionData ? JSON.parse(sessionData) : null;
+  } catch (error) {
+    console.error('Failed to retrieve user session:', error);
+    return null;
+  }
+};
+
+const clearUserSession = (): void => {
+  try {
+    localStorage.removeItem(SESSION_KEY);
+  } catch (error) {
+    console.error('Failed to clear user session:', error);
+  }
+};
+
 // --- AuthProvider Component ---
 interface AuthProviderProps {
   children: ReactNode;
@@ -42,29 +78,74 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const navigate = useNavigate();
 
-  const getSupabaseSessionAndUser = async () => {
-    const {
-      data: { session },
-      error: getSessionError,
-    } = await supabase.auth.getSession();
+  // Initialize auth state from localStorage on mount
+  useEffect(() => {
+    const initializeAuth = async () => {
+      console.log('AuthContext: Initializing authentication state...');
+      const session = getUserSession();
+      
+      if (session?.user) {
+        try {
+          // Verify user is still active in database
+          const { data: userData, error: dbError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .eq('is_active', true)
+            .single();
 
-    if (getSessionError) {
-      console.error("Error getting Supabase session:", getSessionError);
+          if (dbError || !userData) {
+            throw new Error('User session invalid');
+          }
+
+          // Check if session is not expired (24 hours)
+          const SESSION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+          if (Date.now() - session.timestamp > SESSION_EXPIRY) {
+            throw new Error('Session expired');
+          }
+
+          console.log('AuthContext: Found valid session for user:', session.user.name);
+          setUser(session.user);
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('AuthContext: Session verification failed:', error);
+          clearUserSession();
+        }
+      } else {
+        console.log('AuthContext: No saved user session found');
+      }
+      
       setAuthLoading(false);
-      return;
-    }
+    };
 
-    if (session) {
-      const { data: userData, error: getUserDataError } = await supabase
+    initializeAuth();
+  }, []);
+
+  const login = async (code: string): Promise<{ success: boolean; message: string }> => {
+    setAuthLoading(true);
+    
+    try {
+      if (!phoneNumber.trim() || !code.trim()) {
+        throw new Error('Phone number and login code are required');
+      }
+
+      console.log('AuthContext: Verifying credentials...');
+
+      const { data: userData, error: dbError } = await supabase
         .from('users')
-        .select('id, name, role, phone_number, email, is_active, created_at, updated_at')
-        .eq('id', session.user.id)
+        .select('*')
+        .eq('phone_number', phoneNumber)
+        .eq('login_code', code)
+        .eq('is_active', true)
         .single();
 
-      if (getUserDataError) {
-        console.error("Error getting user data:", getUserDataError);
-        setAuthLoading(false);
-        return;
+      if (dbError || !userData) {
+        console.error('AuthContext: Invalid credentials:', dbError);
+        throw new Error('Invalid phone number or login code');
+      }
+
+      if (!['administrator', 'accountant', 'teacher'].includes(userData.role)) {
+        throw new Error('Invalid user role');
       }
 
       const authenticatedUser: AuthenticatedUser = {
@@ -72,138 +153,108 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         name: userData.name,
         role: userData.role as UserRole,
         phone_number: userData.phone_number,
-        email: userData.email,
         is_active: userData.is_active,
         created_at: userData.created_at,
-        updated_at: userData.updated_at,
+        updated_at: userData.updated_at
       };
+
+      saveUserSession(authenticatedUser);
       setUser(authenticatedUser);
       setIsAuthenticated(true);
-    } else {
-      setUser(null);
-      setIsAuthenticated(false);
-    }
-    setAuthLoading(false);
-  };
+      setPhoneNumber('');
 
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        getSupabaseSessionAndUser();
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setIsAuthenticated(false);
-        navigate('/login');
-      }
-    });
+      // Add custom header for subsequent requests
+      supabase.rest.headers = {
+        ...supabase.rest.headers,
+        'x-user-id': authenticatedUser.id,
+        'x-user-role': authenticatedUser.role
+      };
 
-    getSupabaseSessionAndUser();
-
-    return () => subscription.unsubscribe();
-
-  }, [navigate]);
-
-
-  // Login function with pre-defined code
-  const login = async (code: string): Promise<{ success: boolean; message: string }> => {
-    setAuthLoading(true);
-
-    try {
-      // Validate inputs
-      if (!phoneNumber.trim()) {
-        throw new Error('Phone number is required');
-      }
-
-      if (!code.trim()) {
-        throw new Error('Login code is required');
-      }
-
-      console.log(`AuthContext: Attempting login for phone: ${phoneNumber}, code: ${code}`);
-
-      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/login-with-code`;
-      
-      const res = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({
-          phone_number: phoneNumber,
-          login_code: code
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Login failed');
-      }
-
-      const { session, user: userData } = await res.json();
-
-      await supabase.auth.setSession({
-        access_token: session.access_token,
-        refresh_token: session.refresh_token,
-      });
-
-      console.log('AuthContext: Login successful for user:', userData.name);
-
-      // Navigate based on role
-      const redirectPath = getRedirectPath(userData.role as UserRole);
+      const redirectPath = getRedirectPath(authenticatedUser.role);
       navigate(redirectPath);
 
-      return {
-        success: true,
-        message: `Welcome back, ${userData.name}!`,
+      return { 
+        success: true, 
+        message: `Welcome back, ${authenticatedUser.name}!` 
       };
 
     } catch (error: any) {
       console.error('AuthContext: Login error:', error);
-
-      return {
-        success: false,
-        message: error.message || 'An unexpected error occurred during login.',
+      return { 
+        success: false, 
+        message: error.message || 'Authentication failed' 
       };
     } finally {
       setAuthLoading(false);
     }
   };
 
-  // --- MODIFIED LOGOUT FUNCTION ---
   const logout = async (): Promise<void> => {
     setAuthLoading(true);
     console.log('AuthContext: Logging out user...');
+
     try {
-      await supabase.auth.signOut();
+      // Remove custom headers
+      const { 'x-user-id': _, 'x-user-role': __, ...restHeaders } = supabase.rest.headers;
+      supabase.rest.headers = restHeaders;
+
+      clearUserSession();
+      setUser(null);
+      setIsAuthenticated(false);
+      setPhoneNumber('');
+      
+      navigate('/login');
     } catch (error) {
-      console.error('AuthContext: Error signing out from Supabase:', error);
+      console.error('AuthContext: Logout error:', error);
     } finally {
       setAuthLoading(false);
-      console.log('AuthContext: Logout process finished.');
     }
   };
-  // --- END OF MODIFIED LOGOUT FUNCTION ---
 
   const resetSession = async (): Promise<void> => {
-    await getSupabaseSessionAndUser();
+    if (!user) return;
+
+    try {
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (error || !userData) {
+        throw new Error('User session invalid');
+      }
+
+      const authenticatedUser: AuthenticatedUser = {
+        id: userData.id,
+        name: userData.name,
+        role: userData.role as UserRole,
+        phone_number: userData.phone_number,
+        is_active: userData.is_active,
+        created_at: userData.created_at,
+        updated_at: userData.updated_at
+      };
+
+      saveUserSession(authenticatedUser);
+      setUser(authenticatedUser);
+      setIsAuthenticated(true);
+    } catch (error) {
+      console.error('AuthContext: Session reset failed:', error);
+      await logout();
+    }
   };
 
-
-  // Helper function to get redirect path based on role
   const getRedirectPath = (role: UserRole): string => {
     switch (role) {
       case 'administrator':
-        return '/admin/dashboard';
+        return '/dashboard';
       case 'accountant':
-        return '/accountant/dashboard';
+        return '/dashboard';
       case 'teacher':
-        return '/teacher/dashboard';
-      case 'student':
-        return '/student/dashboard';
-      case 'parent':
-        return '/parent/dashboard';
+        return '/dashboard';
       default:
-        return '/dashboard'; // A generic dashboard if role doesn't match
+        return '/dashboard';
     }
   };
 
@@ -221,7 +272,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
-// --- Custom Hook ---
+// --- Custom Hooks ---
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -230,31 +281,26 @@ export const useAuth = () => {
   return context;
 };
 
-// --- Role-based Access Control Hook ---
 export const useRequireAuth = (requiredRoles?: UserRole[]) => {
   const { user, isAuthenticated, authLoading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (authLoading) { // Wait until auth state is determined
-      return;
-    }
+    if (authLoading) return;
 
     if (!isAuthenticated) {
-      navigate('/login', { replace: true }); // Use replace to avoid login page in history
+      navigate('/login', { replace: true });
       return;
     }
 
-    if (user && requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(user.role)) {
-      navigate('/unauthorized', { replace: true }); // Use replace
-      return;
+    if (user && requiredRoles && !requiredRoles.includes(user.role)) {
+      navigate('/unauthorized', { replace: true });
     }
   }, [user, isAuthenticated, authLoading, requiredRoles, navigate]);
 
-  return { user, isAuthenticated, authLoading }; // Return values for potential use in component
+  return { user, isAuthenticated, authLoading };
 };
 
-// --- Role Check Utility ---
 export const hasRole = (userRole: UserRole | undefined, allowedRoles: UserRole[]): boolean => {
   return userRole ? allowedRoles.includes(userRole) : false;
 };
