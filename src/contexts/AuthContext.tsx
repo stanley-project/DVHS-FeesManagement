@@ -120,12 +120,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       console.log(`AuthContext: Attempting login for phone: ${phoneNumber}, code: ${code}`);
 
-      const res = await fetch('/api/auth/login', {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/login-with-code`;
+      
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
-        body: JSON.stringify({ phoneNumber, loginCode: code }),
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          login_code: code
+        }),
       });
 
       if (!res.ok) {
@@ -141,7 +147,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       console.log('AuthContext: Login successful for user:', userData.name);
-
 
       // Navigate based on role
       const redirectPath = getRedirectPath(userData.role as UserRole);
