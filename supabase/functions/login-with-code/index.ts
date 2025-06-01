@@ -69,15 +69,17 @@ serve(async (req) => {
       );
     }
 
-    // Generate session using admin auth client
-    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'magiclink',
-      email: userData.email,
+    // Generate session using admin auth client with the user's ID
+    const { data: sessionData, error: sessionError } = await supabaseAdmin.auth.admin.signInWithUser({
+      userId: userData.id,
+      properties: {
+        role: userData.role,
+      },
     });
 
     if (sessionError) {
       return new Response(
-        JSON.stringify({ error: "Failed to create session" }),
+        JSON.stringify({ error: "Failed to create session", details: sessionError.message }),
         {
           status: 500,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -103,7 +105,7 @@ serve(async (req) => {
     );
   } catch (error) {
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "Internal server error", details: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
