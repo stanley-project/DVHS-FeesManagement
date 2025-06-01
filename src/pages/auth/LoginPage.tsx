@@ -1,16 +1,15 @@
 // src/pages/auth/LoginPage.tsx
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext'; // Ensure this path is correct
 import { School, Eye, EyeOff } from 'lucide-react';
 
 const LoginPage = () => {
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [loginCode, setLoginCode] = useState('');
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, phoneNumber, setPhoneNumber } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,15 +31,8 @@ const LoginPage = () => {
       return;
     }
 
-    // Validate login code format (8 characters, uppercase letters A-H,J-N,P-Z and numbers 2-9)
-    if (!loginCode || !/^[A-HJ-NP-Z2-9]{8}$/.test(loginCode)) {
-      setError('Please enter a valid login code');
-      setIsLoading(false);
-      return;
-    }
-
-    // Try to login with both phoneNumber and loginCode
-    const result = await login(phoneNumber, loginCode);
+    // Try to login with loginCode (phone number is already in context)
+    const result = await login(loginCode);
     
     if (result.success) {
       navigate('/');
@@ -56,18 +48,10 @@ const LoginPage = () => {
       <div className="w-full max-w-md space-y-8 animate-fadeIn">
         <div className="text-center">
           <div className="flex justify-center">
-            <School className="h-12 w-12 text-primary" /> {/* School icon */}
+            <School className="h-12 w-12 text-primary" />
           </div>
           <h1 className="mt-2 text-2xl font-bold text-foreground">Deepthi Vidyalayam</h1>
           <p className="text-muted-foreground">Fee Management System</p>
-          {/* Consider replacing the local image path with an SVG or a public asset URL */}
-          {/* <div className="mt-4 flex justify-center">
-            <img
-              src="/src/components/auth/DVHS Logo.jpeg"
-              alt="DVHS Logo"
-              className="h-64 w-auto"
-            />
-          </div> */}
         </div>
 
         <div className="mt-8 bg-card rounded-lg shadow-md p-6 md:p-8">
