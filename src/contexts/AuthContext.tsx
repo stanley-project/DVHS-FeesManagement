@@ -159,29 +159,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       console.log(`AuthContext: Attempting login for phone: ${phoneNumber}, code: ${code}`);
 
-      // Query the users table directly
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('id, name, role, phone_number, email, is_active, created_at, updated_at')
-        .eq('phone_number', phoneNumber)
-        .eq('login_code', code)
-        .eq('is_active', true)
-        .single();
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber, loginCode: code }),
+      });
 
-      if (error) {
-        console.error('AuthContext: Database query error:', error);
-        
-        if (error.code === 'PGRST116') { // PGRST116: "Query result returned no rows"
-          throw new Error('Invalid phone number or login code');
-        }
-        
-        throw new Error('Authentication failed. Please try again.');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Login failed');
       }
 
-      if (!userData) {
-        // This case should ideally be caught by PGRST116, but as a fallback:
-        throw new Error('Invalid phone number or login code');
-      }
+      const { session, user: userData } = await res.json();
+
+      await supabase.auth.setSession({
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      });
 
       console.log('AuthContext: Login successful for user:', userData.name);
 
