@@ -38,13 +38,27 @@ const BusFeeForm = ({
     fees: []
   });
 
+  // Filter for active villages
+  const activeVillages = villages.filter(village => village.is_active);
+
   // Fetch current bus fees when villages are loaded
   useEffect(() => {
     const fetchCurrentFees = async () => {
       try {
+        // Get current academic year
+        const { data: currentYear, error: yearError } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('is_current', true)
+          .single();
+
+        if (yearError) throw yearError;
+
+        // Get current bus fees
         const { data: feeData, error: feeError } = await supabase
           .from('bus_fee_structure')
           .select('village_id, fee_amount')
+          .eq('academic_year_id', currentYear.id)
           .eq('is_active', true);
 
         if (feeError) throw feeError;
@@ -58,7 +72,7 @@ const BusFeeForm = ({
         
         // Initialize form data with current fees
         setFormData({
-          fees: villages.map(village => ({
+          fees: activeVillages.map(village => ({
             village_id: village.id,
             fee_amount: feeMap[village.id] || 0,
             effective_from_date: new Date().toISOString().split('T')[0],
@@ -71,10 +85,10 @@ const BusFeeForm = ({
       }
     };
 
-    if (villages.length > 0) {
+    if (activeVillages.length > 0) {
       fetchCurrentFees();
     }
-  }, [villages]);
+  }, [activeVillages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +138,7 @@ const BusFeeForm = ({
                 </tr>
               </thead>
               <tbody>
-                {villages.map((village) => {
+                {activeVillages.map((village) => {
                   const fee = formData.fees.find(f => f.village_id === village.id);
                   return (
                     <tr key={village.id} className="border-b">
@@ -138,7 +152,7 @@ const BusFeeForm = ({
                           <input
                             type="number"
                             className="input rounded-l-none w-32"
-                            value={fee?.fee_amount || ''}
+                            value={fee?.fee_amount || currentFees[village.id] || ''}
                             onChange={(e) => {
                               const newFees = [...formData.fees];
                               const index = newFees.findIndex(f => f.village_id === village.id);
