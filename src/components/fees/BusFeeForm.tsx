@@ -1,50 +1,113 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
+import { useVillages } from '../../hooks/useVillages';
+import { Village } from '../../types/village';
 
 interface BusFeeFormProps {
   academicYear: string;
   onSubmit: (data: any) => void;
   onCancel: () => void;
-  onCopyFromPrevious: () => void;
-  initialData?: any;
+  onCopyFromPrevious: () => Promise<any>;
+  loading?: boolean;
+  error?: string;
 }
 
-const BusFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, initialData }: BusFeeFormProps) => {
+interface BusFee {
+  village_id: string;
+  fee_amount: number;
+  effective_from_date: string;
+  effective_to_date: string;
+  is_active: boolean;
+}
+
+interface FormData {
+  fees: BusFee[];
+  distanceMultiplier: number;
+}
+
+const BusFeeForm = ({
+  academicYear,
+  onSubmit,
+  onCancel,
+  onCopyFromPrevious,
+  loading: submitting,
+  error: submitError
+}: BusFeeFormProps) => {
+  const { villages, loading: villagesLoading, error: villagesError } = useVillages();
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [formData, setFormData] = useState(initialData || {
-    academicYear,
+  const [formData, setFormData] = useState<FormData>({
     fees: [],
-    effectiveDate: new Date().toISOString().split('T')[0],
-    distanceMultiplier: 10, // ₹10 per km
+    distanceMultiplier: 10 // Default ₹10 per km
   });
 
-  // Mock villages data
-  const villages = [
-    { id: '1', name: 'Ramapuram', distance: 5.2 },
-    { id: '2', name: 'Kondapur', distance: 3.8 },
-    { id: '3', name: 'Gachibowli', distance: 7.5 },
-  ];
+  // Initialize fees array when villages are loaded
+  useEffect(() => {
+    if (villages.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        fees: villages.map(village => ({
+          village_id: village.id,
+          fee_amount: calculateSuggestedFee(village.distance_from_school),
+          effective_from_date: new Date().toISOString().split('T')[0],
+          effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+          is_active: true
+        }))
+      }));
+    }
+  }, [villages]);
 
   const calculateSuggestedFee = (distance: number) => {
     return Math.round(distance * formData.distanceMultiplier) * 100;
   };
 
   const handleBulkUpdate = () => {
-    const newFees = formData.fees.map((fee: any) => ({
-      ...fee,
-      amount: calculateSuggestedFee(villages.find(v => v.id === fee.villageId)?.distance || 0),
+    setFormData(prev => ({
+      ...prev,
+      fees: prev.fees.map(fee => {
+        const village = villages.find(v => v.id === fee.village_id);
+        return {
+          ...fee,
+          fee_amount: calculateSuggestedFee(village?.distance_from_school || 0)
+        };
+      })
     }));
-    setFormData({ ...formData, fees: newFees });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setShowConfirmation(true);
   };
 
   const handleConfirm = () => {
     onSubmit(formData);
+    setShowConfirmation(false);
   };
+
+  const handleCopyPrevious = async () => {
+    const previousData = await onCopyFromPrevious();
+    if (previousData) {
+      setFormData(prev => ({
+        ...prev,
+        fees: previousData.fees
+      }));
+    }
+  };
+
+  if (villagesLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-muted-foreground">Loading villages...</div>
+      </div>
+    );
+  }
+
+  if (villagesError) {
+    return (
+      <div className="bg-error/10 border border-error/30 text-error rounded-md p-4">
+        Failed to load villages: {villagesError.message}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -57,15 +120,17 @@ const BusFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, init
           <div className="flex gap-2">
             <button
               type="button"
+              onClick={handleCopyPrevious}
               className="btn btn-outline btn-sm"
-              onClick={onCopyFromPrevious}
+              disabled={submitting}
             >
               Copy from Previous Year
             </button>
             <button
               type="button"
-              className="btn btn-outline btn-sm"
               onClick={handleBulkUpdate}
+              className="btn btn-outline btn-sm"
+              disabled={submitting}
             >
               Update Based on Distance
             </button>
@@ -88,6 +153,7 @@ const BusFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, init
                   value={formData.distanceMultiplier}
                   onChange={(e) => setFormData({ ...formData, distanceMultiplier: Number(e.target.value) })}
                   min="1"
+                  disabled={submitting}
                 />
                 <span className="text-sm">per km</span>
               </div>
@@ -106,56 +172,50 @@ const BusFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, init
                 </tr>
               </thead>
               <tbody>
-                {villages.map((village) => (
-                  <tr key={village.id} className="border-b">
-                    <td className="px-4 py-3 font-medium">{village.name}</td>
-                    <td className="px-4 py-3 text-right">{village.distance}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
-                      ₹{calculateSuggestedFee(village.distance).toLocaleString('en-IN')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex rounded-md shadow-sm justify-end">
-                        <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
-                          ₹
-                        </span>
-                        <input
-                          type="number"
-                          className="input rounded-l-none w-32"
-                          value={formData.fees.find((f: any) => f.villageId === village.id)?.amount || ''}
-                          onChange={(e) => {
-                            const newFees = [...formData.fees];
-                            const index = newFees.findIndex((f: any) => f.villageId === village.id);
-                            if (index >= 0) {
-                              newFees[index].amount = e.target.value;
-                            } else {
-                              newFees.push({ villageId: village.id, amount: e.target.value });
-                            }
-                            setFormData({ ...formData, fees: newFees });
-                          }}
-                          min="0"
-                          required
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {villages.map((village) => {
+                  const fee = formData.fees.find(f => f.village_id === village.id);
+                  return (
+                    <tr key={village.id} className="border-b">
+                      <td className="px-4 py-3 font-medium">{village.name}</td>
+                      <td className="px-4 py-3 text-right">{village.distance_from_school}</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground">
+                        ₹{calculateSuggestedFee(village.distance_from_school).toLocaleString('en-IN')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex rounded-md shadow-sm justify-end">
+                          <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
+                            ₹
+                          </span>
+                          <input
+                            type="number"
+                            className="input rounded-l-none w-32"
+                            value={fee?.fee_amount || ''}
+                            onChange={(e) => {
+                              const newFees = [...formData.fees];
+                              const index = newFees.findIndex(f => f.village_id === village.id);
+                              if (index >= 0) {
+                                newFees[index].fee_amount = Number(e.target.value);
+                              }
+                              setFormData({ ...formData, fees: newFees });
+                            }}
+                            min="0"
+                            required
+                            disabled={submitting}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          <div className="space-y-2">
-            <label htmlFor="effectiveDate" className="block text-sm font-medium">
-              Effective From *
-            </label>
-            <input
-              id="effectiveDate"
-              type="date"
-              className="input"
-              value={formData.effectiveDate}
-              onChange={(e) => setFormData({ ...formData, effectiveDate: e.target.value })}
-              required
-            />
-          </div>
+          {submitError && (
+            <div className="bg-error/10 border border-error/30 text-error rounded-md p-3">
+              {submitError}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-6 border-t">
@@ -163,14 +223,16 @@ const BusFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, init
             type="button"
             className="btn btn-outline btn-md"
             onClick={onCancel}
+            disabled={submitting}
           >
             Cancel
           </button>
           <button
             type="submit"
             className="btn btn-primary btn-md"
+            disabled={submitting}
           >
-            Save Bus Fee Structure
+            {submitting ? 'Saving...' : 'Save Bus Fee Structure'}
           </button>
         </div>
       </form>
@@ -185,7 +247,7 @@ const BusFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, init
             </div>
             <p className="text-muted-foreground mb-6">
               Are you sure you want to update the bus fee structure for {academicYear}?
-              This will affect all bus fee calculations from {formData.effectiveDate}.
+              This will affect all bus fee calculations from {formData.fees[0]?.effective_from_date}.
             </p>
             <div className="flex justify-end gap-3">
               <button
