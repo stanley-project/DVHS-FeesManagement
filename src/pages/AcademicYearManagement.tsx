@@ -1,136 +1,97 @@
 import { useState, useEffect } from 'react';
-import { Plus, ArrowUpDown, AlertCircle } from 'lucide-react';
-import AcademicYearForm from '../components/fees/AcademicYearForm';
+import { Plus, ArrowUpDown } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import AcademicYearForm from '../components/fees/AcademicYearForm';
+import { useAuth } from '../contexts/AuthContext';
+import { useAcademicYears } from '../hooks/useAcademicYears';
+
+interface FormData {
+  yearName: string;
+  startDate: string;
+  endDate: string;
+  isCurrent: boolean;
+}
 
 const AcademicYearManagement = () => {
+  const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
-  const [showTransitionConfirm, setShowTransitionConfirm] = useState(false);
-  const [selectedYear, setSelectedYear] = useState<any>(null);
-  const [academicYears, setAcademicYears] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { academicYears, loading, error, addAcademicYear, refreshAcademicYears } = useAcademicYears();
 
-  // Fetch academic years on component mount
-useEffect(() => {
-  fetchAcademicYears();
-}, []);
-
-  const fetchAcademicYears = async () => {
+  const handleSubmit = async (formData: FormData) => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const { data, error } = await supabase
-        .from('academic_years')
-        .select('*')
-        .order('start_date', { ascending: false });
-
-      if (error) throw error;
-
-      setAcademicYears(data || []);
-    } catch (err: any) {
-      console.error('Error fetching academic years:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmit = async (formData: any) => {
-    try {
-      // If setting as current year, first unset any existing current year
-      if (formData.isCurrent) {
-        await supabase
-          .from('academic_years')
-          .update({ is_current: false })
-          .eq('is_current', true);
+      if (!user) {
+        throw new Error('Unauthorized: You must be logged in.');
+      }
+      if (user.role !== 'administrator') {
+        throw new Error('Unauthorized: Only administrators can manage academic years');
       }
 
-      // Insert or update academic year
+
+      // Insert new academic year
       const { data, error } = await supabase
         .from('academic_years')
-        .upsert({
-          id: formData.id, // Will be undefined for new records
+        .insert([{
           year_name: formData.yearName,
           start_date: formData.startDate,
           end_date: formData.endDate,
           is_current: formData.isCurrent,
-          transition_status: 'pending',
-          previous_year_id: formData.previousYearId,
-          next_year_id: formData.nextYearId
-        })
+          transition_status: 'pending'
+        }])
         .select()
         .single();
 
       if (error) throw error;
 
-      // Refresh academic years list
-      await fetchAcademicYears();
+      toast.success('Academic year added successfully');
       setShowForm(false);
-    } catch (err: any) {
+      refreshAcademicYears();
+    } catch (err) {
       console.error('Error saving academic year:', err);
-      alert('Failed to save academic year. Please try again.');
+      if(err.message.includes('42501')){
+        toast.error('Unauthorized: You do not have permission to perform this action.');
+      } else {
+        toast.error(err instanceof Error ? err.message : 'Failed to save academic year');
+      }
     }
   };
 
-  const handleStartTransition = async (year: any) => {
+  const handleStartTransition = async (year: AcademicYear) => {
     try {
-      // Get next academic year
       const nextYear = academicYears.find(y => 
         new Date(y.start_date) > new Date(year.start_date)
       );
 
       if (!nextYear) {
-        alert('Please create the next academic year before starting transition');
+        toast.error('Please create the next academic year before starting transition');
         return;
       }
 
-      // Create transition record
-      const { data: transition, error } = await supabase
-        .from('academic_year_transitions')
-        .insert({
-          from_year_id: year.id,
-          to_year_id: nextYear.id,
-          status: 'pending',
-          created_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
       // Update academic year status
-      await supabase
+      const { error: updateError } = await supabase
         .from('academic_years')
         .update({ transition_status: 'in_progress' })
         .eq('id', year.id);
 
-      // Refresh academic years list
-      await fetchAcademicYears();
+      if (updateError) throw updateError;
 
-      // Start transition process
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/student-promotion`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ transitionId: transition.id })
-      });
-
-      if (!response.ok) throw new Error('Failed to start transition process');
-
-    } catch (err: any) {
+      toast.success('Academic year transition started');
+      refreshAcademicYears(); // Refresh the list
+    } catch (err) {
       console.error('Error starting transition:', err);
-      alert('Failed to start transition. Please try again.');
+      toast.error(err instanceof Error ? err.message : 'Failed to start transition');
     }
   };
+
+  // Fetch academic years on component mount
+  useEffect(() => {
+    refreshAcademicYears();
+  }, []);
 
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
-        <h1>Academic Year Management</h1>
+        <h1 className="text-2xl font-bold">Academic Year Management</h1>
         <button
           className="btn btn-primary btn-md inline-flex items-center"
           onClick={() => setShowForm(true)}
@@ -144,7 +105,7 @@ useEffect(() => {
         <div className="p-6">
           {error ? (
             <div className="text-center py-4 text-error">
-              {error}
+              {error.message}
             </div>
           ) : loading ? (
             <div className="text-center py-4 text-muted-foreground">
@@ -165,8 +126,18 @@ useEffect(() => {
                         <ArrowUpDown className="h-4 w-4" />
                       </button>
                     </th>
-                    <th className="px-4 py-3 text-left">Start Date</th>
-                    <th className="px-4 py-3 text-left">End Date</th>
+                    <th className="px-4 py-3 text-left">
+                      <button className="flex items-center gap-1">
+                        Start Date
+                        <ArrowUpDown className="h-4 w-4" />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left">
+                      <button className="flex items-center gap-1">
+                        End Date
+                        <ArrowUpDown className="h-4 w-4" />
+                      </button>
+                    </th>
                     <th className="px-4 py-3 text-left">Status</th>
                     <th className="px-4 py-3 text-left">Transition Status</th>
                     <th className="px-4 py-3 text-right">Actions</th>
@@ -183,8 +154,12 @@ useEffect(() => {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3">{new Date(year.start_date).toLocaleDateString()}</td>
-                      <td className="px-4 py-3">{new Date(year.end_date).toLocaleDateString()}</td>
+                      <td className="px-4 py-3">
+                        {new Date(year.start_date).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        {new Date(year.end_date).toLocaleDateString()}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                           year.is_current ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
@@ -202,7 +177,7 @@ useEffect(() => {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
                           {year.is_current && year.transition_status === 'pending' && (
                             <button
                               className="btn btn-outline btn-sm"
@@ -222,7 +197,6 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Academic Year Form */}
       {showForm && (
         <AcademicYearForm
           onSubmit={handleSubmit}
