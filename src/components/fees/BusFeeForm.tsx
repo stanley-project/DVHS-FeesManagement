@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useVillages } from '../../hooks/useVillages';
-import { Village } from '../../types/village';
+import { supabase } from '../../lib/supabase';
 
 interface BusFeeFormProps {
   academicYear: string;
@@ -22,56 +22,59 @@ interface BusFee {
 
 interface FormData {
   fees: BusFee[];
-  distanceMultiplier: number;
 }
 
 const BusFeeForm = ({
   academicYear,
   onSubmit,
   onCancel,
-  onCopyFromPrevious,
   loading: submitting,
   error: submitError
 }: BusFeeFormProps) => {
   const { villages, loading: villagesLoading, error: villagesError } = useVillages();
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [currentFees, setCurrentFees] = useState<Record<string, number>>({});
   const [formData, setFormData] = useState<FormData>({
-    fees: [],
-    distanceMultiplier: 10 // Default ₹10 per km
+    fees: []
   });
 
-  // Initialize fees array when villages are loaded
+  // Fetch current bus fees when villages are loaded
   useEffect(() => {
+    const fetchCurrentFees = async () => {
+      try {
+        const { data: feeData, error: feeError } = await supabase
+          .from('bus_fee_structure')
+          .select('village_id, fee_amount')
+          .eq('is_active', true);
+
+        if (feeError) throw feeError;
+
+        const feeMap: Record<string, number> = {};
+        feeData?.forEach(fee => {
+          feeMap[fee.village_id] = fee.fee_amount;
+        });
+
+        setCurrentFees(feeMap);
+        
+        // Initialize form data with current fees
+        setFormData({
+          fees: villages.map(village => ({
+            village_id: village.id,
+            fee_amount: feeMap[village.id] || 0,
+            effective_from_date: new Date().toISOString().split('T')[0],
+            effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+            is_active: true
+          }))
+        });
+      } catch (err) {
+        console.error('Error fetching current fees:', err);
+      }
+    };
+
     if (villages.length > 0) {
-      setFormData(prev => ({
-        ...prev,
-        fees: villages.map(village => ({
-          village_id: village.id,
-          fee_amount: calculateSuggestedFee(village.distance_from_school),
-          effective_from_date: new Date().toISOString().split('T')[0],
-          effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-          is_active: true
-        }))
-      }));
+      fetchCurrentFees();
     }
   }, [villages]);
-
-  const calculateSuggestedFee = (distance: number) => {
-    return Math.round(distance * formData.distanceMultiplier) * 100;
-  };
-
-  const handleBulkUpdate = () => {
-    setFormData(prev => ({
-      ...prev,
-      fees: prev.fees.map(fee => {
-        const village = villages.find(v => v.id === fee.village_id);
-        return {
-          ...fee,
-          fee_amount: calculateSuggestedFee(village?.distance_from_school || 0)
-        };
-      })
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,16 +84,6 @@ const BusFeeForm = ({
   const handleConfirm = () => {
     onSubmit(formData);
     setShowConfirmation(false);
-  };
-
-  const handleCopyPrevious = async () => {
-    const previousData = await onCopyFromPrevious();
-    if (previousData) {
-      setFormData(prev => ({
-        ...prev,
-        fees: previousData.fees
-      }));
-    }
   };
 
   if (villagesLoading) {
@@ -117,49 +110,9 @@ const BusFeeForm = ({
             <h3 className="text-lg font-medium">Bus Fee Structure</h3>
             <p className="text-sm text-muted-foreground">Academic Year: {academicYear}</p>
           </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleCopyPrevious}
-              className="btn btn-outline btn-sm"
-              disabled={submitting}
-            >
-              Copy from Previous Year
-            </button>
-            <button
-              type="button"
-              onClick={handleBulkUpdate}
-              className="btn btn-outline btn-sm"
-              disabled={submitting}
-            >
-              Update Based on Distance
-            </button>
-          </div>
         </div>
 
         <div className="space-y-4">
-          {/* Distance Multiplier */}
-          <div className="bg-muted p-4 rounded-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <h4 className="font-medium">Distance-based Fee Calculator</h4>
-                <p className="text-sm text-muted-foreground">Set rate per kilometer for bulk updates</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm">₹</span>
-                <input
-                  type="number"
-                  className="input w-24"
-                  value={formData.distanceMultiplier}
-                  onChange={(e) => setFormData({ ...formData, distanceMultiplier: Number(e.target.value) })}
-                  min="1"
-                  disabled={submitting}
-                />
-                <span className="text-sm">per km</span>
-              </div>
-            </div>
-          </div>
-
           {/* Fee Table */}
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -167,8 +120,7 @@ const BusFeeForm = ({
                 <tr className="border-b">
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Village</th>
                   <th className="px-4 py-3 text-right font-medium text-muted-foreground">Distance (km)</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Suggested Fee</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Monthly Fee</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Current Monthly Fee</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,9 +130,6 @@ const BusFeeForm = ({
                     <tr key={village.id} className="border-b">
                       <td className="px-4 py-3 font-medium">{village.name}</td>
                       <td className="px-4 py-3 text-right">{village.distance_from_school}</td>
-                      <td className="px-4 py-3 text-right text-muted-foreground">
-                        ₹{calculateSuggestedFee(village.distance_from_school).toLocaleString('en-IN')}
-                      </td>
                       <td className="px-4 py-3">
                         <div className="flex rounded-md shadow-sm justify-end">
                           <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
