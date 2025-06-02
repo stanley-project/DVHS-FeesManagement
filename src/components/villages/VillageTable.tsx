@@ -1,8 +1,15 @@
 import { ArrowUpDown, Eye, Pencil, Trash2 } from 'lucide-react';
 import { Village } from '../../types/village';
 
+interface SortConfig {
+  column: keyof Village;
+  direction: 'asc' | 'desc';
+}
+
 interface VillageTableProps {
   villages: Village[];
+  sortConfig: SortConfig;
+  onSort: (column: keyof Village) => void;
   onView: (village: Village) => void;
   onEdit: (village: Village) => void;
   onDelete: (id: string) => Promise<void>;
@@ -10,31 +17,51 @@ interface VillageTableProps {
 
 const VillageTable = ({
   villages = [], // Provide default empty array
+  sortConfig,
+  onSort,
   onView,
   onEdit,
   onDelete
 }: VillageTableProps) => {
+  const getSortIcon = (column: keyof Village) => {
+    if (sortConfig.column !== column) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <ArrowUpDown className="h-4 w-4 text-primary" /> : 
+      <ArrowUpDown className="h-4 w-4 text-primary rotate-180" />;
+  };
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b">
             <th className="px-4 py-3 text-left">
-              <button className="flex items-center gap-1">
+              <button 
+                onClick={() => onSort('name')}
+                className="flex items-center gap-1 hover:text-primary"
+              >
                 Village Name
-                <ArrowUpDown className="h-4 w-4" />
+                {getSortIcon('name')}
               </button>
             </th>
             <th className="px-4 py-3 text-left">
-              <button className="flex items-center gap-1">
+              <button 
+                onClick={() => onSort('distance_from_school')}
+                className="flex items-center gap-1 hover:text-primary"
+              >
                 Distance (km)
-                <ArrowUpDown className="h-4 w-4" />
+                {getSortIcon('distance_from_school')}
               </button>
             </th>
             <th className="px-4 py-3 text-left">
-              <button className="flex items-center gap-1">
+              <button 
+                onClick={() => onSort('bus_number')}
+                className="flex items-center gap-1 hover:text-primary"
+              >
                 Bus Number
-                <ArrowUpDown className="h-4 w-4" />
+                {getSortIcon('bus_number')}
               </button>
             </th>
             <th className="px-4 py-3 text-left">Status</th>

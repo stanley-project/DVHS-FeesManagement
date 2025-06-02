@@ -51,6 +51,8 @@ const VillageManagement = () => {
     villages = [], 
     loading, 
     error, 
+    sortConfig,
+    handleSort,
     addVillage, 
     updateVillage, 
     deleteVillage,
@@ -166,6 +168,8 @@ const VillageManagement = () => {
 
           <VillageTable
             villages={filteredVillages}
+            sortConfig={sortConfig}
+            onSort={handleSort}
             onView={(village) => {
               setSelectedVillage(village);
               setShowDetails(true);

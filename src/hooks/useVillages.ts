@@ -2,12 +2,21 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Village } from '../types/village';
 
+interface SortConfig {
+  column: keyof Village;
+  direction: 'asc' | 'desc';
+}
+
 export function useVillages() {
   const [villages, setVillages] = useState<Village[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    column: 'name',
+    direction: 'asc'
+  });
 
-  const fetchVillages = async () => {
+  const fetchVillages = async (sort?: SortConfig) => {
     try {
       setLoading(true);
       setError(null); // Reset error state before fetching
@@ -17,7 +26,9 @@ export function useVillages() {
       const { data, error: supabaseError } = await supabase
         .from('villages')
         .select('*')
-        .order('name');
+        .order(sort?.column || sortConfig.column, { 
+          ascending: sort?.direction === 'asc' || sortConfig.direction === 'asc'
+        });
 
     console.log('Villages response:', { data, error: supabaseError });
       
@@ -111,6 +122,13 @@ export function useVillages() {
     }
   };
 
+  const handleSort = async (column: keyof Village) => {
+    const direction = sortConfig.column === column && sortConfig.direction === 'asc' ? 'desc' : 'asc';
+    const newConfig = { column, direction };
+    setSortConfig(newConfig);
+    await fetchVillages(newConfig);
+  };
+
   useEffect(() => {
     fetchVillages();
   }, []);
@@ -119,6 +137,8 @@ export function useVillages() {
     villages,
     loading,
     error,
+    sortConfig,
+    handleSort,
     addVillage,
     updateVillage,
     deleteVillage,
