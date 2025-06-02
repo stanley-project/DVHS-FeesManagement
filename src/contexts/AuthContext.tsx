@@ -1,7 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { Session } from '@supabase/supabase-js';
 
 // --- Type Definitions ---
 export type UserRole = 'administrator' | 'accountant' | 'teacher';
@@ -77,26 +76,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [supabaseSession, setSupabaseSession] = useState<Session | null>(null);
   const navigate = useNavigate();
 
-  // Initialize auth state and listen for Supabase auth changes
+  // Initialize auth state from localStorage
   useEffect(() => {
     const initializeAuth = async () => {
       console.log('AuthContext: Initializing authentication state...');
       
-      // Get initial Supabase session
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('AuthContext: Error getting session:', error);
-      }
-      
-      setSupabaseSession(session);
-
-      // Check localStorage for user data
       const localSession = getUserSession();
       
-      if (session && localSession?.user) {
+      if (localSession?.user) {
         try {
           // Verify user is still active in database
           const { data: userData, error: dbError } = await supabase
@@ -119,19 +108,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           console.log('AuthContext: Found valid session for user:', localSession.user.name);
           setUser(localSession.user);
           setIsAuthenticated(true);
+          
+          // Set user context for database queries
+          supabase.rest.headers = {
+            ...supabase.rest.headers,
+            'x-user-id': localSession.user.id,
+            'x-user-role': localSession.user.role
+          };
+          
         } catch (error) {
           console.error('AuthContext: Session verification failed:', error);
           clearUserSession();
-          await supabase.auth.signOut();
         }
-      } else if (session && !localSession) {
-        // Supabase session exists but no local user data - sign out
-        console.log('AuthContext: Supabase session exists but no local user data - signing out');
-        await supabase.auth.signOut();
-      } else if (!session && localSession) {
-        // Local session exists but no Supabase session - clear local
-        console.log('AuthContext: Local session exists but no Supabase session - clearing local');
-        clearUserSession();
       } else {
         console.log('AuthContext: No saved user session found');
       }
@@ -140,26 +128,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     initializeAuth();
-
-    // Listen for Supabase auth state changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('AuthContext: Supabase auth state changed:', event, session?.user?.id);
-      setSupabaseSession(session);
-      
-      if (event === 'SIGNED_OUT' || !session) {
-        // Clear everything when signed out
-        clearUserSession();
-        setUser(null);
-        setIsAuthenticated(false);
-        setPhoneNumber('');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
@@ -172,7 +140,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       console.log('AuthContext: Verifying credentials...');
 
-      // First, verify the user credentials in your custom users table
+      // Verify the user credentials in your custom users table
       const { data: userData, error: dbError } = await supabase
         .from('users')
         .select('*')
@@ -190,47 +158,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         throw new Error('Invalid user role');
       }
 
-      // Sign in to Supabase using the user's email (create a dummy password or use signInAnonymously)
-      // We need to ensure this user exists in auth.users
-      let authUser;
-      
-      try {
-        // Try to sign in with a dummy password (you'll need to set this up)
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: userData.email || `${userData.phone_number}@school.local`,
-          password: 'dummy_password_' + userData.id // Use a consistent dummy password
-        });
-
-        if (authError) {
-          // If sign in fails, try to sign up the user first
-          console.log('AuthContext: User not in auth.users, creating...');
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email: userData.email || `${userData.phone_number}@school.local`,
-            password: 'dummy_password_' + userData.id,
-            options: {
-              data: {
-                user_id: userData.id,
-                role: userData.role,
-                phone_number: userData.phone_number
-              }
-            }
-          });
-
-          if (signUpError) {
-            throw new Error('Failed to create auth user: ' + signUpError.message);
-          }
-
-          authUser = signUpData.user;
-        } else {
-          authUser = authData.user;
-        }
-      } catch (authError) {
-        console.error('AuthContext: Supabase auth error:', authError);
-        // If Supabase auth fails, we can still proceed with custom auth
-        // but RLS policies won't work properly
-        console.warn('AuthContext: Proceeding without Supabase auth - RLS may not work');
-      }
-
       const authenticatedUser: AuthenticatedUser = {
         id: userData.id,
         name: userData.name,
@@ -241,12 +168,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         updated_at: userData.updated_at
       };
 
+      // Save session and set authenticated state
       saveUserSession(authenticatedUser);
       setUser(authenticatedUser);
       setIsAuthenticated(true);
       setPhoneNumber('');
 
-      // Add custom headers for additional context
+      // Set user context headers for database queries
       supabase.rest.headers = {
         ...supabase.rest.headers,
         'x-user-id': authenticatedUser.id,
@@ -277,9 +205,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     console.log('AuthContext: Logging out user...');
 
     try {
-      // Sign out from Supabase
-      await supabase.auth.signOut();
-
       // Remove custom headers
       const { 'x-user-id': _, 'x-user-role': __, ...restHeaders } = supabase.rest.headers;
       supabase.rest.headers = restHeaders;
@@ -288,7 +213,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(null);
       setIsAuthenticated(false);
       setPhoneNumber('');
-      setSupabaseSession(null);
       
       navigate('/login');
     } catch (error) {
@@ -326,6 +250,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       saveUserSession(authenticatedUser);
       setUser(authenticatedUser);
       setIsAuthenticated(true);
+      
+      // Update headers
+      supabase.rest.headers = {
+        ...supabase.rest.headers,
+        'x-user-id': authenticatedUser.id,
+        'x-user-role': authenticatedUser.role
+      };
+      
     } catch (error) {
       console.error('AuthContext: Session reset failed:', error);
       await logout();

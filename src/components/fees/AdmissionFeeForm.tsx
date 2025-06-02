@@ -1,152 +1,102 @@
-import { useState } from 'react';
-import { AlertCircle } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { AdmissionFeeSetting } from '../../types/fees';
 
 interface AdmissionFeeFormProps {
   academicYear: string;
-  onSubmit: (data: any) => void;
+  onSubmit: (data: Partial<AdmissionFeeSetting>) => void;
   onCancel: () => void;
-  onCopyFromPrevious: () => void;
-  initialData?: any;
+  onCopyFromPrevious: () => Promise<AdmissionFeeSetting | null>;
+  loading?: boolean;
+  error?: string;
 }
 
-const AdmissionFeeForm = ({ academicYear, onSubmit, onCancel, onCopyFromPrevious, initialData }: AdmissionFeeFormProps) => {
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [formData, setFormData] = useState(initialData || {
-    academicYear,
-    amount: '',
-    effectiveDate: new Date().toISOString().split('T')[0],
-    notes: '',
-  });
+const AdmissionFeeForm = ({
+  academicYear,
+  onSubmit,
+  onCancel,
+  onCopyFromPrevious,
+  loading,
+  error
+}: AdmissionFeeFormProps) => {
+  const { register, handleSubmit, setValue } = useForm<Partial<AdmissionFeeSetting>>();
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowConfirmation(true);
+  const handleCopyPrevious = async () => {
+    const data = await onCopyFromPrevious();
+    if (data) {
+      setValue('amount', data.amount);
+      setValue('effective_from', data.effective_from);
+      setValue('effective_to', data.effective_to);
+    }
   };
 
-  const handleConfirm = () => {
-    onSubmit(formData);
-    setShowConfirmation(false);
+  const onFormSubmit = (formData: Partial<AdmissionFeeSetting>) => {
+    onSubmit({
+      ...formData,
+      is_active: true
+    });
   };
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium">Admission Fee Structure</h3>
-            <p className="text-sm text-muted-foreground">Academic Year: {academicYear}</p>
-          </div>
+    <form onSubmit={handleSubmit(onFormSubmit)}>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="amount">Admission Fee Amount</label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            {...register('amount', { required: true })}
+            className="input w-full"
+          />
+        </div>
+        <div>
+          <label htmlFor="effective_from">Effective From</label>
+          <input
+            type="date"
+            {...register('effective_from', { required: true })}
+            className="input w-full"
+          />
+        </div>
+        <div>
+          <label htmlFor="effective_to">Effective To</label>
+          <input
+            type="date"
+            {...register('effective_to', { required: true })}
+            className="input w-full"
+          />
+        </div>
+        
+        {error && <div className="text-error">{error}</div>}
+        
+        <div className="flex justify-between">
           <button
             type="button"
-            className="btn btn-outline btn-sm"
-            onClick={onCopyFromPrevious}
+            onClick={handleCopyPrevious}
+            className="btn btn-outline"
+            disabled={loading}
           >
             Copy from Previous Year
           </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="amount" className="block text-sm font-medium">
-              Admission Fee Amount *
-            </label>
-            <div className="flex rounded-md shadow-sm">
-              <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
-                ₹
-              </span>
-              <input
-                id="amount"
-                type="number"
-                className="input rounded-l-none"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                min="0"
-                required
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              This amount will be applicable for all new admissions across all classes
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="effectiveDate" className="block text-sm font-medium">
-              Effective From *
-            </label>
-            <input
-              id="effectiveDate"
-              type="date"
-              className="input"
-              value={formData.effectiveDate}
-              onChange={(e) => setFormData({ ...formData, effectiveDate: e.target.value })}
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="notes" className="block text-sm font-medium">
-              Notes
-            </label>
-            <textarea
-              id="notes"
-              className="input"
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={3}
-              placeholder="Add any notes about this fee change..."
-            />
+          <div className="space-x-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="btn btn-outline"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading}
+            >
+              Save
+            </button>
           </div>
         </div>
-
-        <div className="flex justify-end gap-3 pt-6 border-t">
-          <button
-            type="button"
-            className="btn btn-outline btn-md"
-            onClick={onCancel}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary btn-md"
-          >
-            Save Admission Fee
-          </button>
-        </div>
-      </form>
-
-      {/* Confirmation Dialog */}
-      {showConfirmation && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertCircle className="h-6 w-6 text-warning" />
-              <h3 className="text-lg font-semibold">Confirm Changes</h3>
-            </div>
-            <p className="text-muted-foreground mb-6">
-              Are you sure you want to set the admission fee to ₹{formData.amount} for {academicYear}?
-              This will affect all new admissions from {formData.effectiveDate}.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => setShowConfirmation(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={handleConfirm}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </form>
   );
 };
 
