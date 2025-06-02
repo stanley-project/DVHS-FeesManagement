@@ -1,34 +1,69 @@
-import { ArrowUpDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowUpDown, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Village } from '../../types/village';
 
 interface BusFeeHistoryProps {
-  village: any;
+  village: Village;
 }
 
 const BusFeeHistory = ({ village }: BusFeeHistoryProps) => {
-  // Mock data for fee history
-  const feeHistory = [
-    {
-      id: 1,
-      previousAmount: 1200,
-      newAmount: 1500,
-      changeDate: '2025-01-15',
-      changedBy: 'Admin User',
-      reason: 'Annual fee revision',
-    },
-    {
-      id: 2,
-      previousAmount: 1000,
-      newAmount: 1200,
-      changeDate: '2024-07-01',
-      changedBy: 'Admin User',
-      reason: 'Fuel price increase adjustment',
-    },
-  ];
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [feeHistory, setFeeHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchFeeHistory = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const { data, error: historyError } = await supabase
+          .from('bus_fee_history')
+          .select(`
+            id,
+            previous_amount,
+            new_amount,
+            change_date,
+            changed_by(name),
+            reason
+          `)
+          .eq('village_id', village.id)
+          .order('change_date', { ascending: false });
+
+        if (historyError) throw historyError;
+
+        setFeeHistory(data || []);
+      } catch (err) {
+        console.error('Error fetching fee history:', err);
+        setError(err instanceof Error ? err.message : 'Failed to fetch fee history');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFeeHistory();
+  }, [village.id]);
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Bus Fee History</h3>
       
+      {error && (
+        <div className="bg-error/10 border border-error/30 text-error rounded-md p-4">
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : feeHistory.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          No fee history available
+        </div>
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -48,16 +83,17 @@ const BusFeeHistory = ({ village }: BusFeeHistoryProps) => {
           <tbody>
             {feeHistory.map((history) => (
               <tr key={history.id} className="border-b hover:bg-muted/50">
-                <td className="px-4 py-3">{history.changeDate}</td>
-                <td className="px-4 py-3 text-right">₹{history.previousAmount}</td>
-                <td className="px-4 py-3 text-right">₹{history.newAmount}</td>
-                <td className="px-4 py-3">{history.changedBy}</td>
+                <td className="px-4 py-3">{new Date(history.change_date).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-right">₹{history.previous_amount}</td>
+                <td className="px-4 py-3 text-right">₹{history.new_amount}</td>
+                <td className="px-4 py-3">{history.changed_by?.name || 'System'}</td>
                 <td className="px-4 py-3">{history.reason}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 };
