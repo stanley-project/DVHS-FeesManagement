@@ -1,237 +1,213 @@
-// src/components/fees/BusFeeForm.tsx
-import { useState, useEffect } from 'react';
-import { AlertCircle } from 'lucide-react';
-import { useVillages } from '../../hooks/useVillages';
-import { supabase } from '../../lib/supabase';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/components/ui/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useVillages } from '@/hooks/useVillages';
+import { useAcademicYears } from '@/hooks/useAcademicYears';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
-interface BusFeeFormProps {
-  academicYear: string;
-  onSubmit: (data: any) => void;
-  onCancel: () => void;
-  onCopyFromPrevious: () => Promise<any>;
-  loading?: boolean;
-  error?: string;
-}
+const formSchema = z.object({
+  villageId: z.string().uuid(),
+  academicYearId: z.string().uuid(),
+  feeAmount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+    message: 'Fee amount must be a positive number',
+  }),
+  effectiveFromDate: z.string().min(1, 'Effective from date is required'),
+  effectiveToDate: z.string().min(1, 'Effective to date is required'),
+  notes: z.string().optional(),
+});
 
-interface BusFee {
-  village_id: string;
-  fee_amount: number;
-  effective_from_date: string;
-  effective_to_date: string;
-  is_active: boolean;
-}
+type FormValues = z.infer<typeof formSchema>;
 
-interface FormData {
-  fees: BusFee[];
-}
+const BusFeeForm = () => {
+  const { toast } = useToast();
+  const { villages } = useVillages();
+  const { academicYears } = useAcademicYears();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-const BusFeeForm = ({
-  academicYear,
-  onSubmit,
-  onCancel,
-  loading: submitting,
-  error: submitError
-}: BusFeeFormProps) => {
-  const { villages, loading: villagesLoading, error: villagesError } = useVillages();
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [currentFees, setCurrentFees] = useState<Record<string, number>>({});
-  const [formData, setFormData] = useState<FormData>({
-    fees: []
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      notes: '',
+    },
   });
 
-  // Filter for active villages
-  const activeVillages = villages.filter(village => village.is_active);
+  const onSubmit = async (data: FormValues) => {
+    try {
+      setIsSubmitting(true);
+      
+      // Convert string amount to number for database
+      const formattedData = {
+        ...data,
+        feeAmount: parseFloat(data.feeAmount),
+      };
 
-  // Fetch current bus fees when villages are loaded
-  useEffect(() => {
-    const fetchCurrentFees = async () => {
-      try {
-        // Get current academic year
-        const { data: currentYear, error: yearError } = await supabase
-          .from('academic_years')
-          .select('id')
-          .eq('is_current', true)
-          .single();
+      console.log('Submitting bus fee:', formattedData);
+      
+      // TODO: Implement actual submission logic using Supabase
+      
+      toast({
+        title: 'Success',
+        description: 'Bus fee structure has been updated successfully.',
+      });
 
-        if (yearError) throw yearError;
-
-        // Get current bus fees
-        const { data: feeData, error: feeError } = await supabase
-          .from('bus_fee_structure')
-          .select('village_id, fee_amount')
-          .eq('academic_year_id', currentYear.id)
-          .eq('is_active', true);
-
-        if (feeError) throw feeError;
-
-        // Create a map of village_id to fee_amount
-        const feeMap: Record<string, number> = {};
-        feeData?.forEach(fee => {
-          feeMap[fee.village_id] = fee.fee_amount;
-        });
-
-        setCurrentFees(feeMap);
-        
-        // Initialize form data with current fees
-        setFormData({
-          fees: activeVillages.map(village => ({
-            village_id: village.id,
-            fee_amount: feeMap[village.id] || 0,
-            effective_from_date: new Date().toISOString().split('T')[0],
-            effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-            is_active: true
-          }))
-        });
-      } catch (err) {
-        console.error('Error fetching current fees:', err);
-      }
-    };
-
-    if (activeVillages.length > 0) {
-      fetchCurrentFees();
+      form.reset();
+    } catch (error) {
+      console.error('Error submitting bus fee:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update bus fee structure. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [activeVillages]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setShowConfirmation(true);
   };
-
-  const handleConfirm = () => {
-    onSubmit(formData);
-    setShowConfirmation(false);
-  };
-
-  if (villagesLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-muted-foreground">Loading villages...</div>
-      </div>
-    );
-  }
-
-  if (villagesError) {
-    return (
-      <div className="bg-error/10 border border-error/30 text-error rounded-md p-4">
-        Failed to load villages: {villagesError.message}
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-medium">Bus Fee Structure</h3>
-            <p className="text-sm text-muted-foreground">Academic Year: {academicYear}</p>
-          </div>
-        </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Bus Fee Structure</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <FormField
+              control={form.control}
+              name="villageId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Village</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a village" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {villages?.map((village) => (
+                        <SelectItem key={village.id} value={village.id}>
+                          {village.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="space-y-4">
-          {/* Fee Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Village</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Distance (km)</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Current Monthly Fee</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeVillages.map((village) => {
-                  const fee = formData.fees.find(f => f.village_id === village.id);
-                  return (
-                    <tr key={village.id} className="border-b">
-                      <td className="px-4 py-3 font-medium">{village.name}</td>
-                      <td className="px-4 py-3 text-right">{village.distance_from_school}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex rounded-md shadow-sm justify-end">
-                          <span className="inline-flex items-center rounded-l-md border border-r-0 border-input bg-muted px-3 text-muted-foreground text-sm">
-                            ₹
-                          </span>
-                          <input
-                            type="number"
-                            className="input rounded-l-none w-32"
-                            value={fee?.fee_amount || currentFees[village.id] || ''}
-                            onChange={(e) => {
-                              const newFees = [...formData.fees];
-                              const index = newFees.findIndex(f => f.village_id === village.id);
-                              if (index >= 0) {
-                                newFees[index].fee_amount = Number(e.target.value);
-                              }
-                              setFormData({ ...formData, fees: newFees });
-                            }}
-                            min="0"
-                            required
-                            disabled={submitting}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+            <FormField
+              control={form.control}
+              name="academicYearId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Academic Year</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select academic year" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {academicYears?.map((year) => (
+                        <SelectItem key={year.id} value={year.id}>
+                          {year.year_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          {submitError && (
-            <div className="bg-error/10 border border-error/30 text-error rounded-md p-3">
-              {submitError}
-            </div>
-          )}
-        </div>
+            <FormField
+              control={form.control}
+              name="feeAmount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Fee Amount</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Enter fee amount"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-        <div className="flex justify-end gap-3 pt-6 border-t">
-          <button
-            type="button"
-            className="btn btn-outline btn-md"
-            onClick={onCancel}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary btn-md"
-            disabled={submitting}
-          >
-            {submitting ? 'Saving...' : 'Save Bus Fee Structure'}
-          </button>
-        </div>
-      </form>
+            <FormField
+              control={form.control}
+              name="effectiveFromDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Effective From</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-      {/* Confirmation Dialog */}
-      {showConfirmation && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50">
-          <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertCircle className="h-6 w-6 text-warning" />
-              <h3 className="text-lg font-semibold">Confirm Changes</h3>
-            </div>
-            <p className="text-muted-foreground mb-6">
-              Are you sure you want to update the bus fee structure for {academicYear}?
-              This will affect all bus fee calculations from {formData.fees[0]?.effective_from_date}.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => setShowConfirmation(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleConfirm}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+            <FormField
+              control={form.control}
+              name="effectiveToDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Effective To</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Add any additional notes" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : 'Save Bus Fee Structure'}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 };
 

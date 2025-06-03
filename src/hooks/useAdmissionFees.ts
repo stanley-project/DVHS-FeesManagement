@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-export interface AdmissionFeeSetting {
+interface AdmissionFeeSetting {
   id: string;
   academic_year_id: string;
   amount: number;

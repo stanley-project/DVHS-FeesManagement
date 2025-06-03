@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 // --- Type Definitions ---
-export type UserRole = 'administrator' | 'accountant' | 'teacher';
+type UserRole = 'administrator' | 'accountant' | 'teacher';
 
-export interface AuthenticatedUser {
+interface AuthenticatedUser {
   id: string;
   name: string;
   role: UserRole;
@@ -300,7 +300,7 @@ export const useAuth = () => {
   return context;
 };
 
-export const useRequireAuth = (requiredRoles?: UserRole[]) => {
+const useRequireAuth = (requiredRoles?: UserRole[]) => {
   const { user, isAuthenticated, authLoading } = useAuth();
   const navigate = useNavigate();
 
@@ -320,6 +320,6 @@ export const useRequireAuth = (requiredRoles?: UserRole[]) => {
   return { user, isAuthenticated, authLoading };
 };
 
-export const hasRole = (userRole: UserRole | undefined, allowedRoles: UserRole[]): boolean => {
+const hasRole = (userRole: UserRole | undefined, allowedRoles: UserRole[]): boolean => {
   return userRole ? allowedRoles.includes(userRole) : false;
 };

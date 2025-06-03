@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
-export interface AcademicYear {
+interface AcademicYear {
   id: string;
   year_name: string;
   start_date: string;

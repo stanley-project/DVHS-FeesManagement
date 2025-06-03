@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-export interface BusFeeStructure {
+interface BusFeeStructure {
   id: string;
   village_id: string;
   fee_amount: number;

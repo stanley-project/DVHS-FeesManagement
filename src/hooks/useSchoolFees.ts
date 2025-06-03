@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-export interface FeeType {
+interface FeeType {
   id: string;
   name: string;
   description?: string;
@@ -11,7 +11,7 @@ export interface FeeType {
   is_for_new_students_only: boolean;
 }
 
-export interface FeeStructure {
+interface FeeStructure {
   id: string;
   class_id: string;
   fee_type_id: string;

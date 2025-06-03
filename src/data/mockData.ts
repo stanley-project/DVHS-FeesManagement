@@ -2,7 +2,7 @@ import { User } from '../types/user';
 import { NavItem } from '../types/user';
 import { School, CircleDollarSign, Users, FileText, BookOpen, BarChart3, UserCog, MapPin, Calendar } from 'lucide-react';
 
-export const mockUsers: User[] = [
+const mockUsers: User[] = [
   {
     id: '1',
     name: 'Admin User',
