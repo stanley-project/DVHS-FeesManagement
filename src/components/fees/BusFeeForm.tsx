@@ -1,3 +1,4 @@
+// src/components/fees/BusFeeForm.tsx
 import { useState, useEffect } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useVillages } from '../../hooks/useVillages';
@@ -63,6 +64,7 @@ const BusFeeForm = ({
 
         if (feeError) throw feeError;
 
+        // Create a map of village_id to fee_amount
         const feeMap: Record<string, number> = {};
         feeData?.forEach(fee => {
           feeMap[fee.village_id] = fee.fee_amount;
