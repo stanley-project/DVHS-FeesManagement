@@ -52,6 +52,7 @@ export const useBusFees = () => {
       setError(err);
     } finally {
       setLoading(false);
+      
     }
   };
 
