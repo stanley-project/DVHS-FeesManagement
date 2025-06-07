@@ -101,7 +101,7 @@ const BusFeeForm = ({
       console.log(`ℹ️ Fetching fees for Academic Year ID: ${effectiveAcademicYear.id} (Name: ${effectiveAcademicYear.year_name})`);
 
       // 3. Get current bus fees for the determined academic year
-       const { data: feeData, error: feeError } = await supabase
+      const { data: feeData, error: feeError } = await supabase
         .from('bus_fee_structure')
         .select('village_id, fee_amount, academic_year_id, effective_from_date, effective_to_date, is_active')
         .eq('academic_year_id', effectiveAcademicYear.id)
@@ -184,7 +184,7 @@ const BusFeeForm = ({
     } else if (villagesLoading) {
       console.log('⏳ Villages are still loading...');
     } else {
-      console.log('ℹ️ No active villages found, or villages data is empty. Not fetching fees.');
+      console.log('ℹ️ No active fee data found, or villages data is empty. Not fetching fees.');
       setDebugInfo({ message: "No active villages to process.", activeVillagesCount: 0, villagesLoading });
     }
   }, [activeVillages, villagesLoading, fetchCurrentFees]);
