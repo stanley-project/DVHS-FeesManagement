@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useVillages } from '../../hooks/useVillages';
 import { supabase } from '../../lib/supabase';
+import BusFeeForm from './BusFeeForm';
 
 interface Village {
   id: string;
