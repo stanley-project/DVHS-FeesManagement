@@ -110,6 +110,9 @@ const BusFeeForm = ({
       console.log('💰 Fee data query result:', { feeData, feeError });
       console.log('💰 Fee data length:', feeData?.length || 0);
 
+      // Log the entire feeData array
+      console.log('💰 Full feeData:', feeData);
+
       if (feeError) {
         console.error('❌ Error fetching fees:', feeError);
         setDebugInfo({ error: `Error fetching fees: ${feeError.message}`, academicYearUsed: effectiveAcademicYear });
