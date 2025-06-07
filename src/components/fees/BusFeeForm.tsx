@@ -52,10 +52,63 @@ const BusFeeForm = ({
     return villages.filter(village => village.is_active);
   }, [villages]);
 
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        // Check current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        console.log('🔐 Session check:', { 
+          session: session?.user?.id, 
+          expires_at: session?.expires_at,
+          error: sessionError 
+        });
+
+        // Check current user
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        console.log('👤 User check:', { 
+          user: user?.id, 
+          email: user?.email,
+          error: userError 
+        });
+
+        if (!session || !user) {
+          console.error('❌ No valid authentication found');
+          setDebugInfo({ 
+            error: 'User not authenticated', 
+            session: !!session,
+            user: !!user,
+            sessionError,
+            userError
+          });
+        }
+      } catch (err) {
+        console.error('💥 Auth check failed:', err);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
   // Fetch current bus fees (memoized)
   const fetchCurrentFees = useCallback(async () => {
     try {
       console.log('🔍 Starting to fetch current fees...');
+    
+      // Authentication check first
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !user) {
+        console.error('❌ Authentication failed in fetchCurrentFees:', authError);
+        setDebugInfo({ 
+          error: 'Authentication required to fetch fees', 
+          authError,
+          suggestion: 'Please log in first'
+        });
+        return;
+      }
+
+      console.log('✅ User authenticated:', user.id);
+
       setDebugInfo(null);
 
       let effectiveAcademicYear: { id: string; year_name: string } | null = null;
@@ -402,6 +455,5 @@ const BusFeeForm = ({
       )}
     </div>
   );
-};
 
 export default BusFeeForm;
