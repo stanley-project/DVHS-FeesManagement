@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { useVillages } from '../../hooks/useVillages';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Village {
   id: string;
@@ -46,69 +47,22 @@ const BusFeeForm = ({
     fees: []
   });
   const [debugInfo, setDebugInfo] = useState<any>(null);
+  const { isAuthenticated, authLoading, resetSession } = useAuth();
 
   // Filter for active villages (memoized)
   const activeVillages = useMemo(() => {
     return villages.filter(village => village.is_active);
   }, [villages]);
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Check current session
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        console.log('🔐 Session check:', { 
-          session: session?.user?.id, 
-          expires_at: session?.expires_at,
-          error: sessionError 
-        });
-
-        // Check current user
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        console.log('👤 User check:', { 
-          user: user?.id, 
-          email: user?.email,
-          error: userError 
-        });
-
-        if (!session || !user) {
-          console.error('❌ No valid authentication found');
-          setDebugInfo({ 
-            error: 'User not authenticated', 
-            session: !!session,
-            user: !!user,
-            sessionError,
-            userError
-          });
-        }
-      } catch (err) {
-        console.error('💥 Auth check failed:', err);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
   // Fetch current bus fees (memoized)
   const fetchCurrentFees = useCallback(async () => {
+    if (!isAuthenticated) {
+      console.warn('Not authenticated, skipping fetchCurrentFees');
+      return;
+    }
+
     try {
       console.log('🔍 Starting to fetch current fees...');
-    
-      // Authentication check first
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        console.error('❌ Authentication failed in fetchCurrentFees:', authError);
-        setDebugInfo({ 
-          error: 'Authentication required to fetch fees', 
-          authError,
-          suggestion: 'Please log in first'
-        });
-        return;
-      }
-
-      console.log('✅ User authenticated:', user.id);
-
       setDebugInfo(null);
 
       let effectiveAcademicYear: { id: string; year_name: string } | null = null;
@@ -226,19 +180,22 @@ const BusFeeForm = ({
       console.error('💥 Error in fetchCurrentFees process:', err);
       setDebugInfo(prev => ({ ...prev, error: `Overall error in fetchCurrentFees: ${err.message || err}` }));
     }
-  }, [activeVillages]);
+  }, [activeVillages, isAuthenticated]);
 
   useEffect(() => {
-    if (activeVillages.length > 0) {
+    if (!authLoading && isAuthenticated && activeVillages.length > 0) {
       console.log('🏘️ Active villages loaded, count:', activeVillages.length, '. Triggering fee fetch.');
       fetchCurrentFees();
     } else if (villagesLoading) {
       console.log('⏳ Villages are still loading...');
-    } else {
+    } else if (!isAuthenticated && !authLoading) {
+      console.log('Not authenticated.  Waiting for authentication...');
+    }
+     else {
       console.log('ℹ️ No active fee data found, or villages data is empty. Not fetching fees.');
       setDebugInfo({ message: "No active villages to process.", activeVillagesCount: 0, villagesLoading });
     }
-  }, [activeVillages, villagesLoading, fetchCurrentFees]);
+  }, [activeVillages, villagesLoading, fetchCurrentFees, isAuthenticated, authLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
