@@ -101,13 +101,10 @@ const BusFeeForm = ({
       console.log(`ℹ️ Fetching fees for Academic Year ID: ${effectiveAcademicYear.id} (Name: ${effectiveAcademicYear.year_name})`);
 
       // 3. Get current bus fees for the determined academic year
- const { data: feeData, error: feeError } = await supabase
+      const { data: feeData, error: feeError } = await supabase
         .from('bus_fee_structure')
         .select('village_id, fee_amount, academic_year_id, effective_from_date, effective_to_date, is_active')
-        .eq('academic_year_id', effectiveAcademicYear.id)
-        .lte('effective_from_date', new Date().toISOString())
-        .gte('effective_to_date',  new Date().toISOString());
-      
+        .eq('academic_year_id', effectiveAcademicYear.id);
 
       console.log('💰 Fee data query result:', { feeData, feeError });
       console.log('💰 Fee data length:', feeData?.length || 0);
@@ -405,6 +402,3 @@ const BusFeeForm = ({
       )}
     </div>
   );
-};
-
-export default BusFeeForm;
