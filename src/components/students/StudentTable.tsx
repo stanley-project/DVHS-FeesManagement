@@ -97,18 +97,6 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
           
           <select
             className="input"
-            value={selectedSection}
-            onChange={(e) => setSelectedSection(e.target.value)}
-          >
-            <option value="all">All Sections</option>
-            <option value="A">Section A</option>
-            <option value="B">Section B</option>
-            <option value="C">Section C</option>
-            <option value="D">Section D</option>
-          </select>
-          
-          <select
-            className="input"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
@@ -152,7 +140,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
         ) : students.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-muted-foreground mb-4">No students found</div>
-            {searchQuery || selectedClass !== 'all' || selectedSection !== 'all' || selectedStatus !== 'all' ? (
+            {searchQuery || selectedClass !== 'all' || selectedStatus !== 'all' ? (
               <p className="text-sm text-muted-foreground">Try adjusting your search criteria</p>
             ) : (
               <button
@@ -172,7 +160,6 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Admission No.</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Student Name</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Class</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Section</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Admission Date</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
@@ -184,7 +171,6 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                       <td className="px-4 py-3 font-medium">{student.admission_number}</td>
                       <td className="px-4 py-3">{student.student_name}</td>
                       <td className="px-4 py-3">{student.class?.name || 'N/A'}</td>
-                      <td className="px-4 py-3">{student.section}</td>
                       <td className="px-4 py-3">{new Date(student.admission_date).toLocaleDateString()}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
