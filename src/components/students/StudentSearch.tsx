@@ -28,7 +28,20 @@ const StudentSearch = ({ onSelect, onClose }: StudentSearchProps) => {
 
     try {
       console.log('StudentSearch: Starting search for query:', searchQuery);
+      console.log('StudentSearch: Current user session:', await supabase.auth.getSession());
       
+      // First, let's try a simple query without joins to see if we can get any students
+      console.log('StudentSearch: Testing basic student query...');
+      const { data: basicData, error: basicError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('status', 'inactive')
+        .limit(5);
+      
+      console.log('StudentSearch: Basic query result:', { data: basicData, error: basicError });
+      
+      // Now try the full query with joins
+      console.log('StudentSearch: Executing full search query...');
       const { data, error: searchError } = await supabase
         .from('students')
         .select(`
@@ -37,16 +50,32 @@ const StudentSearch = ({ onSelect, onClose }: StudentSearchProps) => {
           village:village_id(id, name)
         `)
         .or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%`)
-        .eq('status', 'inactive') // Only search inactive students for rejoining
+        .eq('status', 'inactive')
         .order('student_name');
 
+      console.log('StudentSearch: Full query executed');
       console.log('StudentSearch: Supabase search data:', data);
       console.log('StudentSearch: Supabase search error:', searchError);
       console.log('StudentSearch: Data length:', data?.length || 0);
       
       if (data && data.length > 0) {
         console.log('StudentSearch: First result sample:', data[0]);
+        console.log('StudentSearch: All results:', data);
       }
+
+      // Let's also try without the status filter to see if we get any results
+      console.log('StudentSearch: Testing without status filter...');
+      const { data: allData, error: allError } = await supabase
+        .from('students')
+        .select(`
+          *,
+          class:class_id(id, name),
+          village:village_id(id, name)
+        `)
+        .or(`student_name.ilike.%${searchQuery}%,admission_number.ilike.%${searchQuery}%`)
+        .order('student_name');
+      
+      console.log('StudentSearch: Query without status filter:', { data: allData, error: allError, count: allData?.length });
 
       if (searchError) {
         console.error('StudentSearch: Search error details:', searchError);
@@ -127,7 +156,8 @@ const StudentSearch = ({ onSelect, onClose }: StudentSearchProps) => {
               </div>
             ) : hasSearched && searchResults.length === 0 && !error ? (
               <div className="text-center py-12 text-muted-foreground">
-                No inactive students found matching your search criteria
+                <p>No inactive students found matching your search criteria</p>
+                <p className="text-sm mt-2">Check the browser console for detailed search information</p>
               </div>
             ) : searchResults.length > 0 ? (
               <div className="overflow-x-auto">
