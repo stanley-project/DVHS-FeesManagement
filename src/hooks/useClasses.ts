@@ -31,6 +31,9 @@ export function useClasses() {
         .eq('is_current', true)
         .single();
 
+      console.log('useClasses: currentYear data:', currentYear);
+      console.log('useClasses: yearError:', yearError);
+
       if (yearError) throw yearError;
 
       const { data, error: fetchError } = await supabase
