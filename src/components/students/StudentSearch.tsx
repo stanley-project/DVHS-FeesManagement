@@ -27,6 +27,8 @@ const StudentSearch = ({ onSelect, onClose }: StudentSearchProps) => {
     setHasSearched(true);
 
     try {
+      console.log('StudentSearch: Starting search for query:', searchQuery);
+      
       const { data, error: searchError } = await supabase
         .from('students')
         .select(`
@@ -38,11 +40,22 @@ const StudentSearch = ({ onSelect, onClose }: StudentSearchProps) => {
         .eq('status', 'inactive') // Only search inactive students for rejoining
         .order('student_name');
 
-      if (searchError) throw searchError;
+      console.log('StudentSearch: Supabase search data:', data);
+      console.log('StudentSearch: Supabase search error:', searchError);
+      console.log('StudentSearch: Data length:', data?.length || 0);
+      
+      if (data && data.length > 0) {
+        console.log('StudentSearch: First result sample:', data[0]);
+      }
+
+      if (searchError) {
+        console.error('StudentSearch: Search error details:', searchError);
+        throw searchError;
+      }
 
       setSearchResults(data || []);
     } catch (err) {
-      console.error('Search error:', err);
+      console.error('StudentSearch: Catch block error:', err);
       setError(err instanceof Error ? err.message : 'Failed to search students');
     } finally {
       setIsLoading(false);
