@@ -139,15 +139,21 @@ export function useStudents(options: UseStudentsOptions = {}) {
           *,
           class:class_id(id, name),
           village:village_id(id, name)
-        `)
-        .single();
+        `);
 
       if (error) throw error;
 
+      // Check if data exists and has at least one element
+      if (!data || data.length === 0) {
+        throw new Error('No student found with the provided ID');
+      }
+
+      const updatedStudent = data[0];
+
       setStudents(prev => prev.map(student => 
-        student.id === id ? data : student
+        student.id === id ? updatedStudent : student
       ));
-      return data;
+      return updatedStudent;
     } catch (err) {
       console.error('Error updating student:', err);
       throw err instanceof Error ? err : new Error('Failed to update student');
