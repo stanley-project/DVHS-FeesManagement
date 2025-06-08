@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-hot-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Users } from 'lucide-react';
 import { Student } from '../../hooks/useStudents';
 import { useClasses } from '../../hooks/useClasses';
 import { useVillages } from '../../hooks/useVillages';
+import { supabase } from '../../lib/supabase';
 
 interface StudentFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -19,7 +20,6 @@ interface FormData {
   gender: string;
   date_of_birth: string;
   class_id: string;
-  section: string;
   admission_date: string;
   address: string;
   phone_number: string;
@@ -27,7 +27,7 @@ interface FormData {
   mother_name: string;
   student_aadhar?: string;
   father_aadhar?: string;
-  village_id?: string;
+  village_id: string;
   has_school_bus: boolean;
   registration_type: 'new' | 'continuing';
   previous_admission_number?: string;
@@ -41,6 +41,8 @@ const StudentForm: React.FC<StudentFormProps> = ({
   registrationType
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [loadingCount, setLoadingCount] = useState(false);
   const { classes, loading: classesLoading } = useClasses();
   const { villages, loading: villagesLoading } = useVillages();
 
@@ -56,10 +58,12 @@ const StudentForm: React.FC<StudentFormProps> = ({
       registration_type: registrationType === 'new' ? 'new' : 'continuing',
       has_school_bus: false,
       admission_date: new Date().toISOString().split('T')[0],
-      gender: 'male'
+      gender: 'male',
+      village_id: '' // Ensure village_id has a default value
     }
   });
 
+  const watchClassId = watch('class_id');
   const watchVillageId = watch('village_id');
 
   // Set form values when initialData changes
@@ -71,7 +75,6 @@ const StudentForm: React.FC<StudentFormProps> = ({
         gender: initialData.gender,
         date_of_birth: initialData.date_of_birth,
         class_id: initialData.class_id,
-        section: initialData.section,
         admission_date: initialData.admission_date,
         address: initialData.address,
         phone_number: initialData.phone_number,
@@ -87,6 +90,35 @@ const StudentForm: React.FC<StudentFormProps> = ({
       });
     }
   }, [initialData, reset]);
+
+  // Fetch student count when class is selected
+  useEffect(() => {
+    const fetchStudentCount = async () => {
+      if (!watchClassId) {
+        setStudentCount(null);
+        return;
+      }
+
+      setLoadingCount(true);
+      try {
+        const { count, error } = await supabase
+          .from('students')
+          .select('*', { count: 'exact', head: true })
+          .eq('class_id', watchClassId)
+          .eq('status', 'active');
+
+        if (error) throw error;
+        setStudentCount(count || 0);
+      } catch (error) {
+        console.error('Error fetching student count:', error);
+        setStudentCount(0);
+      } finally {
+        setLoadingCount(false);
+      }
+    };
+
+    fetchStudentCount();
+  }, [watchClassId]);
 
   // Auto-enable bus service when village is selected
   useEffect(() => {
@@ -112,6 +144,10 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('Class selection is required');
       }
 
+      if (!data.village_id) {
+        throw new Error('Village selection is required');
+      }
+
       // Validate phone number format
       if (!/^\d{10}$/.test(data.phone_number)) {
         throw new Error('Phone number must be exactly 10 digits');
@@ -126,13 +162,14 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('Father Aadhar must be exactly 12 digits');
       }
 
-      // Prepare submission data
+      // Prepare submission data - remove section field completely
       const submissionData = {
         ...data,
         status: 'active' as const,
+        section: 'A', // Default section since it's still required in the database
         student_aadhar: data.student_aadhar || null,
         father_aadhar: data.father_aadhar || null,
-        village_id: data.village_id || null,
+        village_id: data.village_id,
         previous_admission_number: data.previous_admission_number || null,
         rejoining_reason: data.rejoining_reason || null,
         last_registration_date: new Date().toISOString().split('T')[0],
@@ -235,7 +272,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Academic Information</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label htmlFor="class_id" className="block text-sm font-medium">
               Class *
@@ -256,23 +293,32 @@ const StudentForm: React.FC<StudentFormProps> = ({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="section" className="block text-sm font-medium">
-              Section *
+            <label htmlFor="student_count" className="block text-sm font-medium">
+              Current Students in Class
             </label>
-            <select
-              id="section"
-              className="input"
-              {...register('section', { required: 'Section is required' })}
-            >
-              <option value="">Select Section</option>
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
-              <option value="D">D</option>
-            </select>
-            {errors.section && (
-              <p className="text-sm text-error">{errors.section.message}</p>
-            )}
+            <div className="relative">
+              <input
+                id="student_count"
+                type="text"
+                className="input pr-10"
+                value={
+                  loadingCount 
+                    ? 'Loading...' 
+                    : studentCount !== null 
+                      ? `${studentCount} students` 
+                      : 'Select a class'
+                }
+                readOnly
+                disabled
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                {loadingCount ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : (
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -336,18 +382,21 @@ const StudentForm: React.FC<StudentFormProps> = ({
 
           <div className="space-y-2">
             <label htmlFor="village_id" className="block text-sm font-medium">
-              Village
+              Village *
             </label>
             <select
               id="village_id"
               className="input"
-              {...register('village_id')}
+              {...register('village_id', { required: 'Village selection is required' })}
             >
               <option value="">Select Village</option>
               {villages.filter(v => v.is_active).map((village) => (
                 <option key={village.id} value={village.id}>{village.name}</option>
               ))}
             </select>
+            {errors.village_id && (
+              <p className="text-sm text-error">{errors.village_id.message}</p>
+            )}
           </div>
         </div>
       </div>
