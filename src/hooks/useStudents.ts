@@ -143,9 +143,10 @@ export function useStudents(options: UseStudentsOptions = {}) {
 
       if (error) throw error;
 
-      // Check if data exists and has at least one element
+      // If RLS prevents returning the updated row, refresh the student list
       if (!data || data.length === 0) {
-        throw new Error('No student found with the provided ID');
+        await fetchStudents();
+        return null; // Return null to indicate successful update but no immediate data
       }
 
       const updatedStudent = data[0];
