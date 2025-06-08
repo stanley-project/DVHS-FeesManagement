@@ -48,6 +48,16 @@ export function useClasses() {
 
       console.log('useClasses: Fetching classes for academic year:', currentYear.id);
 
+      // First, let's try to get ALL classes to see if RLS is the issue
+      console.log('useClasses: Testing - fetching ALL classes first...');
+      const { data: allClasses, error: allClassesError } = await supabase
+        .from('classes')
+        .select('*');
+
+      console.log('useClasses: ALL classes query result:', { data: allClasses, error: allClassesError });
+      console.log('useClasses: Total classes in database:', allClasses?.length || 0);
+
+      // Now try the filtered query
       const { data, error: fetchError } = await supabase
         .from('classes')
         .select(`
@@ -57,12 +67,41 @@ export function useClasses() {
         .eq('academic_year_id', currentYear.id)
         .order('name');
 
-      console.log('useClasses: Classes query result:', { data, fetchError });
-      console.log('useClasses: Number of classes found:', data?.length || 0);
+      console.log('useClasses: Filtered classes query result:', { data, fetchError });
+      console.log('useClasses: Number of filtered classes found:', data?.length || 0);
 
       if (fetchError) {
         console.error('useClasses: Classes fetch error:', fetchError);
         throw fetchError;
+      }
+
+      // If no classes found with the current academic year, let's check what academic years exist in classes
+      if (!data || data.length === 0) {
+        console.log('useClasses: No classes found for current academic year, checking what academic years exist in classes...');
+        const { data: classAcademicYears, error: classYearError } = await supabase
+          .from('classes')
+          .select('academic_year_id')
+          .limit(10);
+
+        console.log('useClasses: Academic years in classes table:', classAcademicYears);
+
+        // As a fallback, get classes from the most recent academic year
+        if (allClasses && allClasses.length > 0) {
+          console.log('useClasses: Using fallback - getting classes with teacher info...');
+          const { data: fallbackClasses, error: fallbackError } = await supabase
+            .from('classes')
+            .select(`
+              *,
+              teacher:teacher_id(id, name)
+            `)
+            .order('name');
+
+          if (!fallbackError && fallbackClasses) {
+            console.log('useClasses: Fallback classes loaded:', fallbackClasses.length);
+            setClasses(fallbackClasses);
+            return;
+          }
+        }
       }
 
       console.log('useClasses: Setting classes state with:', data);
