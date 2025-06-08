@@ -24,6 +24,8 @@ export function useClasses() {
       setLoading(true);
       setError(null);
 
+      console.log('useClasses: Starting fetchClasses...');
+
       // Get current academic year first
       const { data: currentYear, error: yearError } = await supabase
         .from('academic_years')
@@ -34,7 +36,17 @@ export function useClasses() {
       console.log('useClasses: currentYear data:', currentYear);
       console.log('useClasses: yearError:', yearError);
 
-      if (yearError) throw yearError;
+      if (yearError) {
+        console.error('useClasses: Academic year error:', yearError);
+        throw yearError;
+      }
+
+      if (!currentYear || !currentYear.id) {
+        console.error('useClasses: No current academic year found');
+        throw new Error('No current academic year found');
+      }
+
+      console.log('useClasses: Fetching classes for academic year:', currentYear.id);
 
       const { data, error: fetchError } = await supabase
         .from('classes')
@@ -45,20 +57,31 @@ export function useClasses() {
         .eq('academic_year_id', currentYear.id)
         .order('name');
 
-      if (fetchError) throw fetchError;
+      console.log('useClasses: Classes query result:', { data, fetchError });
+      console.log('useClasses: Number of classes found:', data?.length || 0);
 
+      if (fetchError) {
+        console.error('useClasses: Classes fetch error:', fetchError);
+        throw fetchError;
+      }
+
+      console.log('useClasses: Setting classes state with:', data);
       setClasses(data || []);
     } catch (err) {
-      console.error('Error fetching classes:', err);
+      console.error('useClasses: Error in fetchClasses:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch classes');
     } finally {
+      console.log('useClasses: Setting loading to false');
       setLoading(false);
     }
   };
 
   useEffect(() => {
+    console.log('useClasses: useEffect triggered, calling fetchClasses');
     fetchClasses();
   }, []);
+
+  console.log('useClasses: Current state - classes:', classes.length, 'loading:', loading, 'error:', error);
 
   return {
     classes,
