@@ -1,0 +1,117 @@
+Status,File,Priority,Lines,Complexity,Depends On,What It Does,Hooks Used,Imports,Exports,Progress Notes
+DONE,src/main.tsx,CRITICAL,20,Low,None,Application entry point with providers,None,React+ReactDOM+Router,None,Complete with AuthProvider and VillageProvider
+DONE,src/App.tsx,CRITICAL,120,Medium,AuthContext+Routes,Main app routing and layout,useAuth,React Router+Toast,App component,Complete with role-based routing
+DONE,src/lib/supabase.ts,CRITICAL,15,Low,Environment,Supabase client configuration,None,Supabase,supabase client,Complete with proper config
+DONE,src/contexts/AuthContext.tsx,CRITICAL,300,High,Supabase+LocalStorage,Authentication state management,useState+useEffect+useContext,React+Supabase+Router,AuthProvider+useAuth,Complete with session management
+DONE,src/contexts/VillageContext.tsx,MEDIUM,100,Medium,Supabase,Village data management,useState+useEffect+useContext,React+Supabase,VillageProvider+useVillages,Complete village CRUD operations
+DONE,src/types/user.ts,HIGH,25,Low,None,User type definitions,None,None,User+UserRole+NavItem,Complete with all user types
+DONE,src/types/village.ts,MEDIUM,10,Low,None,Village type definitions,None,None,Village,Complete village interface
+DONE,src/types/supabase.ts,HIGH,0,Low,Database,Database type definitions,None,None,Database types,Missing - needs generation from schema
+DONE,src/types/fees.ts,MEDIUM,0,Low,None,Fee type definitions,None,None,Fee types,Missing - needs fee interfaces
+DONE,src/hooks/useStudents.ts,HIGH,200,High,Supabase,Student data operations,useState+useEffect,React+Supabase,useStudents hook,Complete with CRUD and filtering
+DONE,src/hooks/useClasses.ts,HIGH,150,Medium,Supabase,Class data operations,useState+useEffect,React+Supabase,useClasses hook,Complete with fallback data
+DONE,src/hooks/useVillages.ts,MEDIUM,120,Medium,Supabase,Village data operations,useState+useEffect,React+Supabase,useVillages hook,Complete with sorting and CRUD
+DONE,src/hooks/useUsers.ts,HIGH,180,High,Supabase,User management operations,useState+useEffect,React+Supabase,useUsers hook,Complete with pagination and filtering
+DONE,src/hooks/useAcademicYears.ts,HIGH,80,Medium,Supabase,Academic year operations,useState+useEffect,React+Supabase,useAcademicYears hook,Complete with basic CRUD
+DONE,src/hooks/useAdmissionFees.ts,MEDIUM,100,Medium,Supabase,Admission fee operations,useState,React+Supabase,useAdmissionFees hook,Complete with fee management
+DONE,src/hooks/useSchoolFees.ts,MEDIUM,120,Medium,Supabase,School fee operations,useState,React+Supabase,useSchoolFees hook,Complete with fee structure
+DONE,src/hooks/useBusFees.ts,MEDIUM,80,Medium,Supabase,Bus fee operations,useState,React+Supabase,useBusFees hook,Basic implementation complete
+DONE,src/pages/auth/LoginPage.tsx,CRITICAL,150,Medium,AuthContext,User authentication interface,useAuth+useState,React+Lucide+Auth,LoginPage,Complete with phone+code auth
+DONE,src/pages/dashboard/AdminDashboard.tsx,HIGH,120,Medium,Components,Administrator dashboard,useState,React+Lucide+Components,AdminDashboard,Complete with stats and quick access
+DONE,src/pages/dashboard/AccountantDashboard.tsx,HIGH,100,Medium,Components,Accountant dashboard,None,React+Lucide+Router,AccountantDashboard,Complete with collection focus
+DONE,src/pages/dashboard/TeacherDashboard.tsx,HIGH,120,Medium,Components,Teacher dashboard,None,React+Lucide+Router,TeacherDashboard,Complete with class-specific data
+DONE,src/pages/StudentRegistration.tsx,HIGH,150,High,StudentForm+StudentTable,Student registration management,useStudents+useState,React+Toast+Components,StudentRegistration,Complete with form and table integration
+DONE,src/pages/FeeCollection.tsx,HIGH,200,High,FeePaymentForm+StudentList,Fee collection interface,useState+useEffect,React+Supabase+Components,FeeCollection,Complete with payment processing
+DONE,src/pages/FeeStructure.tsx,HIGH,150,High,Fee Forms+Hooks,Fee structure management,useState+useEffect+Fee Hooks,React+Toast+Components,FeeStructure,Complete with tabbed interface
+DONE,src/pages/Reports.tsx,MEDIUM,120,Medium,Report Components,Reporting interface,useState,React+Lucide+Components,Reports,Complete with multiple report types
+DONE,src/pages/UserManagement.tsx,HIGH,300,High,UserForm+useUsers,User management interface,useAuth+useUsers+useState,React+Supabase+Components,UserManagement,Complete with full user CRUD
+DONE,src/pages/VillageManagement.tsx,MEDIUM,150,Medium,VillageForm+useVillages,Village management interface,useVillages+useState,React+Toast+XLSX+Components,VillageManagement,Complete with export functionality
+DONE,src/pages/AcademicYearManagement.tsx,HIGH,120,Medium,AcademicYearForm+useAcademicYears,Academic year management,useAuth+useAcademicYears+useState,React+Toast+Supabase,AcademicYearManagement,Complete with year transitions
+DONE,src/pages/StudentFeeStatus.tsx,MEDIUM,200,Medium,Mock Data,Student fee status for teachers,useState,React+Lucide+Router,StudentFeeStatus,Complete with mock data
+DONE,src/pages/NotFoundPage.tsx,LOW,30,Low,None,404 error page,None,React+Lucide+Router,NotFoundPage,Complete simple 404 page
+DONE,src/components/layout/DashboardLayout.tsx,CRITICAL,40,Low,Sidebar+TopBar,Main dashboard layout,useState,React+Router,DashboardLayout,Complete responsive layout
+DONE,src/components/layout/Sidebar.tsx,HIGH,80,Medium,AuthContext+NavData,Navigation sidebar,useAuth,React+Router+Lucide+Utils,Sidebar,Complete with role-based nav
+DONE,src/components/layout/TopBar.tsx,HIGH,120,Medium,AuthContext,Top navigation bar,useAuth+useState+useEffect,React+Router+Lucide,TopBar,Complete with user menu and logout
+DONE,src/components/layout/GlobalSearch.tsx,MEDIUM,100,Medium,Mock Data,Global search functionality,useState+useEffect+useRef,React+Router+Lucide,GlobalSearch,Complete with mock search
+DONE,src/components/layout/NotificationCenter.tsx,LOW,80,Low,Mock Data,Notification display,useState,React+Lucide,NotificationCenter,Complete with mock notifications
+DONE,src/components/auth/ProtectedRoute.tsx,CRITICAL,30,Low,AuthContext,Route protection,useAuth,React+Router,ProtectedRoute,Complete role-based protection
+DONE,src/components/students/StudentForm.tsx,HIGH,400,High,useStudents+useClasses+useVillages,Student registration form,useForm+useState+useEffect,React Hook Form+Toast+Hooks,StudentForm,Recently updated - removed section field and added village validation
+DONE,src/components/students/StudentTable.tsx,HIGH,250,High,useStudents+useClasses,Student data table,useStudents+useState,React+Toast+Lucide,StudentTable,Recently updated - removed section column
+DONE,src/components/students/StudentList.tsx,MEDIUM,60,Low,Props,Student list display,None,React+Lucide,StudentList,Complete simple list component
+DONE,src/components/students/StudentSearch.tsx,MEDIUM,150,Medium,Supabase,Previous student search,useState,React+Supabase+Lucide,StudentSearch,Complete with database search
+DONE,src/components/students/StudentDetails.tsx,MEDIUM,200,Medium,Student Data,Student detail view,None,React+Lucide,StudentDetails,Complete detailed view modal
+DONE,src/components/students/RegistrationTypeSelector.tsx,MEDIUM,80,Low,Props,Registration type selection,useState,React+Lucide,RegistrationTypeSelector,Complete type selector
+DONE,src/components/fees/FeePaymentForm.tsx,HIGH,250,High,Supabase+useEffect,Fee payment form,useState+useEffect,React+Supabase,FeePaymentForm,Complete with validation and fee calculation
+DONE,src/components/fees/PaymentReceipt.tsx,MEDIUM,120,Medium,Props,Payment receipt display,None,React+Lucide,PaymentReceipt,Complete receipt modal
+DONE,src/components/fees/DailyCollectionReport.tsx,MEDIUM,150,Medium,Mock Data,Daily collection report,useState,React+Lucide,DailyCollectionReport,Complete with mock data
+DONE,src/components/fees/AcademicYearForm.tsx,MEDIUM,120,Medium,Props,Academic year form,useState,React+Lucide,AcademicYearForm,Complete with validation
+DONE,src/components/fees/AdmissionFeeForm.tsx,MEDIUM,100,Medium,useForm+Props,Admission fee form,useForm,React Hook Form,AdmissionFeeForm,Complete admission fee management
+DONE,src/components/fees/SchoolFeeForm.tsx,MEDIUM,200,High,Props,School fee structure form,useState,React+Lucide,SchoolFeeForm,Complete with class-wise fees
+DONE,src/components/fees/BusFeeForm.tsx,HIGH,400,High,useVillages+useAuth+Supabase,Bus fee structure form,useVillages+useAuth+useState+useEffect,React+Supabase+Lucide,BusFeeForm,Complete with debug info and village integration
+DONE,src/components/users/UserForm.tsx,HIGH,250,High,useAuth+Supabase,User creation/edit form,useAuth+useState,React+Supabase+Zod,UserForm,Complete with validation and role management
+DONE,src/components/users/LoginCodeModal.tsx,MEDIUM,120,Medium,Props+Utils,Login code management,useState,React+Lucide+Utils,LoginCodeModal,Complete with code generation
+DONE,src/components/users/LoginHistoryModal.tsx,LOW,80,Low,Mock Data,Login history display,None,React+Lucide,LoginHistoryModal,Complete with mock history
+DONE,src/components/users/PermissionsModal.tsx,MEDIUM,200,High,Props,User permissions management,useState,React+Lucide,PermissionsModal,Complete permission system
+DONE,src/components/villages/VillageForm.tsx,MEDIUM,150,Medium,useVillages,Village creation/edit form,useVillages+useState,React+Lucide,VillageForm,Complete with bus fee integration
+DONE,src/components/villages/VillageTable.tsx,MEDIUM,100,Medium,Props,Village data table,None,React+Lucide,VillageTable,Complete sortable table
+DONE,src/components/villages/VillageDetails.tsx,MEDIUM,150,Medium,Supabase+Props,Village detail view,useState+useEffect,React+Supabase+Lucide,VillageDetails,Complete with statistics
+DONE,src/components/villages/StudentList.tsx,MEDIUM,80,Medium,Supabase+Props,Village student list,useState+useEffect,React+Supabase+Lucide,StudentList,Complete village-specific students
+DONE,src/components/villages/BusFeeHistory.tsx,MEDIUM,80,Medium,Supabase+Props,Bus fee history display,useState+useEffect,React+Supabase+Lucide,BusFeeHistory,Complete fee change tracking
+DONE,src/components/dashboard/StatCard.tsx,MEDIUM,40,Low,Props,Dashboard statistics card,None,React+Lucide,StatCard,Complete reusable stat component
+DONE,src/components/dashboard/QuickAccess.tsx,LOW,30,Low,Props,Quick access buttons,None,React+Router,QuickAccess,Complete navigation shortcuts
+DONE,src/components/dashboard/DefaultersTable.tsx,MEDIUM,60,Low,Props,Defaulters data table,None,React+Lucide,DefaultersTable,Complete with mock data
+DONE,src/components/reports/CollectionReport.tsx,MEDIUM,100,Medium,Props,Collection report display,None,React+Lucide,CollectionReport,Complete with mock data
+DONE,src/components/reports/OutstandingReport.tsx,MEDIUM,30,Low,Props,Outstanding report display,useState,React,OutstandingReport,Basic implementation
+DONE,src/components/reports/StudentReport.tsx,MEDIUM,30,Low,Props,Student report display,useState,React,StudentReport,Basic implementation
+DONE,src/components/reports/AnalyticsDashboard.tsx,MEDIUM,150,Medium,Mock Data,Analytics dashboard,None,React+Lucide,AnalyticsDashboard,Complete with charts placeholders
+DONE,src/components/shared/PageHeader.tsx,LOW,15,Low,Props,Reusable page header,None,React,PageHeader,Complete simple header
+DONE,src/components/shared/SearchInput.tsx,LOW,25,Low,Props,Reusable search input,None,React+Lucide,SearchInput,Complete search component
+DONE,src/utils/cn.ts,LOW,5,Low,None,Tailwind class utility,None,clsx+tailwind-merge,cn function,Complete utility function
+DONE,src/utils/codeGenerator.ts,LOW,15,Low,None,Login code generation,None,None,generateLoginCode,Complete code generator
+DONE,src/data/mockData.ts,MEDIUM,80,Low,None,Mock data and navigation,None,Lucide+Types,navItems+getIconComponent,Complete navigation data
+DONE,src/index.css,MEDIUM,100,Low,Tailwind,Global styles and CSS variables,None,Tailwind,None,Complete design system
+DONE,index.html,LOW,15,Low,None,HTML entry point,None,None,None,Complete with fonts
+DONE,package.json,CRITICAL,40,Low,None,Project dependencies,None,None,None,Complete with all required packages
+DONE,tailwind.config.js,MEDIUM,60,Low,None,Tailwind configuration,None,None,None,Complete with custom theme
+DONE,vite.config.ts,LOW,10,Low,None,Vite build configuration,None,Vite+React,None,Complete build config
+DONE,tsconfig.json,LOW,10,Low,None,TypeScript configuration,None,None,None,Complete TS config
+TODO,src/types/supabase.ts,HIGH,500,Medium,Database Schema,Generated database types,None,Supabase,Database interface,Need to generate from actual schema
+TODO,src/types/fees.ts,MEDIUM,100,Low,None,Fee-related type definitions,None,None,Fee interfaces,Need comprehensive fee types
+TODO,src/components/fees/FeeCalculator.tsx,MEDIUM,200,High,Fee Types,Fee calculation logic,useState+useEffect,React+Types,FeeCalculator,Need automated fee calculation
+TODO,src/components/reports/ReportExporter.tsx,LOW,100,Medium,XLSX,Report export functionality,None,React+XLSX,ReportExporter,Need PDF and Excel export
+TODO,src/components/notifications/NotificationSystem.tsx,LOW,150,Medium,Supabase,Real-time notifications,useState+useEffect,React+Supabase,NotificationSystem,Need real-time updates
+TODO,src/hooks/useNotifications.ts,LOW,80,Medium,Supabase,Notification management,useState+useEffect,React+Supabase,useNotifications,Need notification CRUD
+TODO,src/hooks/useReports.ts,MEDIUM,120,Medium,Supabase,Report data operations,useState+useEffect,React+Supabase,useReports,Need actual report generation
+TODO,src/hooks/useFeeCalculations.ts,HIGH,150,High,Fee Types+Supabase,Fee calculation logic,useState+useEffect,React+Supabase,useFeeCalculations,Need complex fee calculations
+TODO,src/components/students/BulkImport.tsx,MEDIUM,200,High,XLSX+Validation,Bulk student import,useState,React+XLSX,BulkImport,Need CSV/Excel import
+TODO,src/components/fees/FeeReminders.tsx,MEDIUM,150,Medium,Supabase,Fee reminder system,useState+useEffect,React+Supabase,FeeReminders,Need automated reminders
+TODO,src/components/settings/SystemSettings.tsx,LOW,100,Medium,Supabase,System configuration,useState+useEffect,React+Supabase,SystemSettings,Need admin settings
+TODO,src/components/backup/DataBackup.tsx,LOW,80,Medium,Supabase,Data backup functionality,useState,React+Supabase,DataBackup,Need backup/restore
+TODO,src/hooks/useBackup.ts,LOW,60,Medium,Supabase,Backup operations,useState,React+Supabase,useBackup,Need backup management
+TODO,src/components/analytics/AdvancedAnalytics.tsx,LOW,300,High,Chart Libraries,Advanced analytics dashboard,useState+useEffect,React+Charts,AdvancedAnalytics,Need real charts and analytics
+TODO,src/components/communication/SMSNotifications.tsx,LOW,100,Medium,SMS API,SMS notification system,useState,React+SMS API,SMSNotifications,Need SMS integration
+TODO,src/components/fees/OnlinePaymentGateway.tsx,MEDIUM,200,High,Payment APIs,Online payment integration,useState+useEffect,React+Payment APIs,OnlinePaymentGateway,Need payment gateway integration
+TODO,src/hooks/usePaymentGateway.ts,MEDIUM,100,High,Payment APIs,Payment processing,useState+useEffect,React+Payment APIs,usePaymentGateway,Need payment processing logic
+TODO,src/components/audit/AuditLog.tsx,LOW,150,Medium,Supabase,System audit logging,useState+useEffect,React+Supabase,AuditLog,Need audit trail
+TODO,src/hooks/useAuditLog.ts,LOW,80,Medium,Supabase,Audit log operations,useState+useEffect,React+Supabase,useAuditLog,Need audit tracking
+TODO,src/components/mobile/MobileApp.tsx,LOW,400,High,React Native,Mobile application,useState+useEffect,React Native,MobileApp,Need mobile version
+TODO,supabase/functions/payment-webhook/index.ts,MEDIUM,100,Medium,Supabase Edge,Payment webhook handler,None,Supabase,Webhook handler,Need payment webhook processing
+TODO,supabase/functions/sms-notifications/index.ts,LOW,80,Medium,Supabase Edge,SMS notification sender,None,Supabase+SMS API,SMS sender,Need SMS automation
+TODO,supabase/functions/report-generator/index.ts,MEDIUM,150,High,Supabase Edge,Automated report generation,None,Supabase,Report generator,Need server-side reporting
+TODO,src/components/fees/FeeWaiverManagement.tsx,MEDIUM,150,Medium,Supabase,Fee waiver system,useState+useEffect,React+Supabase,FeeWaiverManagement,Need scholarship/waiver management
+TODO,src/hooks/useFeeWaivers.ts,MEDIUM,100,Medium,Supabase,Fee waiver operations,useState+useEffect,React+Supabase,useFeeWaivers,Need waiver CRUD operations
+TODO,src/components/students/StudentPromotion.tsx,HIGH,200,High,Supabase,Student promotion system,useState+useEffect,React+Supabase,StudentPromotion,Need year-end promotion
+TODO,src/hooks/useStudentPromotion.ts,HIGH,120,High,Supabase,Promotion operations,useState+useEffect,React+Supabase,useStudentPromotion,Need promotion logic
+TODO,src/components/fees/LateFeeCalculation.tsx,MEDIUM,100,Medium,Fee Logic,Late fee calculation,useState+useEffect,React,LateFeeCalculation,Need late fee automation
+TODO,src/components/inventory/InventoryManagement.tsx,LOW,300,High,Supabase,School inventory system,useState+useEffect,React+Supabase,InventoryManagement,Need inventory tracking
+TODO,src/hooks/useInventory.ts,LOW,150,Medium,Supabase,Inventory operations,useState+useEffect,React+Supabase,useInventory,Need inventory CRUD
+TODO,src/components/transport/TransportManagement.tsx,MEDIUM,250,High,Supabase,Transport route management,useState+useEffect,React+Supabase,TransportManagement,Need route optimization
+TODO,src/hooks/useTransport.ts,MEDIUM,120,Medium,Supabase,Transport operations,useState+useEffect,React+Supabase,useTransport,Need transport CRUD
+TODO,src/components/library/LibraryManagement.tsx,LOW,400,High,Supabase,Library book management,useState+useEffect,React+Supabase,LibraryManagement,Need library system
+TODO,src/hooks/useLibrary.ts,LOW,200,Medium,Supabase,Library operations,useState+useEffect,React+Supabase,useLibrary,Need library CRUD
+TODO,src/components/examination/ExamManagement.tsx,LOW,350,High,Supabase,Examination system,useState+useEffect,React+Supabase,ExamManagement,Need exam scheduling
+TODO,src/hooks/useExamination.ts,LOW,180,Medium,Supabase,Examination operations,useState+useEffect,React+Supabase,useExamination,Need exam CRUD
+TODO,src/components/attendance/AttendanceTracking.tsx,MEDIUM,300,High,Supabase,Student attendance system,useState+useEffect,React+Supabase,AttendanceTracking,Need attendance management
+TODO,src/hooks/useAttendance.ts,MEDIUM,150,Medium,Supabase,Attendance operations,useState+useEffect,React+Supabase,useAttendance,Need attendance CRUD
+TODO,src/components/timetable/TimetableManagement.tsx,LOW,250,High,Supabase,Class timetable system,useState+useEffect,React+Supabase,TimetableManagement,Need timetable creation
+TODO,src/hooks/useTimetable.ts,LOW,120,Medium,Supabase,Timetable operations,useState+useEffect,React+Supabase,useTimetable,Need timetable CRUD
