@@ -62,9 +62,9 @@ export function useStudentImport() {
         errors.push({ row, field: 'student_aadhar', message: 'Student Aadhar must be 12 digits', severity: 'error' });
       }
 
-      // PEN validation (optional but must be valid if provided)
-      if (student.pen && !/^[A-Z0-9]{12}$/.test(student.pen)) {
-        errors.push({ row, field: 'pen', message: 'PEN must be exactly 12 alphanumeric characters', severity: 'error' });
+      // PEN validation (optional but must be valid if provided - 11 characters)
+      if (student.pen && !/^[A-Z0-9]{11}$/.test(student.pen)) {
+        errors.push({ row, field: 'pen', message: 'PEN must be exactly 11 alphanumeric characters', severity: 'error' });
       }
 
       // Duplicate checking

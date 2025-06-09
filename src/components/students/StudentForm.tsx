@@ -162,9 +162,9 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('Father Aadhar must be exactly 12 digits');
       }
 
-      // Validate PEN if provided
-      if (data.pen && !/^[A-Z0-9]{12}$/.test(data.pen)) {
-        throw new Error('PEN must be exactly 12 alphanumeric characters');
+      // Validate PEN if provided (11 characters)
+      if (data.pen && !/^[A-Z0-9]{11}$/.test(data.pen)) {
+        throw new Error('PEN must be exactly 11 alphanumeric characters');
       }
 
       // Prepare submission data - remove section field completely
@@ -352,12 +352,12 @@ const StudentForm: React.FC<StudentFormProps> = ({
               className="input"
               {...register('pen', {
                 pattern: {
-                  value: /^[A-Z0-9]{12}$/,
-                  message: 'PEN must be exactly 12 alphanumeric characters'
+                  value: /^[A-Z0-9]{11}$/,
+                  message: 'PEN must be exactly 11 alphanumeric characters'
                 }
               })}
-              placeholder="Enter 12-character PEN"
-              maxLength={12}
+              placeholder="Enter 11-character PEN"
+              maxLength={11}
               style={{ textTransform: 'uppercase' }}
               onChange={(e) => {
                 e.target.value = e.target.value.toUpperCase();
@@ -367,7 +367,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
               <p className="text-sm text-error">{errors.pen.message}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Optional 12-character alphanumeric code (letters and numbers only)
+              Optional 11-character alphanumeric code (letters and numbers only)
             </p>
           </div>
         </div>

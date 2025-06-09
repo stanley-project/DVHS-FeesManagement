@@ -14,7 +14,7 @@ interface ImportedStudent {
   current_class: string;
   promoted_class: string;
   section: string;
-  pen?: string; // Replaced address with PEN
+  pen?: string; // Replaced address with PEN (11 characters)
   phone_number: string;
   father_name: string;
   mother_name: string;
@@ -82,7 +82,7 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
         date_of_birth: '2010-05-15',
         date_of_admission: '2020-06-01',
         current_class: '8-A',
-        pen: 'ABC123DEF456',
+        pen: 'ABC123DEF45',
         phone_number: '9876543210',
         father_name: 'Robert Doe',
         mother_name: 'Jane Doe',
@@ -107,7 +107,7 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
       'Date of Birth (YYYY-MM-DD)',
       'Date of Admission (YYYY-MM-DD) *Required*',
       'Current Class (2024-25)',
-      'PEN (12 alphanumeric chars)',
+      'PEN (11 alphanumeric chars)',
       'Phone Number (10 digits)',
       'Father Name (Required)',
       'Mother Name (Required)',
@@ -156,7 +156,7 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
             current_class: row[5]?.toString().trim() || '',
             promoted_class: classPromotionMap[row[5]?.toString().trim()] || row[5]?.toString().trim(),
             section: 'A', // Default section
-            pen: row[6]?.toString().trim().toUpperCase() || undefined, // PEN field (optional)
+            pen: row[6]?.toString().trim().toUpperCase() || undefined, // PEN field (optional, 11 chars)
             phone_number: row[7]?.toString().trim() || '',
             father_name: row[8]?.toString().trim() || '',
             mother_name: row[9]?.toString().trim() || '',
@@ -267,9 +267,9 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
           errors.push({ row, field: 'gender', message: 'Gender must be male, female, or other', severity: 'error' });
         }
 
-        // PEN validation (optional but must be valid if provided)
-        if (student.pen && !/^[A-Z0-9]{12}$/.test(student.pen)) {
-          errors.push({ row, field: 'pen', message: 'PEN must be exactly 12 alphanumeric characters', severity: 'error' });
+        // PEN validation (optional but must be valid if provided - 11 characters)
+        if (student.pen && !/^[A-Z0-9]{11}$/.test(student.pen)) {
+          errors.push({ row, field: 'pen', message: 'PEN must be exactly 11 alphanumeric characters', severity: 'error' });
         }
 
         // Date validation
@@ -523,7 +523,7 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
               <h4 className="font-medium mb-2">Template Requirements:</h4>
               <ul className="text-sm space-y-1 text-muted-foreground">
                 <li>• <strong>Date of Admission:</strong> Required field (YYYY-MM-DD format)</li>
-                <li>• <strong>PEN:</strong> Optional 12-character alphanumeric code (replaces Address)</li>
+                <li>• <strong>PEN:</strong> Optional 11-character alphanumeric code (replaces Address)</li>
                 <li>• <strong>Required fields:</strong> Admission Number, Student Name, Father Name, Mother Name, Date of Admission</li>
                 <li>• <strong>Date formats:</strong> Use YYYY-MM-DD format for all dates</li>
                 <li>• <strong>Gender:</strong> Must be 'male', 'female', or 'other'</li>
