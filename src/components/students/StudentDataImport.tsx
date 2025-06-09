@@ -416,8 +416,7 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
             has_school_bus: student.has_school_bus,
             registration_type: 'continuing' as const,
             last_registration_date: new Date().toISOString().split('T')[0],
-            last_registration_type: 'continuing' as const,
-            pen: student.pen || null // Store PEN separately if you add this field to the database
+            last_registration_type: 'continuing' as const
           };
 
           const { error: insertError } = await supabase

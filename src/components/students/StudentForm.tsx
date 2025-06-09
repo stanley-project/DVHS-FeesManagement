@@ -76,7 +76,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         date_of_birth: initialData.date_of_birth,
         class_id: initialData.class_id,
         admission_date: initialData.admission_date,
-        pen: initialData.pen || '',
+        pen: initialData.address && initialData.address !== 'Not provided' ? initialData.address : '',
         phone_number: initialData.phone_number,
         father_name: initialData.father_name,
         mother_name: initialData.mother_name,
@@ -167,19 +167,29 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('PEN must be exactly 11 alphanumeric characters');
       }
 
-      // Prepare submission data - remove section field completely
+      // Prepare submission data - map PEN to address field and remove pen property
       const submissionData = {
-        ...data,
-        status: 'active' as const,
-        section: 'A', // Default section since it's still required in the database
-        address: data.pen || 'Not provided', // Map PEN to address field for database compatibility
+        admission_number: data.admission_number,
+        student_name: data.student_name,
+        gender: data.gender,
+        date_of_birth: data.date_of_birth,
+        class_id: data.class_id,
+        admission_date: data.admission_date,
+        phone_number: data.phone_number,
+        father_name: data.father_name,
+        mother_name: data.mother_name,
         student_aadhar: data.student_aadhar || null,
         father_aadhar: data.father_aadhar || null,
         village_id: data.village_id,
+        has_school_bus: data.has_school_bus,
+        registration_type: data.registration_type,
         previous_admission_number: data.previous_admission_number || null,
         rejoining_reason: data.rejoining_reason || null,
         last_registration_date: new Date().toISOString().split('T')[0],
-        last_registration_type: data.registration_type
+        last_registration_type: data.registration_type,
+        status: 'active' as const,
+        section: 'A', // Default section since it's still required in the database
+        address: data.pen || 'Not provided' // Map PEN to address field for database compatibility
       };
 
       await onSubmit(submissionData);
