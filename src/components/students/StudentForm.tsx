@@ -21,7 +21,7 @@ interface FormData {
   date_of_birth: string;
   class_id: string;
   admission_date: string;
-  address: string;
+  pen?: string;
   phone_number: string;
   father_name: string;
   mother_name: string;
@@ -76,7 +76,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         date_of_birth: initialData.date_of_birth,
         class_id: initialData.class_id,
         admission_date: initialData.admission_date,
-        address: initialData.address,
+        pen: initialData.pen || '',
         phone_number: initialData.phone_number,
         father_name: initialData.father_name,
         mother_name: initialData.mother_name,
@@ -162,11 +162,17 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('Father Aadhar must be exactly 12 digits');
       }
 
+      // Validate PEN if provided
+      if (data.pen && !/^[A-Z0-9]{12}$/.test(data.pen)) {
+        throw new Error('PEN must be exactly 12 alphanumeric characters');
+      }
+
       // Prepare submission data - remove section field completely
       const submissionData = {
         ...data,
         status: 'active' as const,
         section: 'A', // Default section since it's still required in the database
+        address: data.pen || 'Not provided', // Map PEN to address field for database compatibility
         student_aadhar: data.student_aadhar || null,
         father_aadhar: data.father_aadhar || null,
         village_id: data.village_id,
@@ -335,6 +341,35 @@ const StudentForm: React.FC<StudentFormProps> = ({
               <p className="text-sm text-error">{errors.admission_date.message}</p>
             )}
           </div>
+
+          <div className="space-y-2">
+            <label htmlFor="pen" className="block text-sm font-medium">
+              PEN (Permanent Education Number)
+            </label>
+            <input
+              id="pen"
+              type="text"
+              className="input"
+              {...register('pen', {
+                pattern: {
+                  value: /^[A-Z0-9]{12}$/,
+                  message: 'PEN must be exactly 12 alphanumeric characters'
+                }
+              })}
+              placeholder="Enter 12-character PEN"
+              maxLength={12}
+              style={{ textTransform: 'uppercase' }}
+              onChange={(e) => {
+                e.target.value = e.target.value.toUpperCase();
+              }}
+            />
+            {errors.pen && (
+              <p className="text-sm text-error">{errors.pen.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Optional 12-character alphanumeric code (letters and numbers only)
+            </p>
+          </div>
         </div>
       </div>
 
@@ -343,21 +378,6 @@ const StudentForm: React.FC<StudentFormProps> = ({
         <h3 className="text-lg font-medium">Contact Information</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2 md:col-span-2">
-            <label htmlFor="address" className="block text-sm font-medium">
-              Address *
-            </label>
-            <textarea
-              id="address"
-              rows={3}
-              className="input"
-              {...register('address', { required: 'Address is required' })}
-            />
-            {errors.address && (
-              <p className="text-sm text-error">{errors.address.message}</p>
-            )}
-          </div>
-
           <div className="space-y-2">
             <label htmlFor="phone_number" className="block text-sm font-medium">
               Phone Number *
