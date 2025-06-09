@@ -10,10 +10,11 @@ interface ImportedStudent {
   student_name: string;
   gender: string;
   date_of_birth: string;
+  date_of_admission: string; // Added required field
   current_class: string;
   promoted_class: string;
   section: string;
-  address: string;
+  pen?: string; // Replaced address with PEN
   phone_number: string;
   father_name: string;
   mother_name: string;
@@ -79,8 +80,9 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
         student_name: 'John Doe',
         gender: 'male',
         date_of_birth: '2010-05-15',
+        date_of_admission: '2020-06-01',
         current_class: '8-A',
-        address: '123 Main Street, City',
+        pen: 'ABC123DEF456',
         phone_number: '9876543210',
         father_name: 'Robert Doe',
         mother_name: 'Jane Doe',
@@ -103,8 +105,9 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
       'Student Name (Required)',
       'Gender (male/female/other)',
       'Date of Birth (YYYY-MM-DD)',
+      'Date of Admission (YYYY-MM-DD) *Required*',
       'Current Class (2024-25)',
-      'Address (Required)',
+      'PEN (12 alphanumeric chars)',
       'Phone Number (10 digits)',
       'Father Name (Required)',
       'Mother Name (Required)',
@@ -149,22 +152,23 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
             student_name: row[1]?.toString().trim() || '',
             gender: row[2]?.toString().toLowerCase().trim() || '',
             date_of_birth: formatDate(row[3]),
-            current_class: row[4]?.toString().trim() || '',
-            promoted_class: classPromotionMap[row[4]?.toString().trim()] || row[4]?.toString().trim(),
+            date_of_admission: formatDate(row[4]), // New required field
+            current_class: row[5]?.toString().trim() || '',
+            promoted_class: classPromotionMap[row[5]?.toString().trim()] || row[5]?.toString().trim(),
             section: 'A', // Default section
-            address: row[5]?.toString().trim() || '',
-            phone_number: row[6]?.toString().trim() || '',
-            father_name: row[7]?.toString().trim() || '',
-            mother_name: row[8]?.toString().trim() || '',
-            student_aadhar: row[9]?.toString().trim() || undefined,
-            father_aadhar: row[10]?.toString().trim() || undefined,
-            village_name: row[11]?.toString().trim() || undefined,
-            has_school_bus: ['yes', 'true', '1'].includes(row[12]?.toString().toLowerCase().trim() || ''),
-            status: ['active', 'inactive'].includes(row[13]?.toString().toLowerCase().trim()) 
-              ? row[13]?.toString().toLowerCase().trim() as 'active' | 'inactive' 
+            pen: row[6]?.toString().trim().toUpperCase() || undefined, // PEN field (optional)
+            phone_number: row[7]?.toString().trim() || '',
+            father_name: row[8]?.toString().trim() || '',
+            mother_name: row[9]?.toString().trim() || '',
+            student_aadhar: row[10]?.toString().trim() || undefined,
+            father_aadhar: row[11]?.toString().trim() || undefined,
+            village_name: row[12]?.toString().trim() || undefined,
+            has_school_bus: ['yes', 'true', '1'].includes(row[13]?.toString().toLowerCase().trim() || ''),
+            status: ['active', 'inactive'].includes(row[14]?.toString().toLowerCase().trim()) 
+              ? row[14]?.toString().toLowerCase().trim() as 'active' | 'inactive' 
               : 'active',
-            last_fee_payment_date: formatDate(row[14]),
-            outstanding_amount: parseFloat(row[15]?.toString() || '0') || 0,
+            last_fee_payment_date: formatDate(row[15]),
+            outstanding_amount: parseFloat(row[16]?.toString() || '0') || 0,
             row_number: i + 1
           };
 
@@ -239,8 +243,8 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
         if (!student.student_name) {
           errors.push({ row, field: 'student_name', message: 'Student name is required', severity: 'error' });
         }
-        if (!student.address) {
-          errors.push({ row, field: 'address', message: 'Address is required', severity: 'error' });
+        if (!student.date_of_admission) {
+          errors.push({ row, field: 'date_of_admission', message: 'Date of admission is required', severity: 'error' });
         }
         if (!student.father_name) {
           errors.push({ row, field: 'father_name', message: 'Father name is required', severity: 'error' });
@@ -263,9 +267,26 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
           errors.push({ row, field: 'gender', message: 'Gender must be male, female, or other', severity: 'error' });
         }
 
+        // PEN validation (optional but must be valid if provided)
+        if (student.pen && !/^[A-Z0-9]{12}$/.test(student.pen)) {
+          errors.push({ row, field: 'pen', message: 'PEN must be exactly 12 alphanumeric characters', severity: 'error' });
+        }
+
         // Date validation
         if (student.date_of_birth && isNaN(new Date(student.date_of_birth).getTime())) {
-          errors.push({ row, field: 'date_of_birth', message: 'Invalid date format', severity: 'error' });
+          errors.push({ row, field: 'date_of_birth', message: 'Invalid date of birth format', severity: 'error' });
+        }
+        if (student.date_of_admission && isNaN(new Date(student.date_of_admission).getTime())) {
+          errors.push({ row, field: 'date_of_admission', message: 'Invalid date of admission format', severity: 'error' });
+        }
+
+        // Date logic validation
+        if (student.date_of_birth && student.date_of_admission) {
+          const birthDate = new Date(student.date_of_birth);
+          const admissionDate = new Date(student.date_of_admission);
+          if (admissionDate <= birthDate) {
+            errors.push({ row, field: 'date_of_admission', message: 'Date of admission must be after date of birth', severity: 'error' });
+          }
         }
 
         // Duplicate check within file
@@ -383,9 +404,9 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
             date_of_birth: student.date_of_birth,
             class_id: classMap.get(student.promoted_class) || null,
             section: student.section,
-            admission_date: new Date().toISOString().split('T')[0],
+            admission_date: student.date_of_admission, // Use the imported admission date
             status: student.status,
-            address: student.address,
+            address: student.pen || 'Not provided', // Map PEN to address field for database compatibility
             phone_number: student.phone_number,
             father_name: student.father_name,
             mother_name: student.mother_name,
@@ -395,7 +416,8 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
             has_school_bus: student.has_school_bus,
             registration_type: 'continuing' as const,
             last_registration_date: new Date().toISOString().split('T')[0],
-            last_registration_type: 'continuing' as const
+            last_registration_type: 'continuing' as const,
+            pen: student.pen || null // Store PEN separately if you add this field to the database
           };
 
           const { error: insertError } = await supabase
@@ -494,6 +516,20 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
                   Upload Excel File
                 </button>
               </div>
+            </div>
+
+            {/* Template Information */}
+            <div className="mt-8 bg-muted p-4 rounded-lg text-left max-w-2xl mx-auto">
+              <h4 className="font-medium mb-2">Template Requirements:</h4>
+              <ul className="text-sm space-y-1 text-muted-foreground">
+                <li>• <strong>Date of Admission:</strong> Required field (YYYY-MM-DD format)</li>
+                <li>• <strong>PEN:</strong> Optional 12-character alphanumeric code (replaces Address)</li>
+                <li>• <strong>Required fields:</strong> Admission Number, Student Name, Father Name, Mother Name, Date of Admission</li>
+                <li>• <strong>Date formats:</strong> Use YYYY-MM-DD format for all dates</li>
+                <li>• <strong>Gender:</strong> Must be 'male', 'female', or 'other'</li>
+                <li>• <strong>Phone Number:</strong> Must be exactly 10 digits</li>
+                <li>• <strong>Aadhar Numbers:</strong> Must be exactly 12 digits if provided</li>
+              </ul>
             </div>
           </div>
         );

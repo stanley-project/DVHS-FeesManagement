@@ -43,14 +43,14 @@ export function useStudentImport() {
       if (!student.student_name) {
         errors.push({ row, field: 'student_name', message: 'Student name is required', severity: 'error' });
       }
+      if (!student.date_of_admission) {
+        errors.push({ row, field: 'date_of_admission', message: 'Date of admission is required', severity: 'error' });
+      }
       if (!student.father_name) {
         errors.push({ row, field: 'father_name', message: 'Father name is required', severity: 'error' });
       }
       if (!student.mother_name) {
         errors.push({ row, field: 'mother_name', message: 'Mother name is required', severity: 'error' });
-      }
-      if (!student.address) {
-        errors.push({ row, field: 'address', message: 'Address is required', severity: 'error' });
       }
 
       // Format validation
@@ -60,6 +60,11 @@ export function useStudentImport() {
 
       if (student.student_aadhar && !/^\d{12}$/.test(student.student_aadhar)) {
         errors.push({ row, field: 'student_aadhar', message: 'Student Aadhar must be 12 digits', severity: 'error' });
+      }
+
+      // PEN validation (optional but must be valid if provided)
+      if (student.pen && !/^[A-Z0-9]{12}$/.test(student.pen)) {
+        errors.push({ row, field: 'pen', message: 'PEN must be exactly 12 alphanumeric characters', severity: 'error' });
       }
 
       // Duplicate checking
@@ -82,7 +87,19 @@ export function useStudentImport() {
 
       // Date validation
       if (student.date_of_birth && isNaN(new Date(student.date_of_birth).getTime())) {
-        errors.push({ row, field: 'date_of_birth', message: 'Invalid date format', severity: 'error' });
+        errors.push({ row, field: 'date_of_birth', message: 'Invalid date of birth format', severity: 'error' });
+      }
+      if (student.date_of_admission && isNaN(new Date(student.date_of_admission).getTime())) {
+        errors.push({ row, field: 'date_of_admission', message: 'Invalid date of admission format', severity: 'error' });
+      }
+
+      // Date logic validation
+      if (student.date_of_birth && student.date_of_admission) {
+        const birthDate = new Date(student.date_of_birth);
+        const admissionDate = new Date(student.date_of_admission);
+        if (admissionDate <= birthDate) {
+          errors.push({ row, field: 'date_of_admission', message: 'Date of admission must be after date of birth', severity: 'error' });
+        }
       }
     });
 
@@ -154,9 +171,9 @@ export function useStudentImport() {
             date_of_birth: student.date_of_birth,
             class_id: classMap.get(student.promoted_class) || null,
             section: 'A', // Default section
-            admission_date: new Date().toISOString().split('T')[0],
+            admission_date: student.date_of_admission, // Use the imported admission date
             status: 'active' as const,
-            address: student.address,
+            address: student.pen || 'Not provided', // Map PEN to address field for database compatibility
             phone_number: student.phone_number,
             father_name: student.father_name,
             mother_name: student.mother_name,
