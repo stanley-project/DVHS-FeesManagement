@@ -12,7 +12,7 @@ export interface Student {
   admission_date: string;
   status: 'active' | 'inactive';
   exit_date?: string;
-  address: string;
+  PEN: string;
   phone_number: string;
   father_name: string;
   mother_name: string;

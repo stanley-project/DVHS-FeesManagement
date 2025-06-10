@@ -118,8 +118,8 @@ const StudentDetails = ({ student, onClose, onEdit }: StudentDetailsProps) => {
                     <p className="font-medium">{student.phone_number}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Address</p>
-                    <p className="font-medium">{student.address}</p>
+                    <p className="text-sm text-muted-foreground">PEN (Permanent Education Number)</p>
+                    <p className="font-medium">{student.PEN}</p>
                   </div>
                   {student.village && (
                     <div>

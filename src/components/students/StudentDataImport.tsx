@@ -406,7 +406,7 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
             section: student.section,
             admission_date: student.date_of_admission, // Use the imported admission date
             status: student.status,
-            address: student.pen || 'Not provided', // Map PEN to address field for database compatibility
+            PEN: student.pen || 'Not provided', // Use PEN column directly
             phone_number: student.phone_number,
             father_name: student.father_name,
             mother_name: student.mother_name,

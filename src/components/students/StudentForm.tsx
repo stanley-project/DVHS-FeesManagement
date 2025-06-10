@@ -76,7 +76,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         date_of_birth: initialData.date_of_birth,
         class_id: initialData.class_id,
         admission_date: initialData.admission_date,
-        pen: initialData.address && initialData.address !== 'Not provided' ? initialData.address : '',
+        pen: initialData.PEN && initialData.PEN !== 'Not provided' ? initialData.PEN : '',
         phone_number: initialData.phone_number,
         father_name: initialData.father_name,
         mother_name: initialData.mother_name,
@@ -167,7 +167,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('PEN must be exactly 11 alphanumeric characters');
       }
 
-      // Prepare submission data - map PEN to address field and remove pen property
+      // Prepare submission data - use PEN column directly
       const submissionData = {
         admission_number: data.admission_number,
         student_name: data.student_name,
@@ -189,7 +189,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         last_registration_type: data.registration_type,
         status: 'active' as const,
         section: 'A', // Default section since it's still required in the database
-        address: data.pen || 'Not provided' // Map PEN to address field for database compatibility
+        PEN: data.pen || 'Not provided' // Use PEN column directly
       };
 
       await onSubmit(submissionData);
