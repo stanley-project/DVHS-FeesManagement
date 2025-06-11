@@ -1,10 +1,10 @@
-// src/components/TopBar.tsx (Assuming this is the correct path)
+// src/components/layout/TopBar.tsx
 import { useState, useEffect } from 'react';
 import { Menu, Bell, User, LogOut, Home } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext'; // Adjusted path from your example
+import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import GlobalSearch from './GlobalSearch'; // Assuming this component exists
-import NotificationCenter from './NotificationCenter'; // Assuming this component exists
+import GlobalSearch from './GlobalSearch';
+import NotificationCenter from './NotificationCenter';
 
 interface TopBarProps {
   toggleSidebar: () => void;
@@ -16,40 +16,45 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const navigate = useNavigate();
 
-  // --- START: Logout specific state and handler from the second example ---
+  // Logout specific state and handler
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const handleLogout = async () => {
     try {
       setIsLoggingOut(true);
+      setLogoutError(null);
       console.log('TopBar: Initiating logout process...', new Date().toISOString());
+      
       await logout(); // This calls the logout function from AuthContext
+      
       // Navigation to /login should be handled by the logout function in AuthContext
+      // If for some reason it doesn't navigate, we'll handle it in the catch block
     } catch (error) {
       console.error('TopBar: Error during logout:', error);
+      setLogoutError('Failed to logout. Please try again.');
+      
       // Fallback if AuthContext logout or navigation fails
       // Ensure user is redirected even if there's an unexpected error in the logout process
-      window.location.href = '/login'; 
+      try {
+        // Clear any local storage manually as fallback
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = '/login';
+      } catch (fallbackError) {
+        console.error('TopBar: Fallback logout failed:', fallbackError);
+        // Last resort - reload the page
+        window.location.reload();
+      }
     } finally {
-      // setIsLoggingOut(false); // AuthContext.logout already sets authLoading, 
-                               // and navigation will unmount this component or change state.
-                               // If AuthContext's logout fails to navigate, the window.location.href handles it.
-                               // Keeping it false or true depends on whether the component unmounts.
-                               // For simplicity, if an error occurs and window.location.href is used,
-                               // this component might unmount anyway. If logout() in AuthContext
-                               // correctly handles navigation, this state might not be visible for long.
-                               // We can remove this if AuthContext.logout handles navigation robustly.
-                               // For now, let's keep it to ensure the button is re-enabled if something
-                               // very unexpected happens and the component remains mounted without navigation.
-      setIsLoggingOut(false); 
+      setIsLoggingOut(false);
     }
   };
-  // --- END: Logout specific state and handler ---
 
-  // Reset session timeout on user activity (This was from your original code and is kept)
+  // Reset session timeout on user activity
   useEffect(() => {
     const handleActivity = () => {
-      if (user) { // Only reset session if a user is logged in
+      if (user) {
         resetSession();
       }
     };
@@ -63,7 +68,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
       window.removeEventListener('keydown', handleActivity);
       window.removeEventListener('click', handleActivity);
     };
-  }, [resetSession, user]); // Added user to dependencies
+  }, [resetSession, user]);
 
   const toggleDropdown = () => {
     setDropdownOpen(!dropdownOpen);
@@ -72,6 +77,13 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   const handleHomeClick = () => {
     navigate('/');
   };
+
+  // Clear error when dropdown closes
+  useEffect(() => {
+    if (!dropdownOpen) {
+      setLogoutError(null);
+    }
+  }, [dropdownOpen]);
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
@@ -111,7 +123,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
           )}
         </div>
 
-        {user && ( // Only show user menu if user is logged in
+        {user && (
           <div className="relative">
             <button 
               onClick={toggleDropdown}
@@ -128,23 +140,37 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
                   <p className="text-sm font-medium">{user.name}</p>
                   <p className="text-xs text-muted-foreground capitalize">{user.role}</p>
                 </div>
+                
+                {/* Error message display */}
+                {logoutError && (
+                  <div className="px-4 py-2 border-b">
+                    <p className="text-xs text-error">{logoutError}</p>
+                  </div>
+                )}
+                
                 <div className="py-1">
                   <button
-                    onClick={handleLogout} // Use the new handler
-                    disabled={isLoggingOut} // Disable button when logging out
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={isLoggingOut}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-left text-error hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-opacity duration-200"
+                    aria-label="Logout from account"
                   >
-                    <LogOut className="h-4 w-4" />
                     {isLoggingOut ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-error" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Logging out...
-                      </span>
+                      <>
+                        <div className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-error" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Logging out...</span>
+                        </div>
+                      </>
                     ) : (
-                      'Logout'
+                      <>
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </>
                     )}
                   </button>
                 </div>
