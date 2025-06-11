@@ -11,7 +11,7 @@ interface TopBarProps {
 }
 
 const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
-  const { user, logout, resetSession } = useAuth();
+  const { user, logout, resetSession, authLoading } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const navigate = useNavigate();
@@ -21,29 +21,35 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   const [logoutError, setLogoutError] = useState<string | null>(null);
 
   const handleLogout = async () => {
+    // Prevent multiple logout attempts
+    if (isLoggingOut || authLoading) {
+      console.log('TopBar: Logout already in progress, ignoring click');
+      return;
+    }
+
     try {
       setIsLoggingOut(true);
       setLogoutError(null);
+      setDropdownOpen(false); // Close dropdown immediately
+      
       console.log('TopBar: Initiating logout process...', new Date().toISOString());
       
-      await logout(); // This calls the logout function from AuthContext
+      // Call logout function from AuthContext
+      await logout();
       
-      // Navigation to /login should be handled by the logout function in AuthContext
-      // If for some reason it doesn't navigate, we'll handle it in the catch block
+      console.log('TopBar: Logout completed successfully');
+      
     } catch (error) {
       console.error('TopBar: Error during logout:', error);
       setLogoutError('Failed to logout. Please try again.');
       
-      // Fallback if AuthContext logout or navigation fails
-      // Ensure user is redirected even if there's an unexpected error in the logout process
+      // Fallback logout - force clear everything
       try {
-        // Clear any local storage manually as fallback
         localStorage.clear();
         sessionStorage.clear();
         window.location.href = '/login';
       } catch (fallbackError) {
         console.error('TopBar: Fallback logout failed:', fallbackError);
-        // Last resort - reload the page
         window.location.reload();
       }
     } finally {
@@ -54,7 +60,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   // Reset session timeout on user activity
   useEffect(() => {
     const handleActivity = () => {
-      if (user) {
+      if (user && !authLoading) {
         resetSession();
       }
     };
@@ -68,10 +74,12 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
       window.removeEventListener('keydown', handleActivity);
       window.removeEventListener('click', handleActivity);
     };
-  }, [resetSession, user]);
+  }, [resetSession, user, authLoading]);
 
   const toggleDropdown = () => {
-    setDropdownOpen(!dropdownOpen);
+    if (!isLoggingOut) {
+      setDropdownOpen(!dropdownOpen);
+    }
   };
 
   const handleHomeClick = () => {
@@ -128,13 +136,14 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
             <button 
               onClick={toggleDropdown}
               className="flex items-center gap-2 p-1 rounded-full focus:outline-none"
+              disabled={isLoggingOut}
             >
               <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
                 <User className="h-5 w-5" />
               </div>
             </button>
 
-            {dropdownOpen && (
+            {dropdownOpen && !isLoggingOut && (
               <div className="absolute right-0 mt-2 w-48 rounded-md bg-card shadow-lg ring-1 ring-black ring-opacity-5 z-20 animate-slideUp">
                 <div className="py-1 border-b px-4 py-2">
                   <p className="text-sm font-medium">{user.name}</p>
@@ -152,15 +161,15 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
                   <button
                     type="button"
                     onClick={handleLogout}
-                    disabled={isLoggingOut}
+                    disabled={isLoggingOut || authLoading}
                     className="w-full flex items-center gap-2 px-4 py-2 text-sm text-left text-error hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-opacity duration-200"
                     aria-label="Logout from account"
                   >
                     {isLoggingOut ? (
                       <>
                         <div className="flex items-center">
-                          <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-error\" xmlns="http://www.w3.org/2000/svg\" fill="none\" viewBox="0 0 24 24">
-                            <circle className="opacity-25\" cx="12\" cy="12\" r="10\" stroke="currentColor\" strokeWidth="4"></circle>
+                          <svg className="animate-spin -ml-1 mr-3 h-4 w-4 text-error" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
                           <span>Logging out...</span>

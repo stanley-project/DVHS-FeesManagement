@@ -201,22 +201,41 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const logout = async (): Promise<void> => {
-    setAuthLoading(true);
-    console.log('AuthContext: Logging out user...');
-
+    console.log('AuthContext: Starting logout process...');
+    
     try {
+      // Prevent multiple logout calls
+      if (authLoading) {
+        console.log('AuthContext: Logout already in progress, skipping...');
+        return;
+      }
+
+      setAuthLoading(true);
+
+      // Clear user state immediately
+      setUser(null);
+      setIsAuthenticated(false);
+      setPhoneNumber('');
+
+      // Clear session storage
+      clearUserSession();
+
       // Remove custom headers
       const { 'x-user-id': _, 'x-user-role': __, ...restHeaders } = supabase.rest.headers;
       supabase.rest.headers = restHeaders;
 
-      clearUserSession();
-      setUser(null);
-      setIsAuthenticated(false);
-      setPhoneNumber('');
+      console.log('AuthContext: Logout completed, navigating to login...');
       
-      navigate('/login');
+      // Navigate to login page
+      navigate('/login', { replace: true });
+      
     } catch (error) {
       console.error('AuthContext: Logout error:', error);
+      // Even if there's an error, ensure we clear everything and redirect
+      setUser(null);
+      setIsAuthenticated(false);
+      clearUserSession();
+      navigate('/login', { replace: true });
     } finally {
       setAuthLoading(false);
     }
@@ -267,13 +286,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const getRedirectPath = (role: UserRole): string => {
     switch (role) {
       case 'administrator':
-        return '/dashboard';
+        return '/';
       case 'accountant':
-        return '/dashboard';
+        return '/';
       case 'teacher':
-        return '/dashboard';
+        return '/';
       default:
-        return '/dashboard';
+        return '/';
     }
   };
 
