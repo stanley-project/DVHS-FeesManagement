@@ -30,8 +30,10 @@ interface ImportedStudent {
 
 interface ValidationError {
   row: number;
+  admission_number: string;
   field: string;
   message: string;
+  recommended_action: string;
   severity: 'error' | 'warning';
 }
 
@@ -207,6 +209,54 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
     return '';
   };
 
+  const getRecommendedAction = (field: string, message: string, severity: 'error' | 'warning'): string => {
+    if (severity === 'error') {
+      switch (field) {
+        case 'admission_number':
+          if (message.includes('required')) return 'Add a unique admission number for this student';
+          if (message.includes('duplicate')) return 'Change the admission number to make it unique';
+          return 'Fix the admission number format';
+        case 'student_name':
+          return 'Enter the complete student name';
+        case 'date_of_admission':
+          return 'Provide a valid admission date in YYYY-MM-DD format';
+        case 'father_name':
+          return 'Enter the father\'s complete name';
+        case 'mother_name':
+          return 'Enter the mother\'s complete name';
+        case 'phone_number':
+          return 'Enter a valid 10-digit phone number';
+        case 'student_aadhar':
+          return 'Enter a valid 12-digit Aadhar number or leave blank';
+        case 'father_aadhar':
+          return 'Enter a valid 12-digit Aadhar number or leave blank';
+        case 'gender':
+          return 'Use only: male, female, or other';
+        case 'pen':
+          return 'Enter exactly 11 alphanumeric characters or leave blank';
+        case 'date_of_birth':
+          return 'Use YYYY-MM-DD format for date of birth';
+        default:
+          return 'Correct the data format as per template requirements';
+      }
+    } else {
+      // Warning actions
+      switch (field) {
+        case 'admission_number':
+          if (message.includes('already exists')) return 'Student will be skipped - already in database';
+          return 'Review and verify this admission number';
+        case 'village_name':
+          return 'Add this village to the system or use an existing village name';
+        case 'current_class':
+          return 'Verify the class name matches available classes';
+        case 'outstanding_amount':
+          return 'Review outstanding fees - student will be imported with pending amount';
+        default:
+          return 'Review this field - import will continue but may need attention';
+      }
+    }
+  };
+
   const validateData = async (data: ImportedStudent[]) => {
     setIsProcessing(true);
     const errors: ValidationError[] = [];
@@ -235,49 +285,134 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
 
       data.forEach((student, index) => {
         const row = student.row_number;
+        const admissionNumber = student.admission_number || `Row ${row}`;
 
         // Required field validation
         if (!student.admission_number) {
-          errors.push({ row, field: 'admission_number', message: 'Admission number is required', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'admission_number', 
+            message: 'Admission number is required', 
+            recommended_action: getRecommendedAction('admission_number', 'required', 'error'),
+            severity: 'error' 
+          });
         }
         if (!student.student_name) {
-          errors.push({ row, field: 'student_name', message: 'Student name is required', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'student_name', 
+            message: 'Student name is required', 
+            recommended_action: getRecommendedAction('student_name', 'required', 'error'),
+            severity: 'error' 
+          });
         }
         if (!student.date_of_admission) {
-          errors.push({ row, field: 'date_of_admission', message: 'Date of admission is required', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'date_of_admission', 
+            message: 'Date of admission is required', 
+            recommended_action: getRecommendedAction('date_of_admission', 'required', 'error'),
+            severity: 'error' 
+          });
         }
         if (!student.father_name) {
-          errors.push({ row, field: 'father_name', message: 'Father name is required', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'father_name', 
+            message: 'Father name is required', 
+            recommended_action: getRecommendedAction('father_name', 'required', 'error'),
+            severity: 'error' 
+          });
         }
         if (!student.mother_name) {
-          errors.push({ row, field: 'mother_name', message: 'Mother name is required', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'mother_name', 
+            message: 'Mother name is required', 
+            recommended_action: getRecommendedAction('mother_name', 'required', 'error'),
+            severity: 'error' 
+          });
         }
 
         // Format validation
         if (student.phone_number && !/^\d{10}$/.test(student.phone_number)) {
-          errors.push({ row, field: 'phone_number', message: 'Phone number must be 10 digits', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'phone_number', 
+            message: 'Phone number must be 10 digits', 
+            recommended_action: getRecommendedAction('phone_number', 'format', 'error'),
+            severity: 'error' 
+          });
         }
         if (student.student_aadhar && !/^\d{12}$/.test(student.student_aadhar)) {
-          errors.push({ row, field: 'student_aadhar', message: 'Student Aadhar must be 12 digits', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'student_aadhar', 
+            message: 'Student Aadhar must be 12 digits', 
+            recommended_action: getRecommendedAction('student_aadhar', 'format', 'error'),
+            severity: 'error' 
+          });
         }
         if (student.father_aadhar && !/^\d{12}$/.test(student.father_aadhar)) {
-          errors.push({ row, field: 'father_aadhar', message: 'Father Aadhar must be 12 digits', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'father_aadhar', 
+            message: 'Father Aadhar must be 12 digits', 
+            recommended_action: getRecommendedAction('father_aadhar', 'format', 'error'),
+            severity: 'error' 
+          });
         }
         if (!['male', 'female', 'other'].includes(student.gender)) {
-          errors.push({ row, field: 'gender', message: 'Gender must be male, female, or other', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'gender', 
+            message: 'Gender must be male, female, or other', 
+            recommended_action: getRecommendedAction('gender', 'format', 'error'),
+            severity: 'error' 
+          });
         }
 
         // PEN validation (optional but must be valid if provided - 11 characters)
         if (student.pen && !/^[A-Z0-9]{11}$/.test(student.pen)) {
-          errors.push({ row, field: 'pen', message: 'PEN must be exactly 11 alphanumeric characters', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'pen', 
+            message: 'PEN must be exactly 11 alphanumeric characters', 
+            recommended_action: getRecommendedAction('pen', 'format', 'error'),
+            severity: 'error' 
+          });
         }
 
         // Date validation
         if (student.date_of_birth && isNaN(new Date(student.date_of_birth).getTime())) {
-          errors.push({ row, field: 'date_of_birth', message: 'Invalid date of birth format', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'date_of_birth', 
+            message: 'Invalid date of birth format', 
+            recommended_action: getRecommendedAction('date_of_birth', 'format', 'error'),
+            severity: 'error' 
+          });
         }
         if (student.date_of_admission && isNaN(new Date(student.date_of_admission).getTime())) {
-          errors.push({ row, field: 'date_of_admission', message: 'Invalid date of admission format', severity: 'error' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'date_of_admission', 
+            message: 'Invalid date of admission format', 
+            recommended_action: getRecommendedAction('date_of_admission', 'format', 'error'),
+            severity: 'error' 
+          });
         }
 
         // Date logic validation
@@ -285,37 +420,79 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
           const birthDate = new Date(student.date_of_birth);
           const admissionDate = new Date(student.date_of_admission);
           if (admissionDate <= birthDate) {
-            errors.push({ row, field: 'date_of_admission', message: 'Date of admission must be after date of birth', severity: 'error' });
+            errors.push({ 
+              row, 
+              admission_number: admissionNumber,
+              field: 'date_of_admission', 
+              message: 'Date of admission must be after date of birth', 
+              recommended_action: 'Ensure admission date is later than birth date',
+              severity: 'error' 
+            });
           }
         }
 
         // Duplicate check within file
         if (student.admission_number) {
           if (duplicateCheck.has(student.admission_number)) {
-            errors.push({ row, field: 'admission_number', message: 'Duplicate admission number in file', severity: 'error' });
+            errors.push({ 
+              row, 
+              admission_number: admissionNumber,
+              field: 'admission_number', 
+              message: 'Duplicate admission number in file', 
+              recommended_action: getRecommendedAction('admission_number', 'duplicate', 'error'),
+              severity: 'error' 
+            });
           } else {
             duplicateCheck.add(student.admission_number);
           }
 
           // Check against existing students
           if (existingAdmissionNumbers.has(student.admission_number)) {
-            errors.push({ row, field: 'admission_number', message: 'Student already exists in database', severity: 'warning' });
+            errors.push({ 
+              row, 
+              admission_number: admissionNumber,
+              field: 'admission_number', 
+              message: 'Student already exists in database', 
+              recommended_action: getRecommendedAction('admission_number', 'already exists', 'warning'),
+              severity: 'warning' 
+            });
           }
         }
 
         // Village validation
         if (student.village_name && !availableVillages.has(student.village_name.toLowerCase())) {
-          errors.push({ row, field: 'village_name', message: 'Village not found in system', severity: 'warning' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'village_name', 
+            message: 'Village not found in system', 
+            recommended_action: getRecommendedAction('village_name', 'not found', 'warning'),
+            severity: 'warning' 
+          });
         }
 
         // Class promotion validation
         if (!student.promoted_class) {
-          errors.push({ row, field: 'current_class', message: 'Cannot determine promoted class', severity: 'warning' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'current_class', 
+            message: 'Cannot determine promoted class', 
+            recommended_action: getRecommendedAction('current_class', 'promotion', 'warning'),
+            severity: 'warning' 
+          });
         }
 
         // Outstanding amount warning
         if (student.outstanding_amount && student.outstanding_amount > 0) {
-          errors.push({ row, field: 'outstanding_amount', message: `Outstanding amount: ₹${student.outstanding_amount}`, severity: 'warning' });
+          errors.push({ 
+            row, 
+            admission_number: admissionNumber,
+            field: 'outstanding_amount', 
+            message: `Outstanding amount: ₹${student.outstanding_amount}`, 
+            recommended_action: getRecommendedAction('outstanding_amount', 'pending', 'warning'),
+            severity: 'warning' 
+          });
         }
       });
 
@@ -465,9 +642,11 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
 
     const errorReport = validationErrors.map(error => ({
       'Row Number': error.row,
+      'Admission Number': error.admission_number,
       'Field': error.field,
       'Error Type': error.severity,
-      'Message': error.message
+      'Issue': error.message,
+      'Recommended Action': error.recommended_action
     }));
 
     const wb = XLSX.utils.book_new();
@@ -606,22 +785,31 @@ const StudentDataImport: React.FC<StudentDataImportProps> = ({ onClose, onImport
                 
                 {showErrorDetails && (
                   <div className="p-4 max-h-64 overflow-y-auto">
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {validationErrors.map((error, index) => (
                         <div
                           key={index}
-                          className={`flex items-center gap-2 p-2 rounded text-sm ${
+                          className={`p-3 rounded-lg border-l-4 ${
                             error.severity === 'error' 
-                              ? 'bg-red-50 text-red-800' 
-                              : 'bg-yellow-50 text-yellow-800'
+                              ? 'bg-red-50 border-red-400 text-red-800' 
+                              : 'bg-yellow-50 border-yellow-400 text-yellow-800'
                           }`}
                         >
-                          {error.severity === 'error' ? (
-                            <AlertCircle className="h-4 w-4" />
-                          ) : (
-                            <AlertTriangle className="h-4 w-4" />
-                          )}
-                          <span>Row {error.row}: {error.field} - {error.message}</span>
+                          <div className="flex items-start gap-2">
+                            {error.severity === 'error' ? (
+                              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            ) : (
+                              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm">
+                                Row {error.row}: Admission Number={error.admission_number}: {error.field} - {error.message}
+                              </div>
+                              <div className="text-xs mt-1 opacity-90">
+                                <strong>Action:</strong> {error.recommended_action}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
