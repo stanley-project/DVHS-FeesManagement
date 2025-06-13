@@ -1,4 +1,4 @@
-import { ArrowUpDown, Eye, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpDown, Eye, Pencil, Trash2, Users, Bus } from 'lucide-react';
 import { Village } from '../../types/village';
 
 interface SortConfig {
@@ -13,6 +13,7 @@ interface VillageTableProps {
   onView: (village: Village) => void;
   onEdit: (village: Village) => void;
   onDelete: (id: string) => Promise<void>;
+  villageStats?: Record<string, { totalStudents: number, busStudents: number }>;
 }
 
 const VillageTable = ({
@@ -21,7 +22,8 @@ const VillageTable = ({
   onSort,
   onView,
   onEdit,
-  onDelete
+  onDelete,
+  villageStats = {}
 }: VillageTableProps) => {
   const getSortIcon = (column: keyof Village) => {
     if (sortConfig.column !== column) {
@@ -64,6 +66,18 @@ const VillageTable = ({
                 {getSortIcon('bus_number')}
               </button>
             </th>
+            <th className="px-4 py-3 text-center">
+              <div className="flex items-center justify-center gap-1">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span>Total Students</span>
+              </div>
+            </th>
+            <th className="px-4 py-3 text-center">
+              <div className="flex items-center justify-center gap-1">
+                <Bus className="h-4 w-4 text-muted-foreground" />
+                <span>Bus Students</span>
+              </div>
+            </th>
             <th className="px-4 py-3 text-left">Status</th>
             <th className="px-4 py-3 text-right">Actions</th>
           </tr>
@@ -71,54 +85,64 @@ const VillageTable = ({
         <tbody>
           {villages.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+              <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                 No villages found
               </td>
             </tr>
           ) : (
-            villages.map((village) => (
-              <tr key={village.id} className="border-b hover:bg-muted/50">
-                <td className="px-4 py-3 font-medium">{village.name}</td>
-                <td className="px-4 py-3">{village.distance_from_school}</td>
-                <td className="px-4 py-3">{village.bus_number || 'N/A'}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      village.is_active
-                        ? 'bg-success/10 text-success'
-                        : 'bg-error/10 text-error'
-                    }`}
-                  >
-                    {village.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={() => onView(village)}
-                      className="p-1 hover:bg-muted rounded-md"
-                      title="View Details"
+            villages.map((village) => {
+              const stats = villageStats[village.id] || { totalStudents: 0, busStudents: 0 };
+              
+              return (
+                <tr key={village.id} className="border-b hover:bg-muted/50">
+                  <td className="px-4 py-3 font-medium">{village.name}</td>
+                  <td className="px-4 py-3">{village.distance_from_school}</td>
+                  <td className="px-4 py-3">{village.bus_number || 'N/A'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="font-medium">{stats.totalStudents}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="font-medium">{stats.busStudents}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        village.is_active
+                          ? 'bg-success/10 text-success'
+                          : 'bg-error/10 text-error'
+                      }`}
                     >
-                      <Eye className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => onEdit(village)}
-                      className="p-1 hover:bg-muted rounded-md"
-                      title="Edit"
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => onDelete(village.id)}
-                      className="p-1 hover:bg-muted rounded-md text-error"
-                      title="Delete"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))
+                      {village.is_active ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => onView(village)}
+                        className="p-1 hover:bg-muted rounded-md"
+                        title="View Details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => onEdit(village)}
+                        className="p-1 hover:bg-muted rounded-md"
+                        title="Edit"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => onDelete(village.id)}
+                        className="p-1 hover:bg-muted rounded-md text-error"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>

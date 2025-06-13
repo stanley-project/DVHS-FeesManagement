@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Download, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -7,6 +7,7 @@ import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
 import { useVillages } from '../hooks/useVillages';
 import { Village } from '../types/village';
+import { supabase } from '../lib/supabase';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
@@ -14,18 +15,26 @@ const VillageManagement = () => {
   const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [villageStats, setVillageStats] = useState<Record<string, { totalStudents: number, busStudents: number }>>({});
+  const [loadingStats, setLoadingStats] = useState(false);
 
   const handleExport = () => {
     try {
       // Prepare data for export
-      const exportData = villages.map(village => ({
-        'Village Name': village.name,
-        'Distance (km)': village.distance_from_school,
-        'Bus Number': village.bus_number || 'N/A',
-        'Status': village.is_active ? 'Active' : 'Inactive',
-        'Created At': new Date(village.created_at).toLocaleDateString(),
-        'Last Updated': new Date(village.updated_at).toLocaleDateString()
-      }));
+      const exportData = villages.map(village => {
+        const stats = villageStats[village.id] || { totalStudents: 0, busStudents: 0 };
+        
+        return {
+          'Village Name': village.name,
+          'Distance (km)': village.distance_from_school,
+          'Bus Number': village.bus_number || 'N/A',
+          'Total Students': stats.totalStudents,
+          'Bus Students': stats.busStudents,
+          'Status': village.is_active ? 'Active' : 'Inactive',
+          'Created At': new Date(village.created_at).toLocaleDateString(),
+          'Last Updated': new Date(village.updated_at).toLocaleDateString()
+        };
+      });
 
       // Create workbook and worksheet
       const wb = XLSX.utils.book_new();
@@ -59,6 +68,67 @@ const VillageManagement = () => {
     refreshVillages 
   } = useVillages();
 
+  // Fetch student statistics for all villages
+  const fetchVillageStats = async () => {
+    try {
+      setLoadingStats(true);
+      
+      // Get current academic year
+      const { data: currentYear, error: yearError } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (yearError) throw yearError;
+      
+      if (!currentYear) {
+        console.log('No current academic year found');
+        return;
+      }
+      
+      // Get all students grouped by village
+      const { data: studentStats, error: statsError } = await supabase
+        .from('students')
+        .select(`
+          village_id,
+          has_school_bus
+        `)
+        .eq('status', 'active');
+
+      if (statsError) throw statsError;
+      
+      // Process student statistics by village
+      const stats: Record<string, { totalStudents: number, busStudents: number }> = {};
+      
+      studentStats?.forEach(student => {
+        if (!student.village_id) return;
+        
+        const villageId = student.village_id;
+        
+        if (!stats[villageId]) {
+          stats[villageId] = { totalStudents: 0, busStudents: 0 };
+        }
+        
+        stats[villageId].totalStudents++;
+        
+        if (student.has_school_bus) {
+          stats[villageId].busStudents++;
+        }
+      });
+      
+      setVillageStats(stats);
+    } catch (error) {
+      console.error('Error fetching village stats:', error);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchVillageStats();
+  }, []);
+
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (selectedVillage) {
@@ -71,22 +141,35 @@ const VillageManagement = () => {
       setShowForm(false);
       setSelectedVillage(null);
       refreshVillages();
+      // Refresh stats after adding/updating a village
+      fetchVillageStats();
     } catch (error) {
       console.error('Error saving village:', error);
       toast.error('Failed to save village');
     }
   };
 
-  const handleImport = async (data: any[]) => {
+  const handleDelete = async (id: string) => {
     try {
-      // TODO: Implement bulk import
-      console.log('Import data:', data);
-      setShowImport(false);
-      toast.success('Villages imported successfully');
+      // Check if village has students
+      const stats = villageStats[id];
+      if (stats && stats.totalStudents > 0) {
+        toast.error(`Cannot delete village with ${stats.totalStudents} students. Please reassign students first.`);
+        return;
+      }
+      
+      if (!confirm(`Are you sure you want to delete this village? This action cannot be undone.`)) {
+        return;
+      }
+      
+      await deleteVillage(id);
+      toast.success('Village deleted successfully');
       refreshVillages();
+      // Refresh stats after deleting a village
+      fetchVillageStats();
     } catch (error) {
-      console.error('Error importing villages:', error);
-      toast.error('Failed to import villages');
+      console.error('Error deleting village:', error);
+      toast.error('Failed to delete village');
     }
   };
 
@@ -178,7 +261,8 @@ const VillageManagement = () => {
               setSelectedVillage(village);
               setShowForm(true);
             }}
-            onDelete={deleteVillage}
+            onDelete={handleDelete}
+            villageStats={villageStats}
           />
         </div>
       </div>

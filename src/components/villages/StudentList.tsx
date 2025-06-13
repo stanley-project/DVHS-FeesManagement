@@ -65,34 +65,36 @@ const StudentList = ({ village }: StudentListProps) => {
           No students found from this village
         </div>
       ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="px-4 py-3 text-left">Student ID</th>
-              <th className="px-4 py-3 text-left">Student Name</th>
-              <th className="px-4 py-3 text-left">Class</th>
-              <th className="px-4 py-3 text-left">Bus Service</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((student) => (
-              <tr key={student.id} className="border-b hover:bg-muted/50">
-                <td className="px-4 py-3 font-medium">{student.admission_number}</td>
-                <td className="px-4 py-3">{student.student_name}</td>
-                <td className="px-4 py-3">{student.class?.name}</td>
-                <td className="px-4 py-3">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    student.has_school_bus ? 'bg-success/10 text-success' : 'bg-muted-foreground/10'
-                  }`}>
-                    {student.has_school_bus ? 'Yes' : 'No'}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="overflow-x-auto">
+          <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+            <table className="w-full">
+              <thead className="sticky top-0 bg-card z-10">
+                <tr className="border-b">
+                  <th className="px-4 py-3 text-left">Student ID</th>
+                  <th className="px-4 py-3 text-left">Student Name</th>
+                  <th className="px-4 py-3 text-left">Class</th>
+                  <th className="px-4 py-3 text-left">Bus Service</th>
+                </tr>
+              </thead>
+              <tbody>
+                {students.map((student) => (
+                  <tr key={student.id} className="border-b hover:bg-muted/50">
+                    <td className="px-4 py-3 font-medium">{student.admission_number}</td>
+                    <td className="px-4 py-3">{student.student_name}</td>
+                    <td className="px-4 py-3">{student.class?.name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        student.has_school_bus ? 'bg-success/10 text-success' : 'bg-muted-foreground/10'
+                      }`}>
+                        {student.has_school_bus ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
