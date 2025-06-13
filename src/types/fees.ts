@@ -2,7 +2,7 @@ export interface FeeType {
   id: string;
   name: string;
   description?: string;
-  frequency: 'monthly' | 'quarterly' | 'annual';
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'ad_hoc';
   category: 'school' | 'bus' | 'admission';
   is_monthly: boolean;
   is_for_new_students_only: boolean;
@@ -72,6 +72,8 @@ export interface FeePayment {
   transaction_id?: string;
   receipt_number: string;
   notes?: string;
+  charge_description?: string;
+  charge_type?: 'regular' | 'miscellaneous';
   created_by: string;
   created_at?: string;
   updated_at?: string;
@@ -138,4 +140,40 @@ export interface FeeWaiver {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+// New interfaces for miscellaneous charges
+export interface ChargeCategory {
+  id: string;
+  name: string;
+  description?: string;
+  default_amount?: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MiscellaneousCharge {
+  id: string;
+  student_id: string;
+  academic_year_id: string;
+  charge_category_id?: string;
+  amount: number;
+  description: string;
+  charge_date: string;
+  due_date?: string;
+  is_paid: boolean;
+  payment_id?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  charge_category?: ChargeCategory;
+  student?: {
+    id: string;
+    student_name: string;
+    admission_number: string;
+    class?: {
+      name: string;
+    };
+  };
 }

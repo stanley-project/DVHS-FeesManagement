@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Search, ArrowRight, Filter, Download, FileText } from 'lucide-react';
+import { Search, ArrowRight, Filter, Download, FileText, Settings } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import StudentList from '../components/students/StudentList';
 import FeePaymentForm from '../components/fees/FeePaymentForm';
 import PaymentReceipt from '../components/fees/PaymentReceipt';
 import DailyCollectionReport from '../components/fees/DailyCollectionReport';
+import ChargeCategories from '../components/fees/ChargeCategories';
 
 const FeeCollection = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showDailyCollection, setShowDailyCollection] = useState(false);
+  const [showChargeCategories, setShowChargeCategories] = useState(false);
   const [students, setStudents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,10 +106,24 @@ const FeeCollection = () => {
       // Get student details
       const student = students[selectedStudent!];
       
+      // Get fee type details if it's a regular fee
+      let feeTypeName = 'Miscellaneous Charge';
+      if (paymentData.fee_structure_id && paymentData.fee_structure_id !== 'miscellaneous') {
+        const { data: feeStructure, error: feeError } = await supabase
+          .from('fee_structure')
+          .select('fee_type:fee_type_id(name)')
+          .eq('id', paymentData.fee_structure_id)
+          .single();
+          
+        if (!feeError && feeStructure) {
+          feeTypeName = feeStructure.fee_type.name;
+        }
+      }
+      
       // Create receipt data
       const receipt = {
         receiptNumber: paymentData.receipt_number,
-        date: new Date().toLocaleDateString('en-IN'),
+        date: new Date(paymentData.payment_date).toLocaleDateString('en-IN'),
         student: {
           name: student.name,
           admissionNumber: student.admissionNumber,
@@ -115,11 +131,12 @@ const FeeCollection = () => {
           section: student.class?.split('-')[1] || '',
         },
         payments: [{
-          feeType: 'Fee Payment',
-          amount: paymentData.amount_paid.toLocaleString('en-IN')
+          feeType: feeTypeName,
+          amount: paymentData.amount_paid.toLocaleString('en-IN'),
+          description: paymentData.charge_description || ''
         }],
         total: paymentData.amount_paid.toLocaleString('en-IN'),
-        paymentMethod: paymentData.payment_method,
+        paymentMethod: paymentData.payment_method === 'cash' ? 'Cash' : 'Online Transfer',
         transactionId: paymentData.transaction_id,
         collectedBy: 'Admin User' // In real app, get from auth context
       };
@@ -140,6 +157,13 @@ const FeeCollection = () => {
       <div className="flex items-center justify-between">
         <h1>Fee Collection</h1>
         <div className="flex gap-2">
+          <button
+            className="btn btn-outline btn-md inline-flex items-center"
+            onClick={() => setShowChargeCategories(true)}
+          >
+            <Settings className="mr-2 h-4 w-4" />
+            Manage Categories
+          </button>
           <button
             className="btn btn-outline btn-md inline-flex items-center"
             onClick={() => setShowDailyCollection(true)}
@@ -265,6 +289,13 @@ const FeeCollection = () => {
       {showDailyCollection && (
         <DailyCollectionReport
           onClose={() => setShowDailyCollection(false)}
+        />
+      )}
+
+      {/* Charge Categories Modal */}
+      {showChargeCategories && (
+        <ChargeCategories
+          onClose={() => setShowChargeCategories(false)}
         />
       )}
     </div>

@@ -13,6 +13,7 @@ interface PaymentReceiptProps {
     payments: {
       feeType: string;
       amount: string;
+      description?: string;
     }[];
     total: string;
     paymentMethod: string;
@@ -95,6 +96,7 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
               <thead>
                 <tr className="border-b">
                   <th className="px-4 py-2 text-left font-medium text-muted-foreground">Fee Type</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Description</th>
                   <th className="px-4 py-2 text-right font-medium text-muted-foreground">Amount</th>
                 </tr>
               </thead>
@@ -102,13 +104,14 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
                 {receipt.payments.map((payment, index) => (
                   <tr key={index} className="border-b">
                     <td className="px-4 py-2">{payment.feeType}</td>
+                    <td className="px-4 py-2">{payment.description || '-'}</td>
                     <td className="px-4 py-2 text-right">₹{payment.amount}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t font-medium">
-                  <td className="px-4 py-2">Total Amount</td>
+                  <td className="px-4 py-2" colSpan={2}>Total Amount</td>
                   <td className="px-4 py-2 text-right">₹{receipt.total}</td>
                 </tr>
               </tfoot>
