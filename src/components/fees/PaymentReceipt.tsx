@@ -10,19 +10,30 @@ interface PaymentReceiptProps {
       class: string;
       section: string;
     };
-    payments: {
-      feeType: string;
-      amount: string;
-    }[];
-    total: string;
+    total: string | number;
     paymentMethod: string;
     transactionId?: string;
-    collectedBy: string;
+    collectedBy?: string;
+    busAmount?: string | number;
+    schoolAmount?: string | number;
   };
   onClose: () => void;
 }
 
 const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
+  // Format currency values
+  const formatCurrency = (amount: string | number) => {
+    const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return `₹${numAmount.toLocaleString('en-IN', { 
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
+  };
+
+  const totalAmount = formatCurrency(receipt.total);
+  const busAmount = receipt.busAmount ? formatCurrency(receipt.busAmount) : null;
+  const schoolAmount = receipt.schoolAmount ? formatCurrency(receipt.schoolAmount) : null;
+
   return (
     <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 p-4">
       <div className="bg-card rounded-lg shadow-lg max-w-2xl w-full">
@@ -99,17 +110,29 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
                 </tr>
               </thead>
               <tbody>
-                {receipt.payments.map((payment, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="px-4 py-2">{payment.feeType}</td>
-                    <td className="px-4 py-2 text-right">₹{payment.amount}</td>
+                {busAmount && parseFloat(busAmount.replace('₹', '').replace(',', '')) > 0 && (
+                  <tr className="border-b">
+                    <td className="px-4 py-2">Bus Fee</td>
+                    <td className="px-4 py-2 text-right">{busAmount}</td>
                   </tr>
-                ))}
+                )}
+                {schoolAmount && parseFloat(schoolAmount.replace('₹', '').replace(',', '')) > 0 && (
+                  <tr className="border-b">
+                    <td className="px-4 py-2">School Fee</td>
+                    <td className="px-4 py-2 text-right">{schoolAmount}</td>
+                  </tr>
+                )}
+                {(!busAmount && !schoolAmount) && (
+                  <tr className="border-b">
+                    <td className="px-4 py-2">Fee Payment</td>
+                    <td className="px-4 py-2 text-right">{totalAmount}</td>
+                  </tr>
+                )}
               </tbody>
               <tfoot>
                 <tr className="border-t font-medium">
                   <td className="px-4 py-2">Total Amount</td>
-                  <td className="px-4 py-2 text-right">₹{receipt.total}</td>
+                  <td className="px-4 py-2 text-right">{totalAmount}</td>
                 </tr>
               </tfoot>
             </table>
@@ -118,7 +141,7 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-muted-foreground">Payment Method:</p>
-                  <p className="font-medium">{receipt.paymentMethod}</p>
+                  <p className="font-medium capitalize">{receipt.paymentMethod}</p>
                 </div>
                 {receipt.transactionId && (
                   <div>
@@ -127,10 +150,12 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
                   </div>
                 )}
               </div>
-              <div>
-                <p className="text-muted-foreground">Collected By:</p>
-                <p className="font-medium">{receipt.collectedBy}</p>
-              </div>
+              {receipt.collectedBy && (
+                <div>
+                  <p className="text-muted-foreground">Collected By:</p>
+                  <p className="font-medium">{receipt.collectedBy}</p>
+                </div>
+              )}
             </div>
           </div>
 

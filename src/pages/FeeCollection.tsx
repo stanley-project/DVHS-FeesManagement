@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Search, ArrowRight, Filter, Download, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
+import { useAuth } from '../contexts/AuthContext';
 import StudentList from '../components/students/StudentList';
 import FeePaymentForm from '../components/fees/FeePaymentForm';
 import PaymentReceipt from '../components/fees/PaymentReceipt';
 import DailyCollectionReport from '../components/fees/DailyCollectionReport';
 
 const FeeCollection = () => {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -58,7 +61,8 @@ const FeeCollection = () => {
           class:class_id(name),
           registration_type,
           status,
-          fee_payments(amount_paid)
+          village_id,
+          has_school_bus
         `)
         .eq('status', 'active');
 
@@ -67,28 +71,129 @@ const FeeCollection = () => {
         query = query.or(`admission_number.ilike.%${searchQuery}%,student_name.ilike.%${searchQuery}%`);
       }
 
-      const { data, error } = await query;
+      const { data: studentsData, error: studentsError } = await query;
 
-      if (error) throw error;
+      if (studentsError) throw studentsError;
+
+      if (!studentsData || studentsData.length === 0) {
+        setStudents([]);
+        setLoading(false);
+        return;
+      }
+
+      // Get fee payments for all students
+      const { data: payments, error: paymentsError } = await supabase
+        .from('fee_payments')
+        .select(`
+          id,
+          student_id,
+          amount_paid,
+          payment_date,
+          payment_allocation (
+            bus_fee_amount,
+            school_fee_amount
+          )
+        `);
+
+      if (paymentsError) throw paymentsError;
+
+      // Get fee structure for current academic year
+      const { data: feeStructure, error: feeError } = await supabase
+        .from('fee_structure')
+        .select(`
+          class_id,
+          amount
+        `)
+        .eq('academic_year_id', currentYear.id);
+
+      if (feeError) throw feeError;
+
+      // Get bus fees
+      const { data: busFees, error: busError } = await supabase
+        .from('bus_fee_structure')
+        .select(`
+          village_id,
+          fee_amount
+        `)
+        .eq('academic_year_id', currentYear.id)
+        .eq('is_active', true);
+
+      if (busError) throw busError;
 
       // Process students data
-      const processedStudents = data.map(student => {
-        const totalPaid = student.fee_payments?.reduce((sum: number, payment: any) => 
-          sum + (payment.amount_paid || 0), 0) || 0;
-
-        // In a real app, get total fee from fee structure
-        const totalFee = 45000; // Mock total fee
+      const processedStudents = studentsData.map(student => {
+        // Calculate total fees
+        let totalFees = 0;
+        
+        // Add school fees
+        const classFees = feeStructure?.filter(fee => fee.class_id === student.class_id) || [];
+        const totalSchoolFees = classFees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
+        totalFees += totalSchoolFees;
+        
+        // Add bus fees if applicable
+        let busFee = 0;
+        if (student.has_school_bus && student.village_id) {
+          const villageBusFee = busFees?.find(fee => fee.village_id === student.village_id);
+          if (villageBusFee) {
+            busFee = parseFloat(villageBusFee.fee_amount);
+            totalFees += busFee;
+          }
+        }
+        
+        // Calculate paid amount
+        const studentPayments = payments?.filter(payment => payment.student_id === student.id) || [];
+        let totalPaid = 0;
+        
+        studentPayments.forEach(payment => {
+          if (payment.payment_allocation && payment.payment_allocation.length > 0) {
+            // Use allocation if available
+            const allocation = payment.payment_allocation[0];
+            totalPaid += parseFloat(allocation.bus_fee_amount || 0) + parseFloat(allocation.school_fee_amount || 0);
+          } else {
+            // Fallback to total payment amount
+            totalPaid += parseFloat(payment.amount_paid || 0);
+          }
+        });
+        
+        // Calculate pending amount
+        const pendingAmount = Math.max(0, totalFees - totalPaid);
+        
+        // Determine payment status
+        let status = 'pending';
+        if (totalPaid >= totalFees) {
+          status = 'paid';
+        } else if (totalPaid > 0) {
+          status = 'partial';
+        }
+        
+        // Get last payment date
+        let lastPaymentDate = null;
+        if (studentPayments.length > 0) {
+          const sortedPayments = [...studentPayments].sort((a, b) => 
+            new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+          );
+          lastPaymentDate = sortedPayments[0].payment_date;
+        }
 
         return {
           id: student.id,
           name: student.student_name,
           admissionNumber: student.admission_number,
           class: student.class?.name,
-          status: totalPaid >= totalFee ? 'paid' : totalPaid > 0 ? 'partial' : 'pending',
-          pending: totalPaid >= totalFee ? '₹0' : `₹${(totalFee - totalPaid).toLocaleString('en-IN')}`,
-          registrationType: student.registration_type
+          status,
+          pending: `₹${pendingAmount.toLocaleString('en-IN')}`,
+          pendingAmount, // Raw number for sorting
+          totalFees,
+          totalPaid,
+          lastPaymentDate,
+          registrationType: student.registration_type,
+          has_school_bus: student.has_school_bus,
+          village_id: student.village_id
         };
       });
+
+      // Sort by pending amount (highest first)
+      processedStudents.sort((a, b) => b.pendingAmount - a.pendingAmount);
 
       setStudents(processedStudents);
     } catch (err: any) {
@@ -101,37 +206,71 @@ const FeeCollection = () => {
 
   const handlePaymentSubmit = async (paymentData: any) => {
     try {
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       // Get student details
       const student = students[selectedStudent!];
       
+      // Create payment record
+      const { data, error } = await supabase
+        .from('fee_payments')
+        .insert([{
+          student_id: student.id,
+          amount_paid: parseFloat(paymentData.amount_paid),
+          payment_date: paymentData.payment_date,
+          payment_method: paymentData.payment_method,
+          transaction_id: paymentData.transaction_id || null,
+          receipt_number: paymentData.receipt_number || `RC-${Date.now()}`,
+          notes: paymentData.notes || null,
+          created_by: user.id
+        }])
+        .select(`
+          *,
+          payment_allocation (
+            id,
+            bus_fee_amount,
+            school_fee_amount
+          )
+        `)
+        .single();
+
+      if (error) throw error;
+
+      // Get allocation details
+      const busAmount = data.payment_allocation?.[0]?.bus_fee_amount || 0;
+      const schoolAmount = data.payment_allocation?.[0]?.school_fee_amount || 0;
+      
       // Create receipt data
       const receipt = {
-        receiptNumber: paymentData.receipt_number,
-        date: new Date().toLocaleDateString('en-IN'),
+        receiptNumber: data.receipt_number,
+        date: new Date(data.payment_date).toLocaleDateString('en-IN'),
         student: {
           name: student.name,
           admissionNumber: student.admissionNumber,
           class: student.class?.split('-')[0] || '',
           section: student.class?.split('-')[1] || '',
         },
-        payments: [{
-          feeType: 'Fee Payment',
-          amount: paymentData.amount_paid.toLocaleString('en-IN')
-        }],
-        total: paymentData.amount_paid.toLocaleString('en-IN'),
-        paymentMethod: paymentData.payment_method,
-        transactionId: paymentData.transaction_id,
-        collectedBy: 'Admin User' // In real app, get from auth context
+        busAmount,
+        schoolAmount,
+        total: data.amount_paid,
+        paymentMethod: data.payment_method,
+        transactionId: data.transaction_id,
+        collectedBy: user.name
       };
 
       setReceiptData(receipt);
       setShowReceipt(true);
       
+      // Show success message
+      toast.success('Payment recorded successfully');
+      
       // Refresh student list
       await fetchStudents();
     } catch (err: any) {
       console.error('Error processing payment:', err);
-      alert('Failed to process payment. Please try again.');
+      toast.error(err.message || 'Failed to process payment. Please try again.');
     }
   };
 

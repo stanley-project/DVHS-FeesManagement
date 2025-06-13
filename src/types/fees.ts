@@ -2,7 +2,7 @@ export interface FeeType {
   id: string;
   name: string;
   description?: string;
-  frequency: 'monthly' | 'quarterly' | 'annual';
+  frequency: 'monthly' | 'quarterly' | 'annual' | 'ad_hoc';
   category: 'school' | 'bus' | 'admission';
   is_monthly: boolean;
   is_for_new_students_only: boolean;
@@ -62,10 +62,20 @@ export interface BusFeeStructure {
   updated_at?: string;
 }
 
+export interface PaymentAllocation {
+  id: string;
+  payment_id: string;
+  student_id: string;
+  bus_fee_amount: number;
+  school_fee_amount: number;
+  allocation_date: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface FeePayment {
   id: string;
   student_id: string;
-  fee_structure_id: string;
   amount_paid: number;
   payment_date: string;
   payment_method: 'cash' | 'online';
@@ -75,6 +85,7 @@ export interface FeePayment {
   created_by: string;
   created_at?: string;
   updated_at?: string;
+  allocation?: PaymentAllocation;
 }
 
 export interface FeeStructureHistory {
@@ -138,4 +149,13 @@ export interface FeeWaiver {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface FeeStatus {
+  student_id: string;
+  total_fees: number;
+  total_paid: number;
+  outstanding: number;
+  last_payment_date?: string;
+  status: 'paid' | 'partial' | 'pending';
 }
