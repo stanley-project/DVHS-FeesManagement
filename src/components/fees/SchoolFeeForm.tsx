@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle, Loader2, Plus, Trash2, Copy, History } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
@@ -70,7 +70,7 @@ const SchoolFeeForm = ({
   const [existingStructure, setExistingStructure] = useState<FeeStructureItem[]>([]);
   
   // UI states
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'school' | 'admission'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'school' | 'admission' | 'bus'>('all');
   const [showHistory, setShowHistory] = useState(false);
   const [feeHistory, setFeeHistory] = useState<any[]>([]);
 
@@ -109,13 +109,12 @@ const SchoolFeeForm = ({
     };
   }, [academicYearId]);
 
-  // Fetch fee types with categorization
+  // Fetch fee types with categorization (now fetches all categories)
   const fetchFeeTypes = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('fee_types')
         .select('*')
-        .eq('category', 'school')
         .order('name');
 
       if (error) throw error;
@@ -227,6 +226,32 @@ const SchoolFeeForm = ({
       initializeData();
     }
   }, [academicYearId, fetchFeeTypes, fetchClasses, fetchFeeStructure, fetchFeeHistory]);
+
+  // Filter fee types by category
+  const filteredFeeTypes = useMemo(() => {
+    if (selectedCategory === 'all') {
+      return feeTypes;
+    }
+    return feeTypes.filter(ft => ft.category === selectedCategory);
+  }, [feeTypes, selectedCategory]);
+
+  // Filter displayed fee structure items by category
+  const currentDisplayedFeeStructure = useMemo(() => {
+    if (selectedCategory === 'all') {
+      return feeStructure;
+    }
+    return feeStructure.filter(item => item.fee_type_category === selectedCategory);
+  }, [feeStructure, selectedCategory]);
+
+  // Group fee structure by category for display
+  const groupedStructure = useMemo(() => {
+    return currentDisplayedFeeStructure.reduce((acc, item) => {
+      const category = item.fee_type_category || 'school';
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(item);
+      return acc;
+    }, {} as Record<string, FeeStructureItem[]>);
+  }, [currentDisplayedFeeStructure]);
 
   // Add new fee structure item
   const addFeeStructureItem = () => {
@@ -424,19 +449,6 @@ const SchoolFeeForm = ({
     }
   };
 
-  // Filter fee types by category
-  const filteredFeeTypes = selectedCategory === 'all' 
-    ? feeTypes 
-    : feeTypes.filter(ft => ft.category === selectedCategory);
-
-  // Group fee structure by category
-  const groupedStructure = feeStructure.reduce((acc, item) => {
-    const category = item.fee_type_category || 'school';
-    if (!acc[category]) acc[category] = [];
-    acc[category].push(item);
-    return acc;
-  }, {} as Record<string, FeeStructureItem[]>);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -497,6 +509,7 @@ const SchoolFeeForm = ({
             <option value="all">All Categories</option>
             <option value="school">School Fees</option>
             <option value="admission">Admission Fees</option>
+            <option value="bus">Bus Fees</option>
           </select>
         </div>
 
@@ -514,9 +527,11 @@ const SchoolFeeForm = ({
             </button>
           </div>
 
-          {feeStructure.length === 0 ? (
+          {currentDisplayedFeeStructure.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No fee structure items. Click "Add Fee Item" to get started.
+              {feeStructure.length === 0 
+                ? "No fee structure items. Click \"Add Fee Item\" to get started."
+                : `No fee items found for the selected category: ${selectedCategory}`}
             </div>
           ) : (
             <div className="space-y-4">

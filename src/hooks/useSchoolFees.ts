@@ -44,7 +44,7 @@ export function useSchoolFees() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Fetch all fee types
+  // Fetch all fee types (removed category filter)
   const fetchFeeTypes = useCallback(async (): Promise<FeeType[]> => {
     try {
       setLoading(true);
@@ -53,7 +53,6 @@ export function useSchoolFees() {
       const { data, error: fetchError } = await supabase
         .from('fee_types')
         .select('*')
-        .eq('category', 'school')
         .order('name');
 
       if (fetchError) throw fetchError;

@@ -23,9 +23,11 @@ interface FeeTypeManagementProps {
 
 const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
   const [feeTypes, setFeeTypes] = useState<FeeType[]>([]);
+  const [filteredFeeTypes, setFilteredFeeTypes] = useState<FeeType[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingFeeType, setEditingFeeType] = useState<FeeType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'school' | 'admission' | 'bus'>('all');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -49,11 +51,21 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
     loadFeeTypes();
   }, []);
 
+  // Apply category filter
+  useEffect(() => {
+    if (categoryFilter === 'all') {
+      setFilteredFeeTypes(feeTypes);
+    } else {
+      setFilteredFeeTypes(feeTypes.filter(ft => ft.category === categoryFilter));
+    }
+  }, [feeTypes, categoryFilter]);
+
   const loadFeeTypes = async () => {
     try {
       setLoading(true);
       const data = await fetchFeeTypes();
       setFeeTypes(data);
+      setFilteredFeeTypes(data);
     } catch (error) {
       toast.error('Failed to load fee types');
     } finally {
@@ -135,8 +147,21 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          {/* Add New Fee Type Button */}
-          <div className="flex justify-end mb-6">
+          {/* Add New Fee Type Button and Filter */}
+          <div className="flex justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Filter by Category:</label>
+              <select
+                className="input text-sm"
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value as any)}
+              >
+                <option value="all">All Categories</option>
+                <option value="school">School</option>
+                <option value="admission">Admission</option>
+                <option value="bus">Bus</option>
+              </select>
+            </div>
             <button
               className="btn btn-primary btn-md"
               onClick={() => setShowForm(true)}
@@ -165,7 +190,7 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {feeTypes.map((feeType) => (
+                  {filteredFeeTypes.map((feeType) => (
                     <tr key={feeType.id} className="border-b hover:bg-muted/50">
                       <td className="px-4 py-3">
                         <div>
@@ -224,9 +249,11 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                 </tbody>
               </table>
 
-              {feeTypes.length === 0 && (
+              {filteredFeeTypes.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
-                  No fee types found. Click "Add Fee Type" to create one.
+                  {categoryFilter === 'all' 
+                    ? "No fee types found. Click \"Add Fee Type\" to create one."
+                    : `No fee types found for category: ${categoryFilter}`}
                 </div>
               )}
             </div>
