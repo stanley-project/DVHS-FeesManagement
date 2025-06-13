@@ -15,7 +15,6 @@ import UserManagement from './pages/UserManagement';
 import VillageManagement from './pages/VillageManagement';
 import AcademicYearManagement from './pages/AcademicYearManagement';
 import StudentFeeStatus from './pages/StudentFeeStatus';
-import MiscellaneousCharges from './pages/MiscellaneousCharges';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
@@ -105,14 +104,6 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
                 <FeeCollection />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="miscellaneous-charges"
-            element={
-              <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
-                <MiscellaneousCharges />
               </ProtectedRoute>
             }
           />

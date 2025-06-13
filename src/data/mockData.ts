@@ -1,6 +1,6 @@
 import { User } from '../types/user';
 import { NavItem } from '../types/user';
-import { School, CircleDollarSign, Users, FileText, BookOpen, BarChart3, UserCog, MapPin, Calendar, Receipt } from 'lucide-react';
+import { School, CircleDollarSign, Users, FileText, BookOpen, BarChart3, UserCog, MapPin, Calendar } from 'lucide-react';
 
 const mockUsers: User[] = [
   {
@@ -49,12 +49,6 @@ export const navItems: NavItem[] = [
     title: 'Fee Collection',
     href: '/fee-collection',
     icon: 'CircleDollarSign',
-    allowedRoles: ['administrator', 'accountant'],
-  },
-  {
-    title: 'Miscellaneous Charges',
-    href: '/miscellaneous-charges',
-    icon: 'Receipt',
     allowedRoles: ['administrator', 'accountant'],
   },
   {
@@ -109,8 +103,6 @@ export const getIconComponent = (iconName: string) => {
       return MapPin;
     case 'Calendar':
       return Calendar;
-    case 'Receipt':
-      return Receipt;
     default:
       return School;
   }
