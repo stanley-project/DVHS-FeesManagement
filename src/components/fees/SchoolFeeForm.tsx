@@ -112,12 +112,15 @@ const SchoolFeeForm = ({
   // Fetch fee types with categorization (now fetches all categories)
   const fetchFeeTypes = useCallback(async () => {
     try {
+      console.log('Fetching fee types...');
       const { data, error } = await supabase
         .from('fee_types')
         .select('*')
         .order('name');
 
       if (error) throw error;
+      
+      console.log('Fetched fee types:', data);
       setFeeTypes(data || []);
     } catch (err: any) {
       console.error('Error fetching fee types:', err);
@@ -229,6 +232,9 @@ const SchoolFeeForm = ({
 
   // Filter fee types by category
   const filteredFeeTypes = useMemo(() => {
+    console.log('Filtering fee types. Selected category:', selectedCategory);
+    console.log('Available fee types:', feeTypes);
+    
     if (selectedCategory === 'all') {
       return feeTypes;
     }
@@ -262,7 +268,8 @@ const SchoolFeeForm = ({
       due_date: new Date().toISOString().split('T')[0],
       applicable_to_new_students_only: false,
       is_recurring_monthly: false,
-      notes: ''
+      notes: '',
+      fee_type_category: selectedCategory !== 'all' ? selectedCategory : undefined
     };
     setFeeStructure([...feeStructure, newItem]);
   };
@@ -497,6 +504,15 @@ const SchoolFeeForm = ({
             </div>
           </div>
         )}
+
+        {/* Debug Info */}
+        <div className="bg-blue-50 p-3 rounded-md text-sm">
+          <p><strong>Debug Info:</strong></p>
+          <p>Total Fee Types: {feeTypes.length}</p>
+          <p>Filtered Fee Types: {filteredFeeTypes.length}</p>
+          <p>Selected Category: {selectedCategory}</p>
+          <p>Fee Types Categories: {feeTypes.map(ft => ft.category).join(', ')}</p>
+        </div>
 
         {/* Category Filter */}
         <div className="flex gap-2">
