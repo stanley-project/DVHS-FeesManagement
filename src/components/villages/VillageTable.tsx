@@ -1,4 +1,4 @@
-import { ArrowUpDown, Eye, Pencil, Trash2, Users, Bus } from 'lucide-react';
+import { ArrowUpDown, Eye, Pencil, Trash2, Users, Bus, Loader2 } from 'lucide-react';
 import { Village } from '../../types/village';
 
 interface SortConfig {
@@ -14,6 +14,7 @@ interface VillageTableProps {
   onEdit: (village: Village) => void;
   onDelete: (id: string) => Promise<void>;
   villageStats?: Record<string, { totalStudents: number, busStudents: number }>;
+  loadingStats?: boolean;
 }
 
 const VillageTable = ({
@@ -23,7 +24,8 @@ const VillageTable = ({
   onView,
   onEdit,
   onDelete,
-  villageStats = {}
+  villageStats = {},
+  loadingStats = false
 }: VillageTableProps) => {
   const getSortIcon = (column: keyof Village) => {
     if (sortConfig.column !== column) {
@@ -99,10 +101,22 @@ const VillageTable = ({
                   <td className="px-4 py-3">{village.distance_from_school}</td>
                   <td className="px-4 py-3">{village.bus_number || 'N/A'}</td>
                   <td className="px-4 py-3 text-center">
-                    <span className="font-medium">{stats.totalStudents}</span>
+                    {loadingStats ? (
+                      <div className="flex justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <span className="font-medium">{stats.totalStudents}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <span className="font-medium">{stats.busStudents}</span>
+                    {loadingStats ? (
+                      <div className="flex justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <span className="font-medium">{stats.busStudents}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span

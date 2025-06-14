@@ -15,8 +15,6 @@ const VillageManagement = () => {
   const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [villageStats, setVillageStats] = useState<Record<string, { totalStudents: number, busStudents: number }>>({});
-  const [loadingStats, setLoadingStats] = useState(false);
 
   const handleExport = () => {
     try {
@@ -65,69 +63,25 @@ const VillageManagement = () => {
     addVillage, 
     updateVillage, 
     deleteVillage,
-    refreshVillages 
+    refreshVillages,
+    villageStats,
+    loadingStats,
+    refreshVillageStats
   } = useVillages();
 
-  // Fetch student statistics for all villages
-  const fetchVillageStats = async () => {
-    try {
-      setLoadingStats(true);
-      
-      // Get current academic year
-      const { data: currentYear, error: yearError } = await supabase
-        .from('academic_years')
-        .select('id')
-        .eq('is_current', true)
-        .maybeSingle();
-
-      if (yearError) throw yearError;
-      
-      if (!currentYear) {
-        console.log('No current academic year found');
-        return;
-      }
-      
-      // Get all students grouped by village
-      const { data: studentStats, error: statsError } = await supabase
-        .from('students')
-        .select(`
-          village_id,
-          has_school_bus
-        `)
-        .eq('status', 'active');
-
-      if (statsError) throw statsError;
-      
-      // Process student statistics by village
-      const stats: Record<string, { totalStudents: number, busStudents: number }> = {};
-      
-      studentStats?.forEach(student => {
-        if (!student.village_id) return;
-        
-        const villageId = student.village_id;
-        
-        if (!stats[villageId]) {
-          stats[villageId] = { totalStudents: 0, busStudents: 0 };
-        }
-        
-        stats[villageId].totalStudents++;
-        
-        if (student.has_school_bus) {
-          stats[villageId].busStudents++;
-        }
-      });
-      
-      setVillageStats(stats);
-    } catch (error) {
-      console.error('Error fetching village stats:', error);
-    } finally {
-      setLoadingStats(false);
-    }
-  };
-
+  // Refresh village stats periodically
   useEffect(() => {
-    fetchVillageStats();
-  }, []);
+    // Initial fetch
+    refreshVillageStats();
+    
+    // Set up interval to refresh stats every 30 seconds
+    const intervalId = setInterval(() => {
+      refreshVillageStats();
+    }, 30000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [refreshVillageStats]);
 
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -142,7 +96,7 @@ const VillageManagement = () => {
       setSelectedVillage(null);
       refreshVillages();
       // Refresh stats after adding/updating a village
-      fetchVillageStats();
+      refreshVillageStats();
     } catch (error) {
       console.error('Error saving village:', error);
       toast.error('Failed to save village');
@@ -166,7 +120,7 @@ const VillageManagement = () => {
       toast.success('Village deleted successfully');
       refreshVillages();
       // Refresh stats after deleting a village
-      fetchVillageStats();
+      refreshVillageStats();
     } catch (error) {
       console.error('Error deleting village:', error);
       toast.error('Failed to delete village');
@@ -263,6 +217,7 @@ const VillageManagement = () => {
             }}
             onDelete={handleDelete}
             villageStats={villageStats}
+            loadingStats={loadingStats}
           />
         </div>
       </div>
@@ -289,6 +244,7 @@ const VillageManagement = () => {
             setShowDetails(false);
             setShowForm(true);
           }}
+          villageStats={villageStats[selectedVillage.id]}
         />
       )}
     </div>

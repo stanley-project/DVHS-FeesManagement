@@ -9,76 +9,76 @@ interface VillageDetailsProps {
   village: Village;
   onClose: () => void;
   onEdit: () => void;
+  villageStats?: { totalStudents: number, busStudents: number };
 }
 
-const VillageDetails = ({ village, onClose, onEdit }: VillageDetailsProps) => {
+const VillageDetails = ({ village, onClose, onEdit, villageStats }: VillageDetailsProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [noCurrentYear, setNoCurrentYear] = useState(false);
   const [stats, setStats] = useState({
-    totalStudents: 0,
-    busStudents: 0,
+    totalStudents: villageStats?.totalStudents || 0,
+    busStudents: villageStats?.busStudents || 0,
     currentBusFee: null as number | null
   });
 
   useEffect(() => {
-    const fetchVillageStats = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        setNoCurrentYear(false);
+    // If villageStats is provided, use it
+    if (villageStats) {
+      setStats(prev => ({
+        ...prev,
+        totalStudents: villageStats.totalStudents,
+        busStudents: villageStats.busStudents
+      }));
+    }
+    
+    fetchBusFee();
+  }, [village.id, villageStats]);
 
-        // Get current academic year
-        const { data: currentYear, error: yearError } = await supabase
-          .from('academic_years')
-          .select('id')
-          .eq('is_current', true)
-          .maybeSingle(); // Use maybeSingle instead of single to handle no results
+  const fetchBusFee = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setNoCurrentYear(false);
 
-        if (yearError) throw new Error('Failed to fetch current academic year');
-        
-        if (!currentYear) {
-          setNoCurrentYear(true);
-          return;
-        }
+      // Get current academic year
+      const { data: currentYear, error: yearError } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .maybeSingle(); // Use maybeSingle instead of single to handle no results
 
-        // Get student counts
-        const { data: students, error: studentsError } = await supabase
-          .from('students')
-          .select('id, has_school_bus')
-          .eq('village_id', village.id)
-          .eq('status', 'active');
-
-        if (studentsError) throw new Error('Failed to fetch students');
-
-        // Get current bus fee
-        const { data: busFee, error: busFeeError } = await supabase
-          .from('bus_fee_structure')
-          .select('fee_amount')
-          .eq('village_id', village.id)
-          .eq('academic_year_id', currentYear.id)
-          .eq('is_active', true)
-          .maybeSingle();
-
-        if (busFeeError && !busFeeError.message.includes('No rows found')) {
-          throw new Error('Failed to fetch bus fee');
-        }
-
-        setStats({
-          totalStudents: students?.length || 0,
-          busStudents: students?.filter(s => s.has_school_bus).length || 0,
-          currentBusFee: busFee?.fee_amount || null
-        });
-      } catch (err) {
-        console.error('Error fetching village stats:', err);
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
+      if (yearError) throw new Error('Failed to fetch current academic year');
+      
+      if (!currentYear) {
+        setNoCurrentYear(true);
+        return;
       }
-    };
 
-    fetchVillageStats();
-  }, [village.id]);
+      // Get current bus fee
+      const { data: busFee, error: busFeeError } = await supabase
+        .from('bus_fee_structure')
+        .select('fee_amount')
+        .eq('village_id', village.id)
+        .eq('academic_year_id', currentYear.id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (busFeeError && !busFeeError.message.includes('No rows found')) {
+        throw new Error('Failed to fetch bus fee');
+      }
+
+      setStats(prev => ({
+        ...prev,
+        currentBusFee: busFee?.fee_amount || null
+      }));
+    } catch (err) {
+      console.error('Error fetching village stats:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 p-4">

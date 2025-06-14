@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Village } from '../types/village';
 
@@ -15,13 +15,15 @@ export function useVillages() {
     column: 'name',
     direction: 'asc'
   });
+  const [villageStats, setVillageStats] = useState<Record<string, { totalStudents: number, busStudents: number }>>({});
+  const [loadingStats, setLoadingStats] = useState(false);
 
   const fetchVillages = async (sort?: SortConfig) => {
     try {
       setLoading(true);
       setError(null); // Reset error state before fetching
 
-    console.log('Fetching villages with auth...');
+      console.log('Fetching villages with auth...');
       
       const { data, error: supabaseError } = await supabase
         .from('villages')
@@ -30,7 +32,7 @@ export function useVillages() {
           ascending: sort?.direction === 'asc' || sortConfig.direction === 'asc'
         });
 
-    console.log('Villages response:', { data, error: supabaseError });
+      console.log('Villages response:', { data, error: supabaseError });
       
       if (supabaseError) {
         console.error('Supabase error:', supabaseError);
@@ -46,12 +48,80 @@ export function useVillages() {
       
       setVillages(data);
       setError(null);
+      
+      // Fetch student statistics for all villages
+      fetchVillageStats(data);
     } catch (err) {
       console.error('Error in fetchVillages:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch villages'));
       setVillages([]); // Reset villages on error
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch student statistics for all villages
+  const fetchVillageStats = async (villageData: Village[] = villages) => {
+    try {
+      setLoadingStats(true);
+      
+      // Get current academic year
+      const { data: currentYear, error: yearError } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (yearError) {
+        console.error('Error fetching current academic year:', yearError);
+        return;
+      }
+      
+      if (!currentYear) {
+        console.log('No current academic year found');
+        return;
+      }
+      
+      // Get all students with their village_id and has_school_bus status
+      const { data: studentData, error: studentsError } = await supabase
+        .from('students')
+        .select('village_id, has_school_bus')
+        .eq('status', 'active');
+
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        return;
+      }
+      
+      // Process student statistics by village
+      const stats: Record<string, { totalStudents: number, busStudents: number }> = {};
+      
+      // Initialize stats for all villages
+      villageData.forEach(village => {
+        stats[village.id] = { totalStudents: 0, busStudents: 0 };
+      });
+      
+      // Count students for each village
+      studentData?.forEach(student => {
+        if (!student.village_id) return;
+        
+        if (!stats[student.village_id]) {
+          stats[student.village_id] = { totalStudents: 0, busStudents: 0 };
+        }
+        
+        stats[student.village_id].totalStudents++;
+        
+        if (student.has_school_bus) {
+          stats[student.village_id].busStudents++;
+        }
+      });
+      
+      console.log('Village stats calculated:', stats);
+      setVillageStats(stats);
+    } catch (error) {
+      console.error('Error fetching village stats:', error);
+    } finally {
+      setLoadingStats(false);
     }
   };
 
@@ -72,6 +142,13 @@ export function useVillages() {
       }
 
       setVillages(prev => [...prev, data]);
+      
+      // Initialize stats for new village
+      setVillageStats(prev => ({
+        ...prev,
+        [data.id]: { totalStudents: 0, busStudents: 0 }
+      }));
+      
       return data;
     } catch (err) {
       console.error('Error in addVillage:', err);
@@ -116,6 +193,13 @@ export function useVillages() {
       }
 
       setVillages(prev => prev.filter(v => v.id !== id));
+      
+      // Remove stats for deleted village
+      setVillageStats(prev => {
+        const newStats = { ...prev };
+        delete newStats[id];
+        return newStats;
+      });
     } catch (err) {
       console.error('Error in deleteVillage:', err);
       throw err instanceof Error ? err : new Error('Failed to delete village');
@@ -138,10 +222,13 @@ export function useVillages() {
     loading,
     error,
     sortConfig,
+    villageStats,
+    loadingStats,
     handleSort,
     addVillage,
     updateVillage,
     deleteVillage,
-    refreshVillages: fetchVillages
+    refreshVillages: fetchVillages,
+    refreshVillageStats: fetchVillageStats
   };
 }
