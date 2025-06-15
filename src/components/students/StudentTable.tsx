@@ -62,7 +62,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
   const handleExportStudents = async () => {
     try {
       setIsExporting(true);
-      toast.loading('Preparing export...');
+      toast.loading('Preparing export... This may take a moment for large datasets');
       
       // Fetch all students based on current filters (without pagination)
       const allStudents = await fetchAllStudents();
