@@ -1,169 +1,15 @@
-import { useState, useEffect } from 'react';
 import { BarChart3, Users, CircleDollarSign, BookOpen } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { useAccountantDashboardStats } from '../../hooks/useAccountantDashboardStats';
 
 const AccountantDashboard = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dashboardData, setDashboardData] = useState({
-    todayCollection: 0,
-    pendingPayments: 0,
-    monthlyCollection: 0,
-    currentAcademicYear: '',
-    todayCollections: [],
-    pendingStudents: []
-  });
-
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        
-        // Get current academic year
-        const { data: academicYear, error: yearError } = await supabase
-          .from('academic_years')
-          .select('id, year_name')
-          .eq('is_current', true)
-          .single();
-        
-        if (yearError) throw yearError;
-        
-        // Get today's date in ISO format
-        const today = new Date().toISOString().split('T')[0];
-        const firstDayOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
-        
-        // Get today's collections
-        const { data: todayPayments, error: todayError } = await supabase
-          .from('fee_payments')
-          .select(`
-            id,
-            receipt_number,
-            amount_paid,
-            payment_date,
-            created_at,
-            student:student_id(
-              id,
-              student_name,
-              admission_number,
-              class:class_id(name)
-            )
-          `)
-          .eq('payment_date', today)
-          .order('created_at', { ascending: false });
-        
-        if (todayError) throw todayError;
-        
-        // Calculate today's total collection
-        const todayTotal = todayPayments?.reduce((sum, payment) => 
-          sum + parseFloat(payment.amount_paid), 0) || 0;
-        
-        // Get monthly collection
-        const { data: monthlyPayments, error: monthlyError } = await supabase
-          .from('fee_payments')
-          .select('amount_paid')
-          .gte('payment_date', firstDayOfMonth);
-        
-        if (monthlyError) throw monthlyError;
-        
-        const monthlyTotal = monthlyPayments?.reduce((sum, payment) => 
-          sum + parseFloat(payment.amount_paid), 0) || 0;
-        
-        // Get pending payments (students with outstanding fees)
-        // This is a simplified approach - in a real system, you'd compare total fees vs paid fees
-        const { data: students, error: studentsError } = await supabase
-          .from('students')
-          .select(`
-            id,
-            student_name,
-            admission_number,
-            class:class_id(name)
-          `)
-          .eq('status', 'active')
-          .limit(10);
-        
-        if (studentsError) throw studentsError;
-        
-        // For each student, check if they have outstanding fees
-        const pendingStudentsPromises = students.map(async (student) => {
-          // Get total fees for this student
-          const { data: feeStructure, error: feeError } = await supabase
-            .from('fee_structure')
-            .select('amount')
-            .eq('class_id', student.class_id)
-            .eq('academic_year_id', academicYear.id);
-          
-          if (feeError) throw feeError;
-          
-          const totalFees = feeStructure?.reduce((sum, fee) => 
-            sum + parseFloat(fee.amount), 0) || 0;
-          
-          // Get paid amount
-          const { data: payments, error: paymentsError } = await supabase
-            .from('fee_payments')
-            .select('amount_paid')
-            .eq('student_id', student.id);
-          
-          if (paymentsError) throw paymentsError;
-          
-          const paidAmount = payments?.reduce((sum, payment) => 
-            sum + parseFloat(payment.amount_paid), 0) || 0;
-          
-          // Calculate outstanding amount
-          const outstandingAmount = totalFees - paidAmount;
-          
-          // Only include students with outstanding fees
-          if (outstandingAmount > 0) {
-            return {
-              id: student.id,
-              name: student.student_name,
-              admissionNumber: student.admission_number,
-              class: student.class?.name || 'N/A',
-              outstandingAmount,
-              dueIn: Math.floor(Math.random() * 7) + 1 // Mock due days for now
-            };
-          }
-          
-          return null;
-        });
-        
-        const pendingStudentsResults = await Promise.all(pendingStudentsPromises);
-        const pendingStudents = pendingStudentsResults
-          .filter(Boolean)
-          .sort((a, b) => a.dueIn - b.dueIn)
-          .slice(0, 3);
-        
-        setDashboardData({
-          todayCollection: todayTotal,
-          pendingPayments: pendingStudents.length,
-          monthlyCollection: monthlyTotal,
-          currentAcademicYear: academicYear.year_name,
-          todayCollections: todayPayments?.slice(0, 5).map(payment => ({
-            receiptId: payment.receipt_number,
-            studentName: payment.student?.student_name || 'Unknown',
-            class: payment.student?.class?.name || 'N/A',
-            amount: parseFloat(payment.amount_paid),
-            time: new Date(payment.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          })) || [],
-          pendingStudents
-        });
-        
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchDashboardData();
-  }, []);
+  const { stats, loading, error } = useAccountantDashboardStats();
 
   // Statistics for the dashboard
   const statistics = [
     { 
       title: 'Collections Today',
-      value: `₹${dashboardData.todayCollection.toLocaleString('en-IN')}`,
+      value: `₹${stats.todayCollection.toLocaleString('en-IN')}`,
       change: '+15%',
       isPositive: true,
       icon: CircleDollarSign,
@@ -171,7 +17,7 @@ const AccountantDashboard = () => {
     },
     { 
       title: 'Pending Payments',
-      value: dashboardData.pendingPayments.toString(),
+      value: stats.pendingPayments.toString(),
       change: '-5%',
       isPositive: true,
       icon: Users,
@@ -179,7 +25,7 @@ const AccountantDashboard = () => {
     },
     { 
       title: 'Total Collected (Month)',
-      value: `₹${dashboardData.monthlyCollection.toLocaleString('en-IN')}`,
+      value: `₹${stats.monthlyCollection.toLocaleString('en-IN')}`,
       change: '+18%',
       isPositive: true, 
       icon: CircleDollarSign,
@@ -218,7 +64,7 @@ const AccountantDashboard = () => {
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Current Term:</span>
           <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
-            {dashboardData.currentAcademicYear}
+            {stats.currentAcademicYear}
           </span>
         </div>
       </div>
@@ -277,8 +123,8 @@ const AccountantDashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {dashboardData.todayCollections.length > 0 ? (
-                dashboardData.todayCollections.map((payment, index) => (
+              {stats.todayCollections.length > 0 ? (
+                stats.todayCollections.map((payment, index) => (
                   <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
                     <td className="px-3 py-2 font-medium">{payment.receiptId}</td>
                     <td className="px-3 py-2">{payment.studentName}</td>
@@ -303,8 +149,8 @@ const AccountantDashboard = () => {
       <div className="bg-card rounded-lg shadow p-4 md:p-6">
         <h2 className="text-lg font-semibold mb-4">Pending Payments (Due This Week)</h2>
         <div className="space-y-3">
-          {dashboardData.pendingStudents.length > 0 ? (
-            dashboardData.pendingStudents.map((student, index) => (
+          {stats.pendingStudents.length > 0 ? (
+            stats.pendingStudents.map((student, index) => (
               <div 
                 key={index}
                 className="flex items-center justify-between p-3 bg-muted/50 rounded-md"

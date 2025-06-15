@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowUpDown } from 'lucide-react';
 
 interface DefaultersTableProps {
@@ -11,47 +11,46 @@ interface DefaultersTableProps {
 }
 
 const DefaultersTable = ({ data }: DefaultersTableProps) => {
-  const [sortedData, setSortedData] = useState(data);
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: 'asc' | 'desc';
-  } | null>(null);
+  }>({
+    key: 'defaulterCount',
+    direction: 'desc'
+  });
 
-  useEffect(() => {
-    setSortedData([...data]);
-  }, [data]);
-
-  const handleSort = (key: string) => {
-    let direction: 'asc' | 'desc' = 'asc';
+  // Memoize the sorted data to prevent unnecessary re-sorting
+  const sortedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
     
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    
-    const sorted = [...sortedData].sort((a, b) => {
-      if (key === 'outstandingBalance') {
+    return [...data].sort((a, b) => {
+      if (sortConfig.key === 'outstandingBalance') {
         // Convert string currency to number for sorting
-        const aValue = parseFloat(a[key].replace(/,/g, ''));
-        const bValue = parseFloat(b[key].replace(/,/g, ''));
-        return direction === 'asc' ? aValue - bValue : bValue - aValue;
-      } else if (key === 'defaulterCount') {
-        return direction === 'asc' ? a[key] - b[key] : b[key] - a[key];
+        const aValue = parseFloat(a[sortConfig.key].replace(/,/g, ''));
+        const bValue = parseFloat(b[sortConfig.key].replace(/,/g, ''));
+        return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+      } else if (sortConfig.key === 'defaulterCount') {
+        return sortConfig.direction === 'asc' ? a[sortConfig.key] - b[sortConfig.key] : b[sortConfig.key] - a[sortConfig.key];
       } else {
         // String comparison for class and teacher
-        if (a[key] < b[key]) return direction === 'asc' ? -1 : 1;
-        if (a[key] > b[key]) return direction === 'asc' ? 1 : -1;
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       }
     });
-    
-    setSortedData(sorted);
-    setSortConfig({ key, direction });
+  }, [data, sortConfig]);
+
+  const handleSort = (key: string) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
   };
 
   return (
     <div className="bg-card rounded-lg shadow p-4 md:p-6">
       <h2 className="text-lg font-semibold mb-4">Class wise defaulters</h2>
-      {sortedData.length === 0 ? (
+      {!sortedData || sortedData.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           No defaulters found
         </div>
@@ -66,7 +65,7 @@ const DefaultersTable = ({ data }: DefaultersTableProps) => {
                     onClick={() => handleSort('class')}
                   >
                     Class
-                    <ArrowUpDown className="h-4 w-4" />
+                    <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'class' ? 'text-primary' : ''}`} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">
@@ -75,7 +74,7 @@ const DefaultersTable = ({ data }: DefaultersTableProps) => {
                     onClick={() => handleSort('teacher')}
                   >
                     Class Teacher
-                    <ArrowUpDown className="h-4 w-4" />
+                    <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'teacher' ? 'text-primary' : ''}`} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">
@@ -84,7 +83,7 @@ const DefaultersTable = ({ data }: DefaultersTableProps) => {
                     onClick={() => handleSort('defaulterCount')}
                   >
                     Defaulter Count
-                    <ArrowUpDown className="h-4 w-4" />
+                    <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'defaulterCount' ? 'text-primary' : ''}`} />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">
@@ -93,7 +92,7 @@ const DefaultersTable = ({ data }: DefaultersTableProps) => {
                     onClick={() => handleSort('outstandingBalance')}
                   >
                     Outstanding Balance
-                    <ArrowUpDown className="h-4 w-4" />
+                    <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'outstandingBalance' ? 'text-primary' : ''}`} />
                   </button>
                 </th>
               </tr>

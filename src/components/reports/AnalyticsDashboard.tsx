@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BarChart3, PieChart, LineChart, ArrowUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -12,6 +12,7 @@ const AnalyticsDashboard = () => {
     onlinePaymentRate: 0,
     topDefaulters: []
   });
+  const [sortConfig, setSortConfig] = useState({ key: 'outstandingAmount', direction: 'desc' });
 
   useEffect(() => {
     const fetchAnalyticsData = async () => {
@@ -27,6 +28,31 @@ const AnalyticsDashboard = () => {
         
         if (yearError) throw yearError;
         
+        // Use a single RPC call to get analytics data
+        const { data: analyticsResult, error: analyticsError } = await supabase.rpc(
+          'get_analytics_dashboard_data',
+          { academic_year_id: academicYear.id }
+        );
+        
+        if (analyticsError) {
+          // Fallback to client-side calculation if RPC fails
+          console.error('RPC failed, falling back to client-side calculation:', analyticsError);
+          await fetchAnalyticsClientSide(academicYear.id);
+          return;
+        }
+        
+        setAnalyticsData(analyticsResult);
+        
+      } catch (err) {
+        console.error('Error fetching analytics data:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const fetchAnalyticsClientSide = async (academicYearId) => {
+      try {
         // Get all active students
         const { data: students, error: studentsError } = await supabase
           .from('students')
@@ -46,7 +72,7 @@ const AnalyticsDashboard = () => {
         const { data: feeStructure, error: feeError } = await supabase
           .from('fee_structure')
           .select('class_id, amount')
-          .eq('academic_year_id', academicYear.id);
+          .eq('academic_year_id', academicYearId);
         
         if (feeError) throw feeError;
         
@@ -54,7 +80,7 @@ const AnalyticsDashboard = () => {
         const { data: classes, error: classesError } = await supabase
           .from('classes')
           .select('id, name')
-          .eq('academic_year_id', academicYear.id);
+          .eq('academic_year_id', academicYearId);
         
         if (classesError) throw classesError;
         
@@ -134,17 +160,45 @@ const AnalyticsDashboard = () => {
           onlinePaymentRate,
           topDefaulters
         });
-        
       } catch (err) {
-        console.error('Error fetching analytics data:', err);
+        console.error('Error in client-side analytics calculation:', err);
         setError(err.message);
-      } finally {
-        setLoading(false);
       }
     };
     
     fetchAnalyticsData();
   }, []);
+
+  // Memoize sorted defaulters to prevent unnecessary re-sorting
+  const sortedDefaulters = useMemo(() => {
+    if (!analyticsData.topDefaulters || analyticsData.topDefaulters.length === 0) {
+      return [];
+    }
+    
+    return [...analyticsData.topDefaulters].sort((a, b) => {
+      if (sortConfig.key === 'outstandingAmount') {
+        return sortConfig.direction === 'asc' 
+          ? a.outstandingAmount - b.outstandingAmount 
+          : b.outstandingAmount - a.outstandingAmount;
+      } else if (sortConfig.key === 'daysOverdue') {
+        return sortConfig.direction === 'asc' 
+          ? a.daysOverdue - b.daysOverdue 
+          : b.daysOverdue - a.daysOverdue;
+      } else {
+        // String comparison for name and class
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      }
+    });
+  }, [analyticsData.topDefaulters, sortConfig]);
+
+  const handleSort = (key) => {
+    setSortConfig(prevConfig => ({
+      key,
+      direction: prevConfig.key === key && prevConfig.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
 
   if (loading) {
     return (
@@ -234,34 +288,51 @@ const AnalyticsDashboard = () => {
       {/* Top Defaulters */}
       <div className="bg-card rounded-lg shadow p-4">
         <h3 className="text-lg font-medium mb-4">Top Defaulters</h3>
-        {analyticsData.topDefaulters.length > 0 ? (
+        {sortedDefaulters.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b">
                   <th className="px-4 py-3 text-left">
-                    <button className="flex items-center gap-1">
+                    <button 
+                      className="flex items-center gap-1 hover:text-foreground"
+                      onClick={() => handleSort('name')}
+                    >
                       Student Name
-                      <ArrowUpDown className="h-4 w-4" />
+                      <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'name' ? 'text-primary' : ''}`} />
                     </button>
                   </th>
-                  <th className="px-4 py-3 text-left">Class</th>
+                  <th className="px-4 py-3 text-left">
+                    <button 
+                      className="flex items-center gap-1 hover:text-foreground"
+                      onClick={() => handleSort('class')}
+                    >
+                      Class
+                      <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'class' ? 'text-primary' : ''}`} />
+                    </button>
+                  </th>
                   <th className="px-4 py-3 text-right">
-                    <button className="flex items-center gap-1 ml-auto">
+                    <button 
+                      className="flex items-center gap-1 ml-auto hover:text-foreground"
+                      onClick={() => handleSort('outstandingAmount')}
+                    >
                       Outstanding Amount
-                      <ArrowUpDown className="h-4 w-4" />
+                      <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'outstandingAmount' ? 'text-primary' : ''}`} />
                     </button>
                   </th>
                   <th className="px-4 py-3 text-right">
-                    <button className="flex items-center gap-1 ml-auto">
+                    <button 
+                      className="flex items-center gap-1 ml-auto hover:text-foreground"
+                      onClick={() => handleSort('daysOverdue')}
+                    >
                       Days Overdue
-                      <ArrowUpDown className="h-4 w-4" />
+                      <ArrowUpDown className={`h-4 w-4 ${sortConfig.key === 'daysOverdue' ? 'text-primary' : ''}`} />
                     </button>
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {analyticsData.topDefaulters.map((student, index) => (
+                {sortedDefaulters.map((student, index) => (
                   <tr key={index} className="border-b hover:bg-muted/50">
                     <td className="px-4 py-3 font-medium">{student.name}</td>
                     <td className="px-4 py-3">{student.class}</td>
