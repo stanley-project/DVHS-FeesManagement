@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter, Key, Eye, EyeOff, Copy } from 'lucide-react';
+import { UserPlus, Pencil, Trash2, Phone, Shield, Search, Filter, Key, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import UserForm from '../components/users/UserForm';
 import LoginHistoryModal from '../components/users/LoginHistoryModal';
 import PermissionsModal from '../components/users/PermissionsModal';
@@ -190,11 +190,6 @@ const UserManagement = () => {
     }
   };
 
-  const formatUserStatus = (user) => {
-    const isActive = user.is_active !== undefined ? user.is_active : user.status === 'active';
-    return isActive ? 'active' : 'inactive';
-  };
-
   const handlePageChange = (newPage) => {
     const validPage = Math.max(1, Math.min(newPage, totalPages));
     setCurrentPage(validPage);
@@ -224,7 +219,7 @@ const UserManagement = () => {
         <div className="flex gap-2">
           {canViewLoginCodes && (
             <button 
-              className="btn btn-outline btn-md inline-flex items-center"
+              className="btn btn-outline btn-md"
               onClick={() => setShowLoginCodes(!showLoginCodes)}
             >
               {showLoginCodes ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
@@ -233,7 +228,7 @@ const UserManagement = () => {
           )}
           
           <button 
-            className="btn btn-primary btn-md inline-flex items-center"
+            className="btn btn-primary btn-md"
             onClick={() => {
               setSelectedUser(null);
               setShowUserForm(true);
@@ -256,7 +251,7 @@ const UserManagement = () => {
               <input
                 type="text"
                 placeholder="Search by name or phone number"
-                className="input pl-10"
+                className="input pl-10 w-full"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -293,7 +288,8 @@ const UserManagement = () => {
             </div>
           ) : loading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Loading users...
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
+              <p className="mt-2">Loading users...</p>
             </div>
           ) : users.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -310,113 +306,112 @@ const UserManagement = () => {
                     {canViewLoginCodes && showLoginCodes && (
                       <th className="px-4 py-3 text-left font-medium text-muted-foreground">Login Code</th>
                     )}
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Last Login</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Created At</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map((user) => {
-                    const userStatus = formatUserStatus(user);
-                    return (
-                      <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
-                              user.role === 'administrator' ? 'bg-primary text-primary-foreground' :
-                              user.role === 'accountant' ? 'bg-secondary text-secondary-foreground' :
-                              user.role === 'teacher' ? 'bg-accent text-accent-foreground' :
-                              'bg-muted text-muted-foreground'
-                            }`}>
-                              {user.name?.charAt(0)?.toUpperCase() || '?'}
-                            </div>
-                            <div>
-                              <p className="font-medium">{user.name}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Shield className="h-4 w-4 text-muted-foreground" />
-                            <span className="capitalize">{user.role}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-muted-foreground" />
-                            <span>{user.phone_number}</span>
-                          </div>
-                        </td>
-                        {canViewLoginCodes && showLoginCodes && (
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
-                                {user.login_code || 'Not Set'}
-                              </code>
-                              {user.login_code && (
-                                <button
-                                  onClick={() => copyToClipboard(user.login_code, user.id)}
-                                  className="p-1 hover:bg-muted rounded-md"
-                                  title="Copy Login Code"
-                                >
-                                  <Copy className={`h-4 w-4 ${
-                                    copiedUserId === user.id ? 'text-success' : 'text-muted-foreground'
-                                  }`} />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleUserAction('loginCode', user)}
-                                className="p-1 hover:bg-muted rounded-md"
-                                title="Manage Login Code"
-                              >
-                                <Key className="h-4 w-4 text-primary" />
-                              </button>
-                            </div>
-                          </td>
-                        )}
-                        <td className="px-4 py-3 text-sm text-muted-foreground">
-                          {user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            userStatus === 'active' ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
+                  {users.map((user) => (
+                    <tr key={user.id} className="border-b last:border-0 hover:bg-muted/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`h-10 w-10 rounded-full flex items-center justify-center ${
+                            user.role === 'administrator' ? 'bg-primary text-primary-foreground' :
+                            user.role === 'accountant' ? 'bg-secondary text-secondary-foreground' :
+                            user.role === 'teacher' ? 'bg-accent text-accent-foreground' :
+                            'bg-muted text-muted-foreground'
                           }`}>
-                            {userStatus === 'active' ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
+                            {user.name?.charAt(0)?.toUpperCase() || '?'}
+                          </div>
+                          <div>
+                            <p className="font-medium">{user.name}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Shield className="h-4 w-4 text-muted-foreground" />
+                          <span className="capitalize">{user.role}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-4 w-4 text-muted-foreground" />
+                          <span>{user.phone_number}</span>
+                        </div>
+                      </td>
+                      {canViewLoginCodes && showLoginCodes && (
                         <td className="px-4 py-3">
-                          <div className="flex justify-end gap-2">
-                            <button 
-                              className="p-1 hover:bg-muted rounded-md" 
-                              title="Edit User"
-                              onClick={() => handleUserAction('edit', user)}
-                            >
-                              <Pencil className="h-4 w-4 text-muted-foreground" />
-                            </button>
-                            {canViewLoginCodes && !showLoginCodes && (
+                          <div className="flex items-center gap-2">
+                            <code className="px-2 py-1 bg-muted rounded text-sm font-mono">
+                              {user.login_code || 'Not Set'}
+                            </code>
+                            {user.login_code && (
                               <button
-                                onClick={() => handleUserAction('loginCode', user)}
+                                onClick={() => copyToClipboard(user.login_code, user.id)}
                                 className="p-1 hover:bg-muted rounded-md"
-                                title="Manage Login Code"
+                                title="Copy Login Code"
                               >
-                                <Key className="h-4 w-4 text-primary" />
+                                {copiedUserId === user.id ? (
+                                  <Check className="h-4 w-4 text-success" />
+                                ) : (
+                                  <Copy className="h-4 w-4 text-muted-foreground" />
+                                )}
                               </button>
                             )}
-                            <button 
-                              className="p-1 hover:bg-muted rounded-md" 
-                              title="Delete User"
-                              onClick={() => handleUserAction('delete', user)}
-                              disabled={user.id === currentUser?.id}
+                            <button
+                              onClick={() => handleUserAction('loginCode', user)}
+                              className="p-1 hover:bg-muted rounded-md"
+                              title="Manage Login Code"
                             >
-                              <Trash2 className={`h-4 w-4 ${
-                                user.id === currentUser?.id ? 'text-muted-foreground' : 'text-error'
-                              }`} />
+                              <Key className="h-4 w-4 text-primary" />
                             </button>
                           </div>
                         </td>
-                      </tr>
-                    );
-                  })}
+                      )}
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          user.is_active ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
+                        }`}>
+                          {user.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            className="p-1 hover:bg-muted rounded-md" 
+                            title="Edit User"
+                            onClick={() => handleUserAction('edit', user)}
+                          >
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                          {canViewLoginCodes && !showLoginCodes && (
+                            <button
+                              onClick={() => handleUserAction('loginCode', user)}
+                              className="p-1 hover:bg-muted rounded-md"
+                              title="Manage Login Code"
+                            >
+                              <Key className="h-4 w-4 text-primary" />
+                            </button>
+                          )}
+                          <button 
+                            className="p-1 hover:bg-muted rounded-md" 
+                            title="Delete User"
+                            onClick={() => handleUserAction('delete', user)}
+                            disabled={user.id === currentUser?.id}
+                          >
+                            <Trash2 className={`h-4 w-4 ${
+                              user.id === currentUser?.id ? 'text-muted-foreground' : 'text-error'
+                            }`} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
 

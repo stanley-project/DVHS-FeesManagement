@@ -89,6 +89,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
           lastLogin: null, // Cannot access auth.users data from client
           status: publicUser.is_active ? 'active' : 'inactive', // Derived status
           assignedClasses: publicUser.assignedClasses || [], // Assuming it might exist or default to empty array
+          login_code: publicUser.login_code // Add login_code from public.users table
         };
       });
 
@@ -132,6 +133,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
         lastLogin: null, // Cannot access auth.users data from client
         status: publicUserData.is_active ? 'active' : 'inactive',
         assignedClasses: publicUserData.assignedClasses || [],
+        login_code: publicUserData.login_code // Add login_code from public.users table
       };
 
       return mergedUser;

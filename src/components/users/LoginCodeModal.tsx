@@ -13,7 +13,7 @@ interface LoginCodeModalProps {
 }
 
 const LoginCodeModal = ({ user, onClose, onUpdate }: LoginCodeModalProps) => {
-  const [newCode, setNewCode] = useState(user.login_code);
+  const [newCode, setNewCode] = useState(user.login_code || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -119,7 +119,7 @@ const LoginCodeModal = ({ user, onClose, onUpdate }: LoginCodeModalProps) => {
           <button
             className="btn btn-primary btn-md"
             onClick={handleUpdate}
-            disabled={isLoading || newCode === user.login_code}
+            disabled={isLoading || newCode === user.login_code || !newCode}
           >
             {isLoading ? 'Updating...' : 'Update Code'}
           </button>

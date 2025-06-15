@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext'; 
@@ -16,7 +16,8 @@ const userSchema = z.object({
   phoneNumber: z.string().regex(/^[0-9]{10}$/, 'Phone number must be 10 digits'),
   role: z.enum(['administrator', 'accountant', 'teacher']),
   status: z.enum(['active', 'inactive']),
-  assignedClasses: z.array(z.string())
+  assignedClasses: z.array(z.string()),
+  loginCode: z.string().regex(/^[A-HJ-NP-Z2-9]{8}$/, 'Login code must be 8 characters and only contain A-H, J-N, P-Z, 2-9')
 });
 
 const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
@@ -26,11 +27,25 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const [formData, setFormData] = useState(user || {
     name: '',
     phoneNumber: '',
-    loginCode: user?.login_code || generateLoginCode(),
+    loginCode: generateLoginCode(),
     role: 'teacher',
     status: 'active',
     assignedClasses: [],
   });
+
+  // If editing a user, populate the form with their data
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        name: user.name || '',
+        phoneNumber: user.phone_number || '',
+        loginCode: user.login_code || generateLoginCode(),
+        role: user.role || 'teacher',
+        status: user.is_active ? 'active' : 'inactive',
+        assignedClasses: user.assignedClasses || [],
+      });
+    }
+  }, [user]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +82,8 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
             phone_number: `+91${formData.phoneNumber}`, // Add country code
             role: formData.role,
             email_suffix: 'deepthischool.edu',
-            status: formData.status
+            status: formData.status,
+            login_code: formData.loginCode
           })
         });
 
@@ -92,6 +108,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
             phone_number: `+91${formData.phoneNumber}`,
             role: formData.role,
             status: formData.status,
+            login_code: formData.loginCode,
             action: 'update'
           })
         });
@@ -245,7 +262,6 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
                 pattern="[A-HJ-NP-Z2-9]{8}"
                 maxLength={8}
                 required
-                readOnly={!user} // Only allow editing for existing users
               />
               <button
                 type="button"
@@ -256,7 +272,7 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
               </button>
             </div>
             <p className="text-xs text-muted-foreground">
-              {user ? 'Edit or generate a new login code' : 'Auto-generated login code for this user'}
+              Login code must be 8 characters and only contain A-H, J-N, P-Z, 2-9
             </p>
           </div>
 
