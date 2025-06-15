@@ -90,21 +90,19 @@ const StudentRegistration = () => {
         {!showForm && (
           <div className="flex gap-2">
             <button
-              className="btn btn-outline btn-md inline-flex items-center"
+              className="btn btn-outline btn-md"
               onClick={() => setShowNewImport(true)}
             >
-              <Upload className="h-4 w-4 mr-2" />
               Import New Students
             </button>
             <button
-              className="btn btn-outline btn-md inline-flex items-center"
+              className="btn btn-outline btn-md"
               onClick={() => setShowImport(true)}
             >
-              <Upload className="h-4 w-4 mr-2" />
               Import Continuing Students
             </button>
             <button
-              className="btn btn-outline btn-md inline-flex items-center"
+              className="btn btn-outline btn-md"
               onClick={() => setShowSearch(true)}
             >
               <Search className="h-4 w-4 mr-2" />
