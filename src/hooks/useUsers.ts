@@ -32,7 +32,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
       setLoading(true);
       setError(null);
 
-      // --- STEP 1: Fetch data from public.users table ---
+      // Fetch data from public.users table only
       let publicUsersQuery = supabase
         .from('users')
         .select('*', { count: 'exact' }); // Select all columns from public.users
@@ -75,24 +75,8 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
         return;
       }
 
-      // --- STEP 2: Fetch corresponding data from auth.users for enrichment ---
-      const userIds = publicUsersData.map(user => user.id);
-      
-      const { data: authUsersData, error: authUsersError } = await supabase
-        .from('users') // Changed: Use public.users since we can't directly query auth.users
-        .select('id, last_sign_in_at, created_at, email, phone') // Select only the fields you need
-        .in('id', userIds); // Fetch auth data only for the users we got from public.users
-
-      if (authUsersError) {
-        console.warn('Warning: Could not fetch all auth user data:', authUsersError.message);
-        // Do not throw error here, continue with partial data if auth data is not critical for display
-        // Or handle this more strictly based on your application's requirements
-      }
-
-      // --- STEP 3: Merge the data ---
+      // Map public users data to User interface
       const mergedUsers: User[] = publicUsersData.map(publicUser => {
-        const authUser = authUsersData?.find(au => au.id === publicUser.id);
-        
         return {
           id: publicUser.id,
           name: publicUser.name,
@@ -102,7 +86,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
           role: publicUser.role,
           created_at: publicUser.created_at,
           updated_at: publicUser.updated_at,
-          lastLogin: authUser?.last_sign_in_at, // Map auth.users.last_sign_in_at to lastLogin
+          lastLogin: null, // Cannot access auth.users data from client
           status: publicUser.is_active ? 'active' : 'inactive', // Derived status
           assignedClasses: publicUser.assignedClasses || [], // Assuming it might exist or default to empty array
         };
@@ -123,7 +107,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
 
   const fetchUserById = async (id: string): Promise<User | null> => {
     try {
-      // Fetch from public.users first
+      // Fetch from public.users only
       const { data: publicUserData, error: publicUserError } = await supabase
         .from('users')
         .select('*')
@@ -135,18 +119,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
       }
       if (!publicUserData) return null;
 
-      // Fetch corresponding auth.users data
-      const { data: authUserData, error: authUserError } = await supabase
-        .from('auth.users')
-        .select('id, last_sign_in_at, created_at, email, phone')
-        .eq('id', id)
-        .single();
-
-      if (authUserError) {
-        console.warn(`Warning: Could not fetch auth user data for ID ${id}:`, authUserError.message);
-      }
-
-      // Merge data
+      // Map data without auth.users information
       const mergedUser: User = {
         id: publicUserData.id,
         name: publicUserData.name,
@@ -156,7 +129,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
         role: publicUserData.role,
         created_at: publicUserData.created_at,
         updated_at: publicUserData.updated_at,
-        lastLogin: authUserData?.last_sign_in_at,
+        lastLogin: null, // Cannot access auth.users data from client
         status: publicUserData.is_active ? 'active' : 'inactive',
         assignedClasses: publicUserData.assignedClasses || [],
       };
@@ -171,10 +144,6 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
 
   // Set up real-time subscription
   useEffect(() => {
-    // Note: Real-time subscriptions only work on tables you have RLS SELECT permission on.
-    // They also don't automatically trigger when auth.users changes (like last_sign_in_at).
-    // If you need real-time updates for auth.users changes, you'd need a more complex setup
-    // (e.g., database triggers on auth.users writing to a public table, or polling).
     const subscription = supabase
       .channel('users_channel')
       .on(
@@ -195,7 +164,7 @@ export function useUsers(options: FetchUsersOptions = {}): UseUsersReturn {
       console.log('Unsubscribing from users_channel.');
       subscription.unsubscribe();
     };
-  }, [options.page, options.limit, options.search, options.role, options.status, options.sortBy, options.sortOrder]); // Add options to dependency array for re-subscription if filter/sort changes
+  }, [options.page, options.limit, options.search, options.role, options.status, options.sortBy, options.sortOrder]);
 
   // Initial fetch
   useEffect(() => {
