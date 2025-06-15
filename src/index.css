@@ -122,4 +122,31 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+  
+  /* Dropdown styles */
+  .dropdown {
+    @apply relative inline-block;
+  }
+  
+  .dropdown-content {
+    @apply hidden absolute right-0 mt-2 min-w-[10rem] bg-card rounded-md shadow-lg border border-border z-50;
+  }
+  
+  .dropdown:hover .dropdown-content,
+  .dropdown:focus-within .dropdown-content,
+  .dropdown.active .dropdown-content {
+    @apply block;
+  }
+  
+  .dropdown-content .menu {
+    @apply py-1;
+  }
+  
+  .dropdown-content .menu li {
+    @apply list-none;
+  }
+  
+  .dropdown-content .menu li button {
+    @apply block w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors;
+  }
 }

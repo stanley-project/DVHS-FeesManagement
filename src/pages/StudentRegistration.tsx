@@ -6,6 +6,7 @@ import StudentForm from '../components/students/StudentForm';
 import StudentSearch from '../components/students/StudentSearch';
 import StudentDetails from '../components/students/StudentDetails';
 import StudentDataImport from '../components/students/StudentDataImport';
+import StudentNewDataImport from '../components/students/StudentNewDataImport';
 import RegistrationTypeSelector from '../components/students/RegistrationTypeSelector';
 import { useStudents, Student } from '../hooks/useStudents';
 
@@ -14,6 +15,7 @@ const StudentRegistration = () => {
   const [showSearch, setShowSearch] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showNewImport, setShowNewImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [registrationType, setRegistrationType] = useState<'new' | 'rejoining' | 'continuing'>('new');
 
@@ -87,13 +89,27 @@ const StudentRegistration = () => {
         <h1>Student Registration</h1>
         {!showForm && (
           <div className="flex gap-2">
-            <button
-              className="btn btn-outline btn-md inline-flex items-center"
-              onClick={() => setShowImport(true)}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Import Students
-            </button>
+            <div className="dropdown dropdown-end">
+              <button
+                className="btn btn-outline btn-md inline-flex items-center"
+                onClick={() => {}}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Import Students
+              </button>
+              <ul className="dropdown-content z-[1] menu p-2 shadow bg-card rounded-box w-52 mt-1">
+                <li>
+                  <button onClick={() => setShowNewImport(true)}>
+                    Import New Students
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => setShowImport(true)}>
+                    Import Continuing Students
+                  </button>
+                </li>
+              </ul>
+            </div>
             <button
               className="btn btn-outline btn-md inline-flex items-center"
               onClick={() => setShowSearch(true)}
@@ -151,6 +167,13 @@ const StudentRegistration = () => {
       {showImport && (
         <StudentDataImport
           onClose={() => setShowImport(false)}
+          onImportComplete={handleImportComplete}
+        />
+      )}
+
+      {showNewImport && (
+        <StudentNewDataImport
+          onClose={() => setShowNewImport(false)}
           onImportComplete={handleImportComplete}
         />
       )}
