@@ -17,6 +17,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
   const itemsPerPage = 10;
 
   const { classes } = useClasses();
@@ -26,7 +27,8 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
     error, 
     totalCount, 
     deleteStudent, 
-    toggleStudentStatus 
+    toggleStudentStatus,
+    fetchAllStudents
   } = useStudents({
     search: searchQuery,
     classFilter: selectedClass,
@@ -57,10 +59,16 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
     }
   };
 
-  const handleExportStudents = () => {
+  const handleExportStudents = async () => {
     try {
+      setIsExporting(true);
+      toast.loading('Preparing export...');
+      
+      // Fetch all students based on current filters (without pagination)
+      const allStudents = await fetchAllStudents();
+      
       // Prepare data for export
-      const exportData = students.map(student => ({
+      const exportData = allStudents.map(student => ({
         'Admission Number': student.admission_number,
         'Student Name': student.student_name,
         'Class': student.class?.name || 'N/A',
@@ -73,7 +81,10 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
         'Village': student.village?.name || 'N/A',
         'Bus Service': student.has_school_bus ? 'Yes' : 'No',
         'Status': student.status === 'active' ? 'Active' : 'Inactive',
-        'Registration Type': student.registration_type === 'new' ? 'New' : 'Continuing'
+        'Registration Type': student.registration_type === 'new' ? 'New' : 'Continuing',
+        'PEN': student.PEN || 'N/A',
+        'Student Aadhar': student.student_aadhar || 'N/A',
+        'Father Aadhar': student.father_aadhar || 'N/A'
       }));
 
       // Create workbook and worksheet
@@ -89,10 +100,14 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
 
       // Save file
       XLSX.writeFile(wb, fileName);
-      toast.success('Students exported successfully');
+      toast.dismiss();
+      toast.success(`Exported ${allStudents.length} students successfully`);
     } catch (error) {
       console.error('Export error:', error);
+      toast.dismiss();
       toast.error('Failed to export students');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -147,6 +162,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
             className="btn btn-outline btn-icon" 
             title="Export"
             onClick={handleExportStudents}
+            disabled={isExporting}
           >
             <Download className="h-4 w-4" />
           </button>

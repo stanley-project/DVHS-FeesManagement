@@ -106,6 +106,47 @@ export function useStudents(options: UseStudentsOptions = {}) {
     }
   };
 
+  // Function to fetch all students for export (no pagination)
+  const fetchAllStudents = async (): Promise<Student[]> => {
+    try {
+      let query = supabase
+        .from('students')
+        .select(`
+          *,
+          class:class_id(id, name),
+          village:village_id(id, name)
+        `);
+
+      // Apply filters (same as fetchStudents but without pagination)
+      if (options.search) {
+        query = query.or(`student_name.ilike.%${options.search}%,admission_number.ilike.%${options.search}%`);
+      }
+
+      if (options.classFilter && options.classFilter !== 'all') {
+        query = query.eq('class_id', options.classFilter);
+      }
+
+      if (options.sectionFilter && options.sectionFilter !== 'all') {
+        query = query.eq('section', options.sectionFilter);
+      }
+
+      if (options.statusFilter && options.statusFilter !== 'all') {
+        query = query.eq('status', options.statusFilter);
+      }
+
+      // Order by admission number
+      query = query.order('admission_number', { ascending: true });
+
+      const { data, error: fetchError } = await query;
+
+      if (fetchError) throw fetchError;
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching all students for export:', err);
+      throw err;
+    }
+  };
+
   const addStudent = async (studentData: Omit<Student, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       const { data, error } = await supabase
@@ -209,6 +250,7 @@ export function useStudents(options: UseStudentsOptions = {}) {
     updateStudent,
     deleteStudent,
     toggleStudentStatus,
-    refreshStudents: fetchStudents
+    refreshStudents: fetchStudents,
+    fetchAllStudents
   };
 }
