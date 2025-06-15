@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Upload } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import StudentTable from '../components/students/StudentTable';
 import StudentForm from '../components/students/StudentForm';
@@ -20,6 +20,20 @@ const StudentRegistration = () => {
   const [registrationType, setRegistrationType] = useState<'new' | 'rejoining' | 'continuing'>('new');
 
   const { addStudent, updateStudent, refreshStudents } = useStudents();
+
+  // Event listeners for import buttons in dropdown
+  useEffect(() => {
+    const handleImportNewStudents = () => setShowNewImport(true);
+    const handleImportContinuingStudents = () => setShowImport(true);
+    
+    window.addEventListener('import-new-students', handleImportNewStudents);
+    window.addEventListener('import-continuing-students', handleImportContinuingStudents);
+    
+    return () => {
+      window.removeEventListener('import-new-students', handleImportNewStudents);
+      window.removeEventListener('import-continuing-students', handleImportContinuingStudents);
+    };
+  }, []);
 
   const handleSubmit = async (data: any) => {
     try {
@@ -89,18 +103,6 @@ const StudentRegistration = () => {
         <h1>Student Registration</h1>
         {!showForm && (
           <div className="flex gap-2">
-            <button
-              className="btn btn-outline btn-md"
-              onClick={() => setShowNewImport(true)}
-            >
-              Import New Students
-            </button>
-            <button
-              className="btn btn-outline btn-md"
-              onClick={() => setShowImport(true)}
-            >
-              Import Continuing Students
-            </button>
             <button
               className="btn btn-outline btn-md"
               onClick={() => setShowSearch(true)}

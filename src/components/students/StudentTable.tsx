@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Upload, Download, Filter, Eye, Pencil, ToggleLeft, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Upload, Download, Filter, Eye, Pencil, ToggleLeft, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useStudents, Student } from '../../hooks/useStudents';
 import { useClasses } from '../../hooks/useClasses';
@@ -14,7 +14,6 @@ interface StudentTableProps {
 const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTableProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState('all');
-  const [selectedSection, setSelectedSection] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -30,7 +29,6 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
   } = useStudents({
     search: searchQuery,
     classFilter: selectedClass,
-    sectionFilter: selectedSection,
     statusFilter: selectedStatus,
     page: currentPage,
     limit: itemsPerPage
@@ -113,16 +111,28 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
 
       {/* Action Buttons */}
       <div className="flex justify-end gap-2">
-        <button
-          className="btn btn-outline btn-md inline-flex items-center"
-          title="Import Students"
-        >
-          <Upload className="h-4 w-4 mr-2" />
-          Import
-        </button>
+        <div className="dropdown">
+          <button className="btn btn-outline btn-md">
+            Import Students
+          </button>
+          <div className="dropdown-content">
+            <ul className="menu">
+              <li>
+                <button onClick={() => window.dispatchEvent(new CustomEvent('import-new-students'))}>
+                  Import New Students
+                </button>
+              </li>
+              <li>
+                <button onClick={() => window.dispatchEvent(new CustomEvent('import-continuing-students'))}>
+                  Import Continuing Students
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
         
         <button
-          className="btn btn-primary btn-md inline-flex items-center"
+          className="btn btn-primary btn-md"
           onClick={onAddStudent}
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -134,7 +144,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
       <div className="bg-card rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
             <span className="ml-2 text-muted-foreground">Loading students...</span>
           </div>
         ) : students.length === 0 ? (
