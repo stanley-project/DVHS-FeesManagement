@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useStudents, Student } from '../../hooks/useStudents';
 import { useClasses } from '../../hooks/useClasses';
 import SearchInput from '../shared/SearchInput';
+import * as XLSX from 'xlsx';
 
 interface StudentTableProps {
   onAddStudent: () => void;
@@ -56,6 +57,45 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
     }
   };
 
+  const handleExportStudents = () => {
+    try {
+      // Prepare data for export
+      const exportData = students.map(student => ({
+        'Admission Number': student.admission_number,
+        'Student Name': student.student_name,
+        'Class': student.class?.name || 'N/A',
+        'Gender': student.gender,
+        'Date of Birth': new Date(student.date_of_birth).toLocaleDateString(),
+        'Admission Date': new Date(student.admission_date).toLocaleDateString(),
+        'Father Name': student.father_name,
+        'Mother Name': student.mother_name,
+        'Phone Number': student.phone_number,
+        'Village': student.village?.name || 'N/A',
+        'Bus Service': student.has_school_bus ? 'Yes' : 'No',
+        'Status': student.status === 'active' ? 'Active' : 'Inactive',
+        'Registration Type': student.registration_type === 'new' ? 'New' : 'Continuing'
+      }));
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Students');
+
+      // Generate filename with current date
+      const date = new Date().toISOString().split('T')[0];
+      const fileName = `Students_${date}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, fileName);
+      toast.success('Students exported successfully');
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export students');
+    }
+  };
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   if (error) {
@@ -103,7 +143,11 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
             <option value="inactive">Inactive</option>
           </select>
           
-          <button className="btn btn-outline btn-icon" title="Export">
+          <button 
+            className="btn btn-outline btn-icon" 
+            title="Export"
+            onClick={handleExportStudents}
+          >
             <Download className="h-4 w-4" />
           </button>
         </div>

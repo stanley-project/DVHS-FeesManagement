@@ -15,6 +15,39 @@ const VillageManagement = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
+  const { 
+    villages = [], 
+    loading, 
+    error, 
+    sortConfig,
+    handleSort,
+    addVillage, 
+    updateVillage, 
+    deleteVillage,
+    refreshVillages,
+    villageStats,
+    loadingStats,
+    refreshVillageStats
+  } = useVillages();
+
+  // Fetch village stats when component mounts and periodically refresh
+  useEffect(() => {
+    // Initial fetch of village stats if villages are already loaded
+    if (villages.length > 0 && !loadingStats) {
+      refreshVillageStats(villages);
+    }
+    
+    // Set up interval to refresh stats every 30 seconds
+    const intervalId = setInterval(() => {
+      if (villages.length > 0) {
+        refreshVillageStats(villages);
+      }
+    }, 30000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [villages, refreshVillageStats]);
+
   const handleExport = () => {
     try {
       // Prepare data for export
@@ -52,39 +85,6 @@ const VillageManagement = () => {
       toast.error('Failed to export villages');
     }
   };
-
-  const { 
-    villages = [], 
-    loading, 
-    error, 
-    sortConfig,
-    handleSort,
-    addVillage, 
-    updateVillage, 
-    deleteVillage,
-    refreshVillages,
-    villageStats,
-    loadingStats,
-    refreshVillageStats
-  } = useVillages();
-
-  // Fetch village stats when component mounts and periodically refresh
-  useEffect(() => {
-    // Initial fetch of village stats if villages are already loaded
-    if (villages.length > 0 && !loadingStats) {
-      refreshVillageStats(villages);
-    }
-    
-    // Set up interval to refresh stats every 30 seconds
-    const intervalId = setInterval(() => {
-      if (villages.length > 0) {
-        refreshVillageStats(villages);
-      }
-    }, 30000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [villages, refreshVillageStats]);
 
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -154,7 +154,7 @@ const VillageManagement = () => {
         <h1 className="text-2xl font-bold">Village Management</h1>
         <div className="flex gap-2">
           <button
-            className="btn btn-outline btn-md inline-flex items-center"
+            className="btn btn-outline btn-md"
             onClick={handleExport}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -162,7 +162,7 @@ const VillageManagement = () => {
           </button>
           
           <button
-            className="btn btn-primary btn-md inline-flex items-center"
+            className="btn btn-primary btn-md"
             onClick={() => {
               setSelectedVillage(null);
               setShowForm(true);
