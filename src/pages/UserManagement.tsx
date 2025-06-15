@@ -39,6 +39,21 @@ const UserManagement = () => {
     sortOrder: 'desc'
   });
 
+  // Calculate total pages and ensure current page is valid
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
+
+  // Reset pagination when filters change or when current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [totalCount, itemsPerPage, currentPage, totalPages]);
+
+  // Reset to first page when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedRole, selectedStatus]);
+
   console.log("UserManagement: Component rendered.");
   console.log("  Auth Loading:", authLoading);
   console.log("  Current User:", currentUser ? currentUser.name : "Not logged in");
@@ -180,7 +195,10 @@ const UserManagement = () => {
     return isActive ? 'active' : 'inactive';
   };
 
-  const totalPages = Math.ceil(totalCount / itemsPerPage);
+  const handlePageChange = (newPage) => {
+    const validPage = Math.max(1, Math.min(newPage, totalPages));
+    setCurrentPage(validPage);
+  };
 
   if (authLoading) {
     return <div className="text-center py-8">Authenticating...</div>;
@@ -403,27 +421,32 @@ const UserManagement = () => {
               </table>
 
               {/* Pagination */}
-              <div className="flex items-center justify-between border-t p-4">
-                <p className="text-sm text-muted-foreground">
-                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} users
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </button>
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </button>
+              {totalCount > 0 && (
+                <div className="flex items-center justify-between border-t p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalCount)} of {totalCount} users
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </button>
+                    <span className="flex items-center px-3 text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <button
+                      className="btn btn-outline btn-sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </div>
