@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, MapPin, Users, Bus, CircleDollarSign, Pencil, Loader2, AlertCircle } from 'lucide-react';
+import { X, MapPin, Users, Bus, CircleDollarSign, Pencil, AlertCircle } from 'lucide-react';
 import BusFeeHistory from './BusFeeHistory';
 import StudentList from './StudentList';
 import { supabase } from '../../lib/supabase';
@@ -125,7 +125,7 @@ const VillageDetails = ({ village, onClose, onEdit, villageStats }: VillageDetai
 
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
             </div>
           ) : (
             <>

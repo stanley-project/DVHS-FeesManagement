@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowUpDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Village } from '../../types/village';
 
@@ -58,7 +58,7 @@ const StudentList = ({ village }: StudentListProps) => {
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
         </div>
       ) : students.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">

@@ -7,7 +7,6 @@ import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
 import { useVillages } from '../hooks/useVillages';
 import { Village } from '../types/village';
-import { supabase } from '../lib/supabase';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
@@ -69,19 +68,23 @@ const VillageManagement = () => {
     refreshVillageStats
   } = useVillages();
 
-  // Refresh village stats periodically
+  // Fetch village stats when component mounts and periodically refresh
   useEffect(() => {
-    // Initial fetch
-    refreshVillageStats();
+    // Initial fetch of village stats if villages are already loaded
+    if (villages.length > 0 && !loadingStats) {
+      refreshVillageStats(villages);
+    }
     
     // Set up interval to refresh stats every 30 seconds
     const intervalId = setInterval(() => {
-      refreshVillageStats();
+      if (villages.length > 0) {
+        refreshVillageStats(villages);
+      }
     }, 30000);
     
     // Clean up interval on component unmount
     return () => clearInterval(intervalId);
-  }, [refreshVillageStats]);
+  }, [villages, refreshVillageStats]);
 
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -94,9 +97,9 @@ const VillageManagement = () => {
       }
       setShowForm(false);
       setSelectedVillage(null);
-      refreshVillages();
-      // Refresh stats after adding/updating a village
-      refreshVillageStats();
+      
+      // Refresh villages and stats after adding/updating
+      await refreshVillages();
     } catch (error) {
       console.error('Error saving village:', error);
       toast.error('Failed to save village');
@@ -118,9 +121,6 @@ const VillageManagement = () => {
       
       await deleteVillage(id);
       toast.success('Village deleted successfully');
-      refreshVillages();
-      // Refresh stats after deleting a village
-      refreshVillageStats();
     } catch (error) {
       console.error('Error deleting village:', error);
       toast.error('Failed to delete village');

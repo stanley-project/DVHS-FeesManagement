@@ -49,8 +49,8 @@ export function useVillages() {
       setVillages(data);
       setError(null);
       
-      // Fetch student statistics for all villages
-      fetchVillageStats(data);
+      // Fetch student statistics for all villages immediately after fetching villages
+      await fetchVillageStats(data);
     } catch (err) {
       console.error('Error in fetchVillages:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch villages'));
@@ -62,6 +62,8 @@ export function useVillages() {
 
   // Fetch student statistics for all villages
   const fetchVillageStats = async (villageData: Village[] = villages) => {
+    if (villageData.length === 0) return;
+    
     try {
       setLoadingStats(true);
       
@@ -74,12 +76,7 @@ export function useVillages() {
 
       if (yearError) {
         console.error('Error fetching current academic year:', yearError);
-        return;
-      }
-      
-      if (!currentYear) {
-        console.log('No current academic year found');
-        return;
+        // Don't throw here, continue with the function
       }
       
       // Get all students with their village_id and has_school_bus status
@@ -90,36 +87,39 @@ export function useVillages() {
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
-        return;
+        // Don't throw here, continue with the function
       }
       
       // Process student statistics by village
       const stats: Record<string, { totalStudents: number, busStudents: number }> = {};
       
-      // Initialize stats for all villages
+      // Initialize stats for all villages with zeros
       villageData.forEach(village => {
         stats[village.id] = { totalStudents: 0, busStudents: 0 };
       });
       
       // Count students for each village
-      studentData?.forEach(student => {
-        if (!student.village_id) return;
-        
-        if (!stats[student.village_id]) {
-          stats[student.village_id] = { totalStudents: 0, busStudents: 0 };
-        }
-        
-        stats[student.village_id].totalStudents++;
-        
-        if (student.has_school_bus) {
-          stats[student.village_id].busStudents++;
-        }
-      });
+      if (studentData && studentData.length > 0) {
+        studentData.forEach(student => {
+          if (!student.village_id) return;
+          
+          if (!stats[student.village_id]) {
+            stats[student.village_id] = { totalStudents: 0, busStudents: 0 };
+          }
+          
+          stats[student.village_id].totalStudents++;
+          
+          if (student.has_school_bus) {
+            stats[student.village_id].busStudents++;
+          }
+        });
+      }
       
       console.log('Village stats calculated:', stats);
       setVillageStats(stats);
     } catch (error) {
       console.error('Error fetching village stats:', error);
+      // Don't set error state here to avoid affecting the main village display
     } finally {
       setLoadingStats(false);
     }
