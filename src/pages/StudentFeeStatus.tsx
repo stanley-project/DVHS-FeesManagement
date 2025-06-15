@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, CircleDollarSign, Filter, ArrowRight, FileText, Loader2, Download } from 'lucide-react';
+import { Search, CircleDollarSign, Filter, ArrowRight, FileText, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useFeeCalculations } from '../hooks/useFeeCalculations';
@@ -15,6 +15,7 @@ const StudentFeeStatus = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [feeHistory, setFeeHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [feeStructure, setFeeStructure] = useState<any[]>([]);
   
   const { calculateStudentFeeStatus } = useFeeCalculations();
 
@@ -24,16 +25,50 @@ const StudentFeeStatus = () => {
       if (!user || user.role !== 'teacher') return;
 
       try {
+        // Get current academic year
+        const { data: academicYear, error: yearError } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('is_current', true)
+          .single();
+        
+        if (yearError) throw yearError;
+        
         const { data, error } = await supabase
           .from('classes')
           .select('id, name')
           .eq('teacher_id', user.id)
+          .eq('academic_year_id', academicYear.id)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          if (error.message.includes('No rows found')) {
+            setTeacherClass('No Class Assigned');
+            setLoading(false);
+            return;
+          }
+          throw error;
+        }
+        
         setTeacherClass(data.name);
+        
+        // Fetch fee structure for this class
+        const { data: feeData, error: feeError } = await supabase
+          .from('fee_structure')
+          .select(`
+            id,
+            amount,
+            fee_type:fee_type_id(name)
+          `)
+          .eq('class_id', data.id)
+          .eq('academic_year_id', academicYear.id);
+        
+        if (feeError) throw feeError;
+        
+        setFeeStructure(feeData || []);
       } catch (err) {
         console.error('Error fetching teacher class:', err);
+        setError(err.message);
       }
     };
 
@@ -43,17 +78,30 @@ const StudentFeeStatus = () => {
   // Fetch students in teacher's class
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!teacherClass) return;
+      if (!teacherClass || teacherClass === 'No Class Assigned') {
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
         setError(null);
+
+        // Get current academic year
+        const { data: academicYear, error: yearError } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('is_current', true)
+          .single();
+        
+        if (yearError) throw yearError;
 
         // Get class ID
         const { data: classData, error: classError } = await supabase
           .from('classes')
           .select('id')
           .eq('name', teacherClass)
+          .eq('academic_year_id', academicYear.id)
           .single();
 
         if (classError) throw classError;
@@ -266,7 +314,7 @@ const StudentFeeStatus = () => {
             
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
                 <span className="ml-2 text-muted-foreground">Loading students...</span>
               </div>
             ) : error ? (
@@ -342,7 +390,7 @@ const StudentFeeStatus = () => {
               
               {/* Fee Summary */}
               <div className="mb-6">
-                <h4 className="text-sm font-medium mb-3">Fee Summary (Academic Year 2025-26)</h4>
+                <h4 className="text-sm font-medium mb-3">Fee Summary</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="bg-muted p-3 rounded-md">
                     <p className="text-xs text-muted-foreground">Total Fee</p>
@@ -366,7 +414,7 @@ const StudentFeeStatus = () => {
                 <h4 className="text-sm font-medium mb-3">Fee Payment History</h4>
                 {loadingHistory ? (
                   <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
                     <span className="ml-2 text-muted-foreground">Loading payment history...</span>
                   </div>
                 ) : feeHistory.length === 0 ? (
@@ -423,33 +471,37 @@ const StudentFeeStatus = () => {
                 </div>
                 <table className="w-full text-sm">
                   <tbody>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Tuition Fee (Per Term)</td>
-                      <td className="py-1 text-right">₹12,000</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Development Fee (Per Term)</td>
-                      <td className="py-1 text-right">₹1,500</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 text-muted-foreground">Computer & Library Fee (Per Term)</td>
-                      <td className="py-1 text-right">₹1,500</td>
-                    </tr>
-                    <tr className="border-t">
-                      <td className="py-1 font-medium">Total Fee Per Term</td>
-                      <td className="py-1 text-right font-medium">₹15,000</td>
-                    </tr>
-                    <tr>
-                      <td className="py-1 font-medium">Annual Fee (3 Terms)</td>
-                      <td className="py-1 text-right font-medium">₹45,000</td>
-                    </tr>
-                    {students[selectedStudent].has_school_bus && (
-                      <tr className="border-t">
-                        <td className="py-1 font-medium">Bus Fee (Annual)</td>
-                        <td className="py-1 text-right font-medium">
-                          ₹{(students[selectedStudent].totalFee - 45000).toLocaleString('en-IN')}
+                    {feeStructure.length > 0 ? (
+                      feeStructure.map((fee, index) => (
+                        <tr key={index}>
+                          <td className="py-1 text-muted-foreground">{fee.fee_type?.name || 'Fee'}</td>
+                          <td className="py-1 text-right">₹{parseFloat(fee.amount).toLocaleString('en-IN')}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={2} className="py-1 text-center text-muted-foreground">
+                          No fee structure defined
                         </td>
                       </tr>
+                    )}
+                    {feeStructure.length > 0 && (
+                      <>
+                        <tr className="border-t">
+                          <td className="py-1 font-medium">Total Fee</td>
+                          <td className="py-1 text-right font-medium">
+                            ₹{feeStructure.reduce((sum, fee) => sum + parseFloat(fee.amount), 0).toLocaleString('en-IN')}
+                          </td>
+                        </tr>
+                        {students[selectedStudent].has_school_bus && (
+                          <tr className="border-t">
+                            <td className="py-1 font-medium">Bus Fee (Annual)</td>
+                            <td className="py-1 text-right font-medium">
+                              ₹{(students[selectedStudent].totalFee - feeStructure.reduce((sum, fee) => sum + parseFloat(fee.amount), 0)).toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

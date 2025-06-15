@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart3, Download, FileText, Filter, Mail, ArrowUpDown } from 'lucide-react';
 import CollectionReport from '../components/reports/CollectionReport';
 import OutstandingReport from '../components/reports/OutstandingReport';
 import StudentReport from '../components/reports/StudentReport';
 import AnalyticsDashboard from '../components/reports/AnalyticsDashboard';
+import { supabase } from '../lib/supabase';
 
 const Reports = () => {
   const [activeTab, setActiveTab] = useState('collection');
@@ -14,6 +15,54 @@ const Reports = () => {
   });
   const [selectedClass, setSelectedClass] = useState('all');
   const [selectedFeeType, setSelectedFeeType] = useState('all');
+  const [classes, setClasses] = useState<{id: string, name: string}[]>([]);
+  const [feeTypes, setFeeTypes] = useState<{id: string, name: string}[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Fetch classes and fee types for filters
+  useEffect(() => {
+    const fetchFilterData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get current academic year
+        const { data: academicYear, error: yearError } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('is_current', true)
+          .single();
+        
+        if (yearError) throw yearError;
+        
+        // Get classes for current academic year
+        const { data: classesData, error: classesError } = await supabase
+          .from('classes')
+          .select('id, name')
+          .eq('academic_year_id', academicYear.id)
+          .order('name');
+        
+        if (classesError) throw classesError;
+        
+        // Get fee types
+        const { data: feeTypesData, error: feeTypesError } = await supabase
+          .from('fee_types')
+          .select('id, name')
+          .order('name');
+        
+        if (feeTypesError) throw feeTypesError;
+        
+        setClasses(classesData || []);
+        setFeeTypes(feeTypesData || []);
+        
+      } catch (err) {
+        console.error('Error fetching filter data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchFilterData();
+  }, []);
   
   return (
     <div className="space-y-6 animate-fadeIn">
@@ -126,11 +175,9 @@ const Reports = () => {
                   onChange={(e) => setSelectedClass(e.target.value)}
                 >
                   <option value="all">All Classes</option>
-                  {['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'].map(
-                    (cls) => (
-                      <option key={cls} value={cls}>Class {cls}</option>
-                    )
-                  )}
+                  {classes.map((cls) => (
+                    <option key={cls.id} value={cls.id}>{cls.name}</option>
+                  ))}
                 </select>
 
                 <select
@@ -139,11 +186,9 @@ const Reports = () => {
                   onChange={(e) => setSelectedFeeType(e.target.value)}
                 >
                   <option value="all">All Fee Types</option>
-                  <option value="term1">Term 1 Fee</option>
-                  <option value="term2">Term 2 Fee</option>
-                  <option value="term3">Term 3 Fee</option>
-                  <option value="transport">Transport Fee</option>
-                  <option value="computer">Computer Fee</option>
+                  {feeTypes.map((feeType) => (
+                    <option key={feeType.id} value={feeType.id}>{feeType.name}</option>
+                  ))}
                 </select>
               </>
             )}
