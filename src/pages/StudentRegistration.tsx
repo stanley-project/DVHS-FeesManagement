@@ -89,27 +89,20 @@ const StudentRegistration = () => {
         <h1>Student Registration</h1>
         {!showForm && (
           <div className="flex gap-2">
-            <div className="dropdown dropdown-end">
-              <button
-                className="btn btn-outline btn-md inline-flex items-center"
-                onClick={() => {}}
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Import Students
-              </button>
-              <ul className="dropdown-content z-[1] menu p-2 shadow bg-card rounded-box w-52 mt-1">
-                <li>
-                  <button onClick={() => setShowNewImport(true)}>
-                    Import New Students
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => setShowImport(true)}>
-                    Import Continuing Students
-                  </button>
-                </li>
-              </ul>
-            </div>
+            <button
+              className="btn btn-outline btn-md inline-flex items-center"
+              onClick={() => setShowNewImport(true)}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import New Students
+            </button>
+            <button
+              className="btn btn-outline btn-md inline-flex items-center"
+              onClick={() => setShowImport(true)}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import Continuing Students
+            </button>
             <button
               className="btn btn-outline btn-md inline-flex items-center"
               onClick={() => setShowSearch(true)}
