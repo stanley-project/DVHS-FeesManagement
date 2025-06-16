@@ -7,6 +7,7 @@ import VillageDetails from '../components/villages/VillageDetails';
 import VillageTable from '../components/villages/VillageTable';
 import { useVillages } from '../hooks/useVillages';
 import { Village } from '../types/village';
+import { supabase } from '../lib/supabase';
 
 const VillageManagement = () => {
   const [showForm, setShowForm] = useState(false);
@@ -14,39 +15,6 @@ const VillageManagement = () => {
   const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-
-  const { 
-    villages = [], 
-    loading, 
-    error, 
-    sortConfig,
-    handleSort,
-    addVillage, 
-    updateVillage, 
-    deleteVillage,
-    refreshVillages,
-    villageStats,
-    loadingStats,
-    refreshVillageStats
-  } = useVillages();
-
-  // Fetch village stats when component mounts and periodically refresh
-  useEffect(() => {
-    // Initial fetch of village stats if villages are already loaded
-    if (villages.length > 0 && !loadingStats) {
-      refreshVillageStats(villages);
-    }
-    
-    // Set up interval to refresh stats every 30 seconds
-    const intervalId = setInterval(() => {
-      if (villages.length > 0) {
-        refreshVillageStats(villages);
-      }
-    }, 30000);
-    
-    // Clean up interval on component unmount
-    return () => clearInterval(intervalId);
-  }, [villages, refreshVillageStats]);
 
   const handleExport = () => {
     try {
@@ -86,6 +54,35 @@ const VillageManagement = () => {
     }
   };
 
+  const { 
+    villages = [], 
+    loading, 
+    error, 
+    sortConfig,
+    handleSort,
+    addVillage, 
+    updateVillage, 
+    deleteVillage,
+    refreshVillages,
+    villageStats,
+    loadingStats,
+    refreshVillageStats
+  } = useVillages();
+
+  // Refresh village stats periodically
+  useEffect(() => {
+    // Initial fetch
+    refreshVillageStats();
+    
+    // Set up interval to refresh stats every 30 seconds
+    const intervalId = setInterval(() => {
+      refreshVillageStats();
+    }, 30000);
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, [refreshVillageStats]);
+
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
       if (selectedVillage) {
@@ -97,9 +94,9 @@ const VillageManagement = () => {
       }
       setShowForm(false);
       setSelectedVillage(null);
-      
-      // Refresh villages and stats after adding/updating
-      await refreshVillages();
+      refreshVillages();
+      // Refresh stats after adding/updating a village
+      refreshVillageStats();
     } catch (error) {
       console.error('Error saving village:', error);
       toast.error('Failed to save village');
@@ -121,6 +118,9 @@ const VillageManagement = () => {
       
       await deleteVillage(id);
       toast.success('Village deleted successfully');
+      refreshVillages();
+      // Refresh stats after deleting a village
+      refreshVillageStats();
     } catch (error) {
       console.error('Error deleting village:', error);
       toast.error('Failed to delete village');
@@ -154,7 +154,7 @@ const VillageManagement = () => {
         <h1 className="text-2xl font-bold">Village Management</h1>
         <div className="flex gap-2">
           <button
-            className="btn btn-outline btn-md"
+            className="btn btn-outline btn-md inline-flex items-center"
             onClick={handleExport}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -162,7 +162,7 @@ const VillageManagement = () => {
           </button>
           
           <button
-            className="btn btn-primary btn-md"
+            className="btn btn-primary btn-md inline-flex items-center"
             onClick={() => {
               setSelectedVillage(null);
               setShowForm(true);

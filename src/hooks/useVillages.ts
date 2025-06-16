@@ -49,8 +49,8 @@ export function useVillages() {
       setVillages(data);
       setError(null);
       
-      // Fetch student statistics for all villages immediately after fetching villages
-      await fetchVillageStats(data);
+      // Fetch student statistics for all villages
+      fetchVillageStats(data);
     } catch (err) {
       console.error('Error in fetchVillages:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch villages'));
@@ -67,7 +67,16 @@ export function useVillages() {
     try {
       setLoadingStats(true);
       
-      // Get current academic year
+      // Initialize stats for all villages with zeros
+      const initialStats: Record<string, { totalStudents: number, busStudents: number }> = {};
+      villageData.forEach(village => {
+        initialStats[village.id] = { totalStudents: 0, busStudents: 0 };
+      });
+      
+      // Set initial zeros immediately to prevent prolonged loading state
+      setVillageStats(initialStats);
+      
+      // Get current academic year with proper error handling
       const { data: currentYear, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
@@ -76,7 +85,12 @@ export function useVillages() {
 
       if (yearError) {
         console.error('Error fetching current academic year:', yearError);
-        // Don't throw here, continue with the function
+        return;
+      }
+      
+      if (!currentYear) {
+        console.log('No current academic year found');
+        return;
       }
       
       // Get all students with their village_id and has_school_bus status
@@ -87,39 +101,32 @@ export function useVillages() {
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
-        // Don't throw here, continue with the function
+        return;
       }
       
       // Process student statistics by village
-      const stats: Record<string, { totalStudents: number, busStudents: number }> = {};
-      
-      // Initialize stats for all villages with zeros
-      villageData.forEach(village => {
-        stats[village.id] = { totalStudents: 0, busStudents: 0 };
-      });
+      const stats = { ...initialStats };
       
       // Count students for each village
-      if (studentData && studentData.length > 0) {
-        studentData.forEach(student => {
-          if (!student.village_id) return;
-          
-          if (!stats[student.village_id]) {
-            stats[student.village_id] = { totalStudents: 0, busStudents: 0 };
-          }
-          
-          stats[student.village_id].totalStudents++;
-          
-          if (student.has_school_bus) {
-            stats[student.village_id].busStudents++;
-          }
-        });
-      }
+      studentData?.forEach(student => {
+        if (!student.village_id) return;
+        
+        if (!stats[student.village_id]) {
+          stats[student.village_id] = { totalStudents: 0, busStudents: 0 };
+        }
+        
+        stats[student.village_id].totalStudents++;
+        
+        if (student.has_school_bus) {
+          stats[student.village_id].busStudents++;
+        }
+      });
       
       console.log('Village stats calculated:', stats);
       setVillageStats(stats);
     } catch (error) {
       console.error('Error fetching village stats:', error);
-      // Don't set error state here to avoid affecting the main village display
+      // Don't reset stats on error, keep the initial zeros
     } finally {
       setLoadingStats(false);
     }

@@ -1,4 +1,4 @@
-import { ArrowUpDown, Eye, Pencil, Trash2, Users, Bus } from 'lucide-react';
+import { ArrowUpDown, Eye, Pencil, Trash2, Users, Bus, Loader2 } from 'lucide-react';
 import { Village } from '../../types/village';
 
 interface SortConfig {
@@ -102,8 +102,8 @@ const VillageTable = ({
                   <td className="px-4 py-3">{village.bus_number || 'N/A'}</td>
                   <td className="px-4 py-3 text-center">
                     {loadingStats ? (
-                      <div className="inline-flex justify-center">
-                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-primary border-r-transparent"></span>
+                      <div className="flex justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     ) : (
                       <span className="font-medium">{stats.totalStudents}</span>
@@ -111,8 +111,8 @@ const VillageTable = ({
                   </td>
                   <td className="px-4 py-3 text-center">
                     {loadingStats ? (
-                      <div className="inline-flex justify-center">
-                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-primary border-r-transparent"></span>
+                      <div className="flex justify-center">
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       </div>
                     ) : (
                       <span className="font-medium">{stats.busStudents}</span>

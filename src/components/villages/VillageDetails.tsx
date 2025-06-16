@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, MapPin, Users, Bus, CircleDollarSign, Pencil, AlertCircle } from 'lucide-react';
+import { X, MapPin, Users, Bus, CircleDollarSign, Pencil, Loader2, AlertCircle } from 'lucide-react';
 import BusFeeHistory from './BusFeeHistory';
 import StudentList from './StudentList';
 import { supabase } from '../../lib/supabase';
@@ -52,6 +52,7 @@ const VillageDetails = ({ village, onClose, onEdit, villageStats }: VillageDetai
       
       if (!currentYear) {
         setNoCurrentYear(true);
+        setLoading(false);
         return;
       }
 
@@ -72,10 +73,11 @@ const VillageDetails = ({ village, onClose, onEdit, villageStats }: VillageDetai
         ...prev,
         currentBusFee: busFee?.fee_amount || null
       }));
+      
+      setLoading(false);
     } catch (err) {
       console.error('Error fetching village stats:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
       setLoading(false);
     }
   };
@@ -123,59 +125,58 @@ const VillageDetails = ({ village, onClose, onEdit, villageStats }: VillageDetai
             </div>
           )}
 
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
-            </div>
-          ) : (
-            <>
-              {/* Village Statistics */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-muted p-4 rounded-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <MapPin className="h-5 w-5 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Distance</p>
-                  </div>
-                  <p className="text-2xl font-bold">{village.distance_from_school} km</p>
-                </div>
-                
-                <div className="bg-muted p-4 rounded-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Total Students</p>
-                  </div>
-                  <p className="text-2xl font-bold">{stats.totalStudents}</p>
-                </div>
-                
-                <div className="bg-muted p-4 rounded-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Bus className="h-5 w-5 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Bus Students</p>
-                  </div>
-                  <p className="text-2xl font-bold">{stats.busStudents}</p>
-                </div>
-                
-                <div className="bg-muted p-4 rounded-md">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Current Bus Fee</p>
-                  </div>
-                  <p className="text-2xl font-bold">
-                    {stats.currentBusFee ? `₹${stats.currentBusFee}` : '-'}
-                  </p>
-                </div>
+          {/* Village Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-muted p-4 rounded-md">
+              <div className="flex items-center gap-2 mb-2">
+                <MapPin className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Distance</p>
               </div>
-
-              {/* Only show these components if there is a current academic year */}
-              {!noCurrentYear && (
-                <>
-                  {/* Bus Fee History */}
-                  <BusFeeHistory village={village} />
-
-                  {/* Students List */}
-                  <StudentList village={village} />
-                </>
+              <p className="text-2xl font-bold">{village.distance_from_school} km</p>
+            </div>
+            
+            <div className="bg-muted p-4 rounded-md">
+              <div className="flex items-center gap-2 mb-2">
+                <Users className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Total Students</p>
+              </div>
+              <p className="text-2xl font-bold">{stats.totalStudents}</p>
+            </div>
+            
+            <div className="bg-muted p-4 rounded-md">
+              <div className="flex items-center gap-2 mb-2">
+                <Bus className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Bus Students</p>
+              </div>
+              <p className="text-2xl font-bold">{stats.busStudents}</p>
+            </div>
+            
+            <div className="bg-muted p-4 rounded-md">
+              <div className="flex items-center gap-2 mb-2">
+                <CircleDollarSign className="h-5 w-5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Current Bus Fee</p>
+              </div>
+              {loading ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary mr-2" />
+                  <span>Loading...</span>
+                </div>
+              ) : (
+                <p className="text-2xl font-bold">
+                  {stats.currentBusFee ? `₹${stats.currentBusFee}` : '-'}
+                </p>
               )}
+            </div>
+          </div>
+
+          {/* Only show these components if there is a current academic year */}
+          {!noCurrentYear && !loading && (
+            <>
+              {/* Bus Fee History */}
+              <BusFeeHistory village={village} />
+
+              {/* Students List */}
+              <StudentList village={village} />
             </>
           )}
         </div>
