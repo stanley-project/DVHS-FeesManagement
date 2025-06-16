@@ -41,7 +41,7 @@ export function useDashboardStats() {
         setLoading(true);
         setError(null);
         
-        // Get current academic year in a single query
+        // Get current academic year
         const { data: academicYear, error: yearError } = await supabase
           .from('academic_years')
           .select('id, year_name')
@@ -82,7 +82,7 @@ export function useDashboardStats() {
         const yearlyCollection = allPayments?.reduce((sum, payment) => 
           sum + parseFloat(payment.amount_paid), 0) || 0;
         
-        // Get class-wise defaulters in a single efficient query
+        // Get class-wise defaulters
         const { data: defaultersData, error: defaultersError } = await supabase.rpc(
           'get_class_defaulters',
           { academic_year_id: academicYear.id }
@@ -93,17 +93,17 @@ export function useDashboardStats() {
           throw new Error(`Error fetching defaulters: ${defaultersError.message}`);
         }
         
-        // Set all dashboard stats at once to avoid multiple re-renders
+        // Set all dashboard stats at once
         setStats({
           yearCollection: yearlyCollection,
           monthCollection: monthlyCollection,
           dailyCollection: dailyCollection,
           activeStudents: activeStudents || 0,
-          yearGrowth: 12, // Mock growth data - would be calculated from historical data
+          yearGrowth: 12, // Mock growth data
           monthGrowth: 8,
           dailyGrowth: 15,
           studentGrowth: 3,
-          defaultersData: defaultersData || [],
+          defaultersData: Array.isArray(defaultersData) ? defaultersData : [],
           currentAcademicYear: academicYear.year_name
         });
       } catch (err: any) {
