@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, X, Indent as Student, CircleDollarSign, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 
 interface SearchResult {
   id: string;
@@ -15,6 +16,7 @@ const GlobalSearch = () => {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -38,36 +40,109 @@ const GlobalSearch = () => {
   }, []);
 
   useEffect(() => {
-    if (query) {
-      // Mock search results - replace with actual API call
-      const mockResults: SearchResult[] = [
-        {
-          id: '1',
-          type: 'student',
-          title: 'Amit Kumar',
-          subtitle: 'Class IX-A | ST-1001',
-          link: '/student/1',
-        },
-        {
-          id: '2',
-          type: 'payment',
-          title: 'Receipt #RC-2025',
-          subtitle: '₹15,000 | 15 Aug 2025',
-          link: '/payment/2',
-        },
-        {
-          id: '3',
-          type: 'user',
-          title: 'John Doe',
-          subtitle: 'Teacher | IX-A',
-          link: '/user/3',
-        },
-      ];
+    const fetchSearchResults = async () => {
+      if (!query || query.length < 2) {
+        setResults([]);
+        return;
+      }
 
-      setResults(mockResults);
-    } else {
-      setResults([]);
-    }
+      setLoading(true);
+      try {
+        const searchResults: SearchResult[] = [];
+
+        // Search students
+        const { data: students, error: studentError } = await supabase
+          .from('students')
+          .select(`
+            id,
+            student_name,
+            admission_number,
+            class:class_id(name)
+          `)
+          .or(`student_name.ilike.%${query}%,admission_number.ilike.%${query}%`)
+          .limit(5);
+
+        if (studentError) throw studentError;
+
+        if (students) {
+          students.forEach(student => {
+            searchResults.push({
+              id: student.id,
+              type: 'student',
+              title: student.student_name,
+              subtitle: `${student.admission_number} | ${student.class?.name || 'No Class'}`,
+              link: `/student-registration?id=${student.id}`
+            });
+          });
+        }
+
+        // Search payments
+        const { data: payments, error: paymentError } = await supabase
+          .from('fee_payments')
+          .select(`
+            id,
+            receipt_number,
+            amount_paid,
+            payment_date,
+            student:student_id(student_name)
+          `)
+          .or(`receipt_number.ilike.%${query}%`)
+          .order('payment_date', { ascending: false })
+          .limit(3);
+
+        if (paymentError) throw paymentError;
+
+        if (payments) {
+          payments.forEach(payment => {
+            searchResults.push({
+              id: payment.id,
+              type: 'payment',
+              title: `Receipt #${payment.receipt_number}`,
+              subtitle: `₹${parseFloat(payment.amount_paid).toLocaleString('en-IN')} | ${new Date(payment.payment_date).toLocaleDateString()}`,
+              link: `/fee-collection?receipt=${payment.receipt_number}`
+            });
+          });
+        }
+
+        // Search users
+        const { data: users, error: userError } = await supabase
+          .from('users')
+          .select(`
+            id,
+            name,
+            role,
+            phone_number
+          `)
+          .or(`name.ilike.%${query}%,phone_number.ilike.%${query}%`)
+          .limit(3);
+
+        if (userError) throw userError;
+
+        if (users) {
+          users.forEach(user => {
+            searchResults.push({
+              id: user.id,
+              type: 'user',
+              title: user.name,
+              subtitle: `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} | ${user.phone_number}`,
+              link: `/user-management?id=${user.id}`
+            });
+          });
+        }
+
+        setResults(searchResults);
+      } catch (error) {
+        console.error('Search error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(() => {
+      fetchSearchResults();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
   }, [query]);
 
   const handleSearch = (searchQuery: string) => {
@@ -84,6 +159,11 @@ const GlobalSearch = () => {
     // For now, just close the search
     setIsOpen(false);
     setQuery('');
+  };
+
+  const handleResultClick = (result: SearchResult) => {
+    handleSearch(result.title);
+    navigate(result.link);
   };
 
   const getIcon = (type: string) => {
@@ -134,18 +214,19 @@ const GlobalSearch = () => {
 
           <div className="space-y-4">
             {/* Search Results */}
-            {results.length > 0 ? (
+            {loading ? (
+              <div className="flex justify-center py-4">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+              </div>
+            ) : results.length > 0 ? (
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-2">Results</h3>
                 <div className="space-y-1">
                   {results.map((result) => (
                     <button
-                      key={result.id}
+                      key={`${result.type}-${result.id}`}
                       className="w-full flex items-center gap-3 p-2 hover:bg-muted rounded-md text-left"
-                      onClick={() => {
-                        handleSearch(result.title);
-                        navigate(result.link);
-                      }}
+                      onClick={() => handleResultClick(result)}
                     >
                       <div className="bg-muted p-2 rounded-md">
                         {getIcon(result.type)}
