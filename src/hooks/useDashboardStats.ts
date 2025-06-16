@@ -10,7 +10,12 @@ interface DashboardStats {
   monthGrowth: number;
   dailyGrowth: number;
   studentGrowth: number;
-  defaultersData: any[];
+  defaultersData: {
+    class: string;
+    teacher: string;
+    defaulterCount: number;
+    outstandingBalance: string;
+  }[];
   currentAcademicYear: string;
 }
 
@@ -78,18 +83,15 @@ export function useDashboardStats() {
           sum + parseFloat(payment.amount_paid), 0) || 0;
         
         // Get class-wise defaulters in a single efficient query
-        const { data: classDefaulters, error: defaultersError } = await supabase.rpc(
+        const { data: defaultersData, error: defaultersError } = await supabase.rpc(
           'get_class_defaulters',
           { academic_year_id: academicYear.id }
         );
         
         if (defaultersError) {
           console.error('Error fetching defaulters:', defaultersError);
-          // Continue execution even if this specific query fails
+          throw new Error(`Error fetching defaulters: ${defaultersError.message}`);
         }
-        
-        // Format defaulters data
-        const defaultersData = classDefaulters || [];
         
         // Set all dashboard stats at once to avoid multiple re-renders
         setStats({
@@ -101,7 +103,7 @@ export function useDashboardStats() {
           monthGrowth: 8,
           dailyGrowth: 15,
           studentGrowth: 3,
-          defaultersData,
+          defaultersData: defaultersData || [],
           currentAcademicYear: academicYear.year_name
         });
       } catch (err: any) {
