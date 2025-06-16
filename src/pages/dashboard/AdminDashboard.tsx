@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { BarChart3, Users, CircleDollarSign, School } from 'lucide-react';
 import PageHeader from '../../components/shared/PageHeader';
-import SearchInput from '../../components/shared/SearchInput';
 import StatCard from '../../components/dashboard/StatCard';
 import QuickAccess from '../../components/dashboard/QuickAccess';
 import DefaultersTable from '../../components/dashboard/DefaultersTable';
 import { useDashboardStats } from '../../hooks/useDashboardStats';
 
 const AdminDashboard = () => {
-  const [searchQuery, setSearchQuery] = useState('');
   const { stats, loading, error } = useDashboardStats();
 
   // Quick access buttons
@@ -65,14 +63,6 @@ const AdminDashboard = () => {
           </span>
         </div>
       </PageHeader>
-
-      <div className="w-full max-w-xl">
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search student name..."
-        />
-      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-12">
