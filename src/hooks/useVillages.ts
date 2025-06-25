@@ -124,11 +124,11 @@ export function useVillages() {
       
       console.log('Village stats calculated:', stats);
       setVillageStats(stats);
+      setLoadingStats(false); // Move this inside the try block to ensure it's set to false after successful calculation
     } catch (error) {
       console.error('Error fetching village stats:', error);
       // Don't reset stats on error, keep the initial zeros
-    } finally {
-      setLoadingStats(false);
+      setLoadingStats(false); // Ensure loading state is reset even on error
     }
   };
 
