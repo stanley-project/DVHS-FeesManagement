@@ -4,7 +4,7 @@ import { toast } from 'react-hot-toast';
 import { useAcademicYears } from '../hooks/useAcademicYears';
 import { useSchoolFees } from '../hooks/useSchoolFees';
 import { useBusFees } from '../hooks/useBusFees';
-import { FeeType, FeeStructure } from '../types/fees';
+import { FeeType, FeeStructure as FeeStructureType } from '../types/fees';
 
 const FeeStructure = () => {
   const [activeTab, setActiveTab] = useState('school');
@@ -16,7 +16,7 @@ const FeeStructure = () => {
   
   const { academicYears, loading: yearsLoading } = useAcademicYears();
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
-  const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
+  const [feeStructures, setFeeStructures] = useState<FeeStructureType[]>([]);
   const [classes, setClasses] = useState<{id: string, name: string}[]>([]);
   const [feeTypes, setFeeTypes] = useState<FeeType[]>([]);
   
