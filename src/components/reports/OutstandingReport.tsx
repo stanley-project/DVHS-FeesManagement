@@ -249,7 +249,7 @@ const OutstandingReport = ({ type, dateRange, selectedClass, selectedFeeType }: 
           <p className="text-sm text-muted-foreground">Bus Fee Outstanding</p>
           <p className="text-2xl font-bold mt-1">₹{summary.busOutstanding.toLocaleString('en-IN')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {((summary.busOutstanding / summary.totalOutstanding) * 100).toFixed(1)}% of total
+            {summary.totalOutstanding > 0 ? ((summary.busOutstanding / summary.totalOutstanding) * 100).toFixed(1) : 0}% of total
           </p>
         </div>
         
@@ -257,7 +257,7 @@ const OutstandingReport = ({ type, dateRange, selectedClass, selectedFeeType }: 
           <p className="text-sm text-muted-foreground">School Fee Outstanding</p>
           <p className="text-2xl font-bold mt-1">₹{summary.schoolOutstanding.toLocaleString('en-IN')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {((summary.schoolOutstanding / summary.totalOutstanding) * 100).toFixed(1)}% of total
+            {summary.totalOutstanding > 0 ? ((summary.schoolOutstanding / summary.totalOutstanding) * 100).toFixed(1) : 0}% of total
           </p>
         </div>
       </div>

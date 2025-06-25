@@ -80,7 +80,7 @@ const CollectionReport = ({ type, dateRange, selectedClass, selectedFeeType }: C
           <p className="text-sm text-muted-foreground">Bus Fee Collection</p>
           <p className="text-2xl font-bold mt-1">₹{summary.busFeesAmount.toLocaleString('en-IN')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {((summary.busFeesAmount / summary.totalAmount) * 100).toFixed(1)}% of total
+            {summary.totalAmount > 0 ? ((summary.busFeesAmount / summary.totalAmount) * 100).toFixed(1) : 0}% of total
           </p>
         </div>
         
@@ -88,7 +88,7 @@ const CollectionReport = ({ type, dateRange, selectedClass, selectedFeeType }: C
           <p className="text-sm text-muted-foreground">School Fee Collection</p>
           <p className="text-2xl font-bold mt-1">₹{summary.schoolFeesAmount.toLocaleString('en-IN')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            {((summary.schoolFeesAmount / summary.totalAmount) * 100).toFixed(1)}% of total
+            {summary.totalAmount > 0 ? ((summary.schoolFeesAmount / summary.totalAmount) * 100).toFixed(1) : 0}% of total
           </p>
         </div>
       </div>

@@ -89,7 +89,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         }
       }
 
-      // Get school fees - Fix: Use student.class_id directly
+      // Get school fees - Use student.class_id directly
       if (student.class_id) {
         const { data: schoolFees, error: schoolFeeError } = await supabase
           .from('fee_structure')
@@ -226,40 +226,70 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         created_by: user.id
       };
 
-      // Use RPC function to create payment with proper authentication context
-      const { data: payment, error: paymentError } = await supabase
-        .rpc('create_fee_payment', {
-          payment_data: paymentData
+      // Try to use the Edge Function to create payment with service role
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-fee-payment`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ payment_data: paymentData })
         });
 
-      if (paymentError) {
-        console.error('Payment creation error:', paymentError);
-        throw new Error(paymentError.message || 'Failed to create payment record');
-      }
-
-      // If RPC doesn't exist, fall back to direct insert with service role
-      if (!payment) {
-        const { data: directPayment, error: directError } = await supabase
-          .from('fee_payments')
-          .insert(paymentData)
-          .select(`
-            *,
-            payment_allocation (
-              bus_fee_amount,
-              school_fee_amount
-            )
-          `)
-          .single();
-
-        if (directError) {
-          console.error('Direct payment creation error:', directError);
-          throw new Error('Failed to process payment. Please try again.');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create payment');
         }
 
-        onSubmit(directPayment);
-      } else {
+        const payment = await response.json();
         onSubmit(payment);
+        return;
+      } catch (edgeFunctionError) {
+        console.error('Edge function error:', edgeFunctionError);
+        // Fall back to direct insert if edge function fails
       }
+
+      // Use RPC function to create payment with proper authentication context
+      try {
+        const { data: payment, error: paymentError } = await supabase
+          .rpc('create_fee_payment', {
+            payment_data: paymentData
+          });
+
+        if (paymentError) {
+          console.error('Payment creation error:', paymentError);
+          throw new Error(paymentError.message || 'Failed to create payment record');
+        }
+
+        if (payment) {
+          onSubmit(payment);
+          return;
+        }
+      } catch (rpcError) {
+        console.error('RPC error:', rpcError);
+        // Fall back to direct insert if RPC fails
+      }
+
+      // Direct insert as last resort
+      const { data: directPayment, error: directError } = await supabase
+        .from('fee_payments')
+        .insert(paymentData)
+        .select(`
+          *,
+          payment_allocation (
+            bus_fee_amount,
+            school_fee_amount
+          )
+        `)
+        .single();
+
+      if (directError) {
+        console.error('Direct payment creation error:', directError);
+        throw new Error('Failed to process payment. Please try again.');
+      }
+
+      onSubmit(directPayment);
 
     } catch (error: any) {
       console.error('Error processing payment:', error);

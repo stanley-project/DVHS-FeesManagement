@@ -126,8 +126,8 @@ const FeeCollection = () => {
         // Calculate total fees
         let totalFees = 0;
         
-        // Add school fees - Fix: Use student.class?.id instead of student.class_id
-        const classFees = feeStructure?.filter(fee => fee.class_id === student.class?.id) || [];
+        // Add school fees - Use student.class_id directly
+        const classFees = feeStructure?.filter(fee => fee.class_id === student.class_id) || [];
         const totalSchoolFees = classFees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
         totalFees += totalSchoolFees;
         
@@ -181,7 +181,7 @@ const FeeCollection = () => {
           name: student.student_name,
           admissionNumber: student.admission_number,
           class: student.class?.name,
-          class_id: student.class?.id, // Add class_id for form usage
+          class_id: student.class_id, // Use class_id directly
           status,
           pending: `₹${pendingAmount.toLocaleString('en-IN')}`,
           pendingAmount, // Raw number for sorting

@@ -9,7 +9,7 @@ interface FeeType {
   name: string;
   description?: string;
   frequency: 'monthly' | 'quarterly' | 'annual';
-  category: 'school' | 'bus' | 'admission';
+  category: 'school' | 'bus';
   is_monthly: boolean;
   is_for_new_students_only: boolean;
   effective_from?: string;
@@ -70,7 +70,7 @@ const SchoolFeeForm = ({
   const [existingStructure, setExistingStructure] = useState<FeeStructureItem[]>([]);
   
   // UI states
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'school' | 'admission' | 'bus'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<'all' | 'school' | 'bus'>('all');
   const [showHistory, setShowHistory] = useState(false);
   const [feeHistory, setFeeHistory] = useState<any[]>([]);
 
@@ -505,15 +505,6 @@ const SchoolFeeForm = ({
           </div>
         )}
 
-        {/* Debug Info */}
-        <div className="bg-blue-50 p-3 rounded-md text-sm">
-          <p><strong>Debug Info:</strong></p>
-          <p>Total Fee Types: {feeTypes.length}</p>
-          <p>Filtered Fee Types: {filteredFeeTypes.length}</p>
-          <p>Selected Category: {selectedCategory}</p>
-          <p>Fee Types Categories: {feeTypes.map(ft => ft.category).join(', ')}</p>
-        </div>
-
         {/* Category Filter */}
         <div className="flex gap-2">
           <label className="text-sm font-medium">Filter by Category:</label>
@@ -524,7 +515,6 @@ const SchoolFeeForm = ({
           >
             <option value="all">All Categories</option>
             <option value="school">School Fees</option>
-            <option value="admission">Admission Fees</option>
             <option value="bus">Bus Fees</option>
           </select>
         </div>
