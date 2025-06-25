@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { FeeType } from '../../types/fees';
+import { supabase } from '../../lib/supabase';
 
 interface AddFeeItemModalProps {
   onClose: () => void;
@@ -8,9 +9,17 @@ interface AddFeeItemModalProps {
   classes: { id: string; name: string }[];
   feeTypes: FeeType[];
   isSchoolFee: boolean;
+  academicYearId: string;
 }
 
-const AddFeeItemModal = ({ onClose, onSubmit, classes, feeTypes, isSchoolFee }: AddFeeItemModalProps) => {
+const AddFeeItemModal = ({ 
+  onClose, 
+  onSubmit, 
+  classes, 
+  feeTypes, 
+  isSchoolFee,
+  academicYearId
+}: AddFeeItemModalProps) => {
   const [formData, setFormData] = useState({
     class_id: '',
     fee_type_id: '',
@@ -20,6 +29,34 @@ const AddFeeItemModal = ({ onClose, onSubmit, classes, feeTypes, isSchoolFee }: 
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch academic year start date to set as default due date
+  useEffect(() => {
+    const fetchAcademicYearStartDate = async () => {
+      if (!academicYearId) return;
+      
+      try {
+        const { data, error } = await supabase
+          .from('academic_years')
+          .select('start_date')
+          .eq('id', academicYearId)
+          .single();
+          
+        if (error) throw error;
+        
+        if (data && data.start_date) {
+          setFormData(prev => ({
+            ...prev,
+            due_date: data.start_date
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching academic year start date:', err);
+      }
+    };
+    
+    fetchAcademicYearStartDate();
+  }, [academicYearId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

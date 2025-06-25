@@ -5,12 +5,14 @@ import { useAcademicYears } from '../hooks/useAcademicYears';
 import { useSchoolFees } from '../hooks/useSchoolFees';
 import { useBusFees } from '../hooks/useBusFees';
 import { FeeType, FeeStructure as FeeStructureType } from '../types/fees';
+import AddFeeItemModal from '../components/fees/AddFeeItemModal';
+import FeeTypeModal from '../components/fees/FeeTypeModal';
+import FeeStructureTable from '../components/fees/FeeStructureTable';
 
 const FeeStructure = () => {
   const [activeTab, setActiveTab] = useState('school');
   const [showFeeTypeModal, setShowFeeTypeModal] = useState(false);
   const [showAddFeeModal, setShowAddFeeModal] = useState(false);
-  const [selectedFeeType, setSelectedFeeType] = useState<FeeType | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
   
@@ -187,6 +189,11 @@ const FeeStructure = () => {
       console.error('Error adding fee item:', err);
       toast.error(err instanceof Error ? err.message : 'Failed to add fee item');
     }
+  };
+
+  const handleEditFeeStructure = async (fee: FeeStructureType) => {
+    // This would be implemented for editing existing fee items
+    toast.info('Edit functionality will be implemented');
   };
 
   const exportFeeStructure = async () => {
@@ -368,60 +375,11 @@ const FeeStructure = () => {
               </div>
               
               {/* Fee Structure Table */}
-              <div className="bg-white rounded-lg border overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Class</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fee Type</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Amount (₹)</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Due Date</th>
-                      <th className="px-4 py-3 text-center font-medium text-muted-foreground">Monthly</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {filteredFeeStructures.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                          No fee structure items found. Click "Add Fee Item" to create one.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredFeeStructures.map((fee) => (
-                        <tr key={fee.id} className="hover:bg-muted/50">
-                          <td className="px-4 py-3 font-medium">{fee.class?.name || 'Unknown'}</td>
-                          <td className="px-4 py-3">{fee.fee_type?.name || 'Unknown'}</td>
-                          <td className="px-4 py-3 text-right">₹{parseFloat(fee.amount.toString()).toLocaleString('en-IN')}</td>
-                          <td className="px-4 py-3">{new Date(fee.due_date).toLocaleDateString()}</td>
-                          <td className="px-4 py-3 text-center">
-                            {fee.is_recurring_monthly ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                                Yes
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-                                No
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={() => handleDeleteFeeStructure(fee.id!)}
-                                className="p-1 hover:bg-muted rounded-md text-error"
-                                title="Delete"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <FeeStructureTable 
+                feeStructures={filteredFeeStructures}
+                onDelete={handleDeleteFeeStructure}
+                onEdit={handleEditFeeStructure}
+              />
             </div>
           )}
         </div>
@@ -429,222 +387,23 @@ const FeeStructure = () => {
 
       {/* Add Fee Item Modal */}
       {showAddFeeModal && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-lg shadow-lg max-w-md w-full">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold">Add Fee Item</h2>
-              <button
-                onClick={() => setShowAddFeeModal(false)}
-                className="p-2 hover:bg-muted rounded-full"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const formData = new FormData(e.currentTarget);
-              const data = {
-                class_id: formData.get('class_id') as string,
-                fee_type_id: formData.get('fee_type_id') as string,
-                amount: formData.get('amount') as string,
-                due_date: formData.get('due_date') as string,
-                is_recurring_monthly: formData.get('is_recurring_monthly') === 'on'
-              };
-              handleAddFeeItem(data);
-            }} className="p-6 space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="class_id" className="block text-sm font-medium">Class</label>
-                <select
-                  id="class_id"
-                  name="class_id"
-                  className="input w-full"
-                  required
-                >
-                  <option value="">Select Class</option>
-                  {classes.map(cls => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="fee_type_id" className="block text-sm font-medium">Fee Type</label>
-                <select
-                  id="fee_type_id"
-                  name="fee_type_id"
-                  className="input w-full"
-                  required
-                >
-                  <option value="">Select Fee Type</option>
-                  {feeTypes.map(type => (
-                    <option key={type.id} value={type.id}>{type.name}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="amount" className="block text-sm font-medium">Amount (₹)</label>
-                <input
-                  id="amount"
-                  name="amount"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="input w-full"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="due_date" className="block text-sm font-medium">Due Date</label>
-                <input
-                  id="due_date"
-                  name="due_date"
-                  type="date"
-                  className="input w-full"
-                  required
-                />
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <input
-                  id="is_recurring_monthly"
-                  name="is_recurring_monthly"
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-input"
-                  defaultChecked={activeTab === 'school'}
-                />
-                <label htmlFor="is_recurring_monthly" className="text-sm font-medium">
-                  Monthly Recurring Fee
-                </label>
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4 border-t mt-4">
-                <button
-                  type="button"
-                  className="btn btn-outline btn-md"
-                  onClick={() => setShowAddFeeModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary btn-md"
-                >
-                  Add Fee Item
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <AddFeeItemModal
+          onClose={() => setShowAddFeeModal(false)}
+          onSubmit={handleAddFeeItem}
+          classes={classes}
+          feeTypes={feeTypes}
+          isSchoolFee={activeTab === 'school'}
+          academicYearId={selectedYear || ''}
+        />
       )}
 
       {/* Fee Type Management Modal */}
       {showFeeTypeModal && (
-        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 p-4">
-          <div className="bg-card rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-hidden">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold">Fee Type Management</h2>
-              <button
-                onClick={() => setShowFeeTypeModal(false)}
-                className="p-2 hover:bg-muted rounded-full"
-              >
-                <Trash2 className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="flex justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium">Filter by Category:</label>
-                  <select
-                    className="input text-sm"
-                    value={activeTab}
-                    onChange={(e) => setActiveTab(e.target.value)}
-                  >
-                    <option value="school">School</option>
-                    <option value="bus">Bus</option>
-                  </select>
-                </div>
-                <button
-                  className="btn btn-primary btn-md"
-                  onClick={() => {
-                    setSelectedFeeType(null);
-                    // Open fee type form
-                  }}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Fee Type
-                </button>
-              </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
-                      <th className="px-4 py-3 text-left font-medium text-muted-foreground">Frequency</th>
-                      <th className="px-4 py-3 text-center font-medium text-muted-foreground">Monthly</th>
-                      <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {feeTypes.map((feeType) => (
-                      <tr key={feeType.id} className="border-b hover:bg-muted/50">
-                        <td className="px-4 py-3">
-                          <div>
-                            <div className="font-medium">{feeType.name}</div>
-                            {feeType.description && (
-                              <div className="text-sm text-muted-foreground">{feeType.description}</div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            feeType.category === 'school' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {feeType.category}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 capitalize">{feeType.frequency}</td>
-                        <td className="px-4 py-3 text-center">
-                          {feeType.is_monthly ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                              Yes
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
-                              No
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              className="p-1 hover:bg-muted rounded-md"
-                              title="Edit"
-                              onClick={() => setSelectedFeeType(feeType)}
-                            >
-                              <Settings className="h-4 w-4" />
-                            </button>
-                            <button
-                              className="p-1 hover:bg-muted rounded-md text-error"
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FeeTypeModal
+          onClose={() => setShowFeeTypeModal(false)}
+          selectedCategory={activeTab === 'school' ? 'school' : 'bus'}
+          onFeeTypesChanged={fetchFeeTypes}
+        />
       )}
     </div>
   );
