@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
-import { useVillages } from '../../contexts/VillageContext';
+import { useVillages } from '../../hooks/useVillages';
 
 interface VillageFormProps {
   village?: any;
