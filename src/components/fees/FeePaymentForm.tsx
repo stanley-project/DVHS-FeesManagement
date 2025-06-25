@@ -74,6 +74,17 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       let totalBusFees = 0;
       let totalSchoolFees = 0;
 
+      // Calculate months passed since academic year start
+      const currentDate = new Date();
+      const academicYearStartDate = new Date(academicYear.start_date);
+      const monthsPassed = (
+        (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
+        currentDate.getMonth() - academicYearStartDate.getMonth() + 
+        (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
+      ) + 1; // Add 1 to include current month
+
+      console.log('Months passed since academic year start:', monthsPassed);
+
       // Get bus fees if student uses school bus
       if (student.has_school_bus && student.village_id) {
         const { data: busFee, error: busFeeError } = await supabase
@@ -85,18 +96,10 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           .maybeSingle();
 
         if (!busFeeError && busFee) {
-          // Calculate monthly bus fees based on current date
-          const currentDate = new Date();
-          const academicYearStartDate = new Date(academicYear.start_date);
-          const monthsPassed = (
-            (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
-            currentDate.getMonth() - academicYearStartDate.getMonth() + 
-            (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
-          ) + 1; // Add 1 to include current month
-          
           // Monthly bus fee
           const monthlyBusFee = parseFloat(busFee.fee_amount);
           totalBusFees = monthlyBusFee * monthsPassed;
+          console.log('Monthly bus fee:', monthlyBusFee, 'Total bus fees:', totalBusFees);
         }
       }
 
@@ -106,36 +109,24 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           .from('fee_structure')
           .select(`
             amount,
-            applicable_to_new_students_only,
-            is_recurring_monthly
+            is_recurring_monthly,
+            fee_type:fee_type_id(name)
           `)
           .eq('academic_year_id', academicYear.id)
           .eq('class_id', student.class_id);
 
         if (!schoolFeeError && schoolFees) {
-          // Filter fees based on registration type
-          const applicableFees = schoolFees.filter(fee => 
-            registrationType === 'new' || !fee.applicable_to_new_students_only
-          );
-          
-          // Calculate monthly fees based on current date
-          const currentDate = new Date();
-          const academicYearStartDate = new Date(academicYear.start_date);
-          const monthsPassed = (
-            (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
-            currentDate.getMonth() - academicYearStartDate.getMonth() + 
-            (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
-          ) + 1; // Add 1 to include current month
-          
           // Calculate total school fees
-          applicableFees.forEach(fee => {
+          schoolFees.forEach(fee => {
             const feeAmount = parseFloat(fee.amount);
             if (fee.is_recurring_monthly) {
               // Monthly fee
               totalSchoolFees += feeAmount * monthsPassed;
+              console.log(`Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassed, '=', feeAmount * monthsPassed);
             } else {
               // One-time fee
               totalSchoolFees += feeAmount;
+              console.log(`One-time fee (${fee.fee_type?.name}):`, feeAmount);
             }
           });
         }
@@ -177,6 +168,15 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       // Calculate pending amounts
       const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
       const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
+
+      console.log('Total fees calculation:', {
+        totalBusFees,
+        totalSchoolFees,
+        paidBusFees,
+        paidSchoolFees,
+        pendingBusFees,
+        pendingSchoolFees
+      });
 
       setFeeStatus({
         total_bus_fees: totalBusFees,
