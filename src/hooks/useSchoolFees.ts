@@ -7,7 +7,7 @@ interface FeeType {
   name: string;
   description?: string;
   frequency: 'monthly' | 'quarterly' | 'annual';
-  category: 'school' | 'bus' | 'admission';
+  category: 'school' | 'bus';
   is_monthly: boolean;
   is_for_new_students_only: boolean;
   effective_from?: string;

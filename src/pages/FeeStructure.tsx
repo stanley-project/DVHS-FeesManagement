@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Download, Plus, Settings } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import AdmissionFeeForm from '../components/fees/AdmissionFeeForm';
 import SchoolFeeForm from '../components/fees/SchoolFeeForm';
 import BusFeeForm from '../components/fees/BusFeeForm';
 import FeeTypeManagement from '../components/fees/FeeTypeManagement';
 import { useAcademicYears } from '../hooks/useAcademicYears';
-import { useAdmissionFees } from '../hooks/useAdmissionFees';
 import { useSchoolFees } from '../hooks/useSchoolFees';
 import { useBusFees } from '../hooks/useBusFees';
 
@@ -16,7 +14,6 @@ const FeeStructure = () => {
   const { academicYears, loading: yearsLoading } = useAcademicYears();
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   
-  const admissionFees = useAdmissionFees();
   const schoolFees = useSchoolFees();
   const busFees = useBusFees();
 
@@ -37,14 +34,6 @@ const FeeStructure = () => {
       }
 
       switch (activeTab) {
-        case 'admission':
-          await admissionFees.saveAdmissionFee({
-            ...data,
-            academic_year_id: selectedYear,
-            is_active: true
-          });
-          break;
-          
         case 'school':
           await schoolFees.saveFeeStructure({
             academic_year_id: selectedYear,
@@ -76,9 +65,6 @@ const FeeStructure = () => {
 
       let data;
       switch (activeTab) {
-        case 'admission':
-          data = await admissionFees.copyFromPreviousYear(selectedYear);
-          break;
         case 'school':
           data = await schoolFees.copyFromPreviousYear(selectedYear);
           break;
@@ -178,16 +164,6 @@ const FeeStructure = () => {
             </button>
             <button
               className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === 'admission'
-                  ? 'border-primary text-primary bg-primary/5'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              }`}
-              onClick={() => setActiveTab('admission')}
-            >
-              Admission Fees
-            </button>
-            <button
-              className={`px-6 py-3 font-medium text-sm border-b-2 transition-colors ${
                 activeTab === 'bus'
                   ? 'border-primary text-primary bg-primary/5'
                   : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -213,17 +189,6 @@ const FeeStructure = () => {
                   academicYearId={selectedYear}
                   loading={schoolFees.loading}
                   error={schoolFees.error?.message}
-                  onSubmit={handleSubmit}
-                  onCancel={() => {}}
-                  onCopyFromPrevious={handleCopyFromPrevious}
-                />
-              )}
-
-              {activeTab === 'admission' && (
-                <AdmissionFeeForm
-                  academicYear={selectedAcademicYear?.year_name || ''}
-                  loading={admissionFees.loading}
-                  error={admissionFees.error?.message}
                   onSubmit={handleSubmit}
                   onCancel={() => {}}
                   onCopyFromPrevious={handleCopyFromPrevious}

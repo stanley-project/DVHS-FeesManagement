@@ -8,7 +8,7 @@ interface FeeType {
   name: string;
   description?: string;
   frequency: 'monthly' | 'quarterly' | 'annual';
-  category: 'school' | 'bus' | 'admission';
+  category: 'school' | 'bus';
   is_monthly: boolean;
   is_for_new_students_only: boolean;
   effective_from?: string;
@@ -27,7 +27,7 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingFeeType, setEditingFeeType] = useState<FeeType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'school' | 'admission' | 'bus'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'school' | 'bus'>('all');
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -158,7 +158,6 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
               >
                 <option value="all">All Categories</option>
                 <option value="school">School</option>
-                <option value="admission">Admission</option>
                 <option value="bus">Bus</option>
               </select>
             </div>
@@ -203,7 +202,6 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                           feeType.category === 'school' ? 'bg-blue-100 text-blue-800' :
-                          feeType.category === 'admission' ? 'bg-green-100 text-green-800' :
                           'bg-yellow-100 text-yellow-800'
                         }`}>
                           {feeType.category}
@@ -297,7 +295,6 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                         required
                       >
                         <option value="school">School</option>
-                        <option value="admission">Admission</option>
                         <option value="bus">Bus</option>
                       </select>
                     </div>
