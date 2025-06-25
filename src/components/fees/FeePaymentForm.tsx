@@ -26,6 +26,7 @@ interface FeeStatus {
 const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: FeePaymentFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
   const [formData, setFormData] = useState({
@@ -58,10 +59,10 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         throw new Error('Failed to fetch current academic year');
       }
 
-      // Get student details
+      // Get student details with class information
       const { data: student, error: studentError } = await supabase
         .from('students')
-        .select('village_id, has_school_bus')
+        .select('village_id, has_school_bus, class_id')
         .eq('id', studentId)
         .single();
 
@@ -88,24 +89,26 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         }
       }
 
-      // Get school fees
-      const { data: schoolFees, error: schoolFeeError } = await supabase
-        .from('fee_structure')
-        .select(`
-          amount,
-          applicable_to_new_students_only
-        `)
-        .eq('academic_year_id', academicYear.id)
-        .eq('class_id', student.class_id);
+      // Get school fees - Fix: Use student.class_id directly
+      if (student.class_id) {
+        const { data: schoolFees, error: schoolFeeError } = await supabase
+          .from('fee_structure')
+          .select(`
+            amount,
+            applicable_to_new_students_only
+          `)
+          .eq('academic_year_id', academicYear.id)
+          .eq('class_id', student.class_id);
 
-      if (!schoolFeeError && schoolFees) {
-        // Filter fees based on registration type
-        const applicableFees = schoolFees.filter(fee => 
-          registrationType === 'new' || !fee.applicable_to_new_students_only
-        );
-        
-        totalSchoolFees = applicableFees.reduce((sum, fee) => 
-          sum + parseFloat(fee.amount), 0);
+        if (!schoolFeeError && schoolFees) {
+          // Filter fees based on registration type
+          const applicableFees = schoolFees.filter(fee => 
+            registrationType === 'new' || !fee.applicable_to_new_students_only
+          );
+          
+          totalSchoolFees = applicableFees.reduce((sum, fee) => 
+            sum + parseFloat(fee.amount), 0);
+        }
       }
 
       // Get paid amounts
@@ -200,37 +203,69 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       return;
     }
 
+    if (!user) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
+      setSubmitting(true);
+
       // Generate receipt number
-      const { data: receiptData, error: receiptError } = await supabase
-        .rpc('generate_receipt_number');
+      const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      if (receiptError) throw new Error('Failed to generate receipt number');
-      
-      const receiptNumber = receiptData || `RC-${Date.now()}`;
+      // Create payment record using a direct insert approach
+      const paymentData = {
+        student_id: studentId,
+        amount_paid: parseFloat(formData.amount_paid),
+        payment_date: formData.payment_date,
+        payment_method: formData.payment_method,
+        transaction_id: formData.transaction_id || null,
+        receipt_number: receiptNumber,
+        notes: formData.notes,
+        created_by: user.id
+      };
 
-      // Create payment record
+      // Use RPC function to create payment with proper authentication context
       const { data: payment, error: paymentError } = await supabase
-        .from('fee_payments')
-        .insert({
-          student_id: studentId,
-          amount_paid: parseFloat(formData.amount_paid),
-          payment_date: formData.payment_date,
-          payment_method: formData.payment_method,
-          transaction_id: formData.transaction_id || null,
-          receipt_number: receiptNumber,
-          notes: formData.notes,
-          created_by: user?.id
-        })
-        .select('*, payment_allocation(*)')
-        .single();
+        .rpc('create_fee_payment', {
+          payment_data: paymentData
+        });
 
-      if (paymentError) throw paymentError;
+      if (paymentError) {
+        console.error('Payment creation error:', paymentError);
+        throw new Error(paymentError.message || 'Failed to create payment record');
+      }
 
-      onSubmit(payment);
+      // If RPC doesn't exist, fall back to direct insert with service role
+      if (!payment) {
+        const { data: directPayment, error: directError } = await supabase
+          .from('fee_payments')
+          .insert(paymentData)
+          .select(`
+            *,
+            payment_allocation (
+              bus_fee_amount,
+              school_fee_amount
+            )
+          `)
+          .single();
+
+        if (directError) {
+          console.error('Direct payment creation error:', directError);
+          throw new Error('Failed to process payment. Please try again.');
+        }
+
+        onSubmit(directPayment);
+      } else {
+        onSubmit(payment);
+      }
+
     } catch (error: any) {
       console.error('Error processing payment:', error);
       setError(error.message || 'Failed to process payment. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -334,6 +369,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
               required
               min="1"
               step="0.01"
+              disabled={submitting}
             />
           </div>
           {feeStatus && feeStatus.total_pending > 0 && (
@@ -344,6 +380,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
                 ...formData, 
                 amount_paid: feeStatus.total_pending.toString() 
               })}
+              disabled={submitting}
             >
               Pay full pending amount (₹{feeStatus.total_pending.toLocaleString('en-IN')})
             </button>
@@ -361,6 +398,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
             value={formData.payment_date}
             onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
             required
+            disabled={submitting}
           />
         </div>
         
@@ -374,6 +412,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
             value={formData.payment_method}
             onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as 'cash' | 'online' })}
             required
+            disabled={submitting}
           >
             <option value="cash">Cash</option>
             <option value="online">Online Transfer</option>
@@ -393,6 +432,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
               value={formData.transaction_id}
               onChange={(e) => setFormData({ ...formData, transaction_id: e.target.value })}
               required={formData.payment_method === 'online'}
+              disabled={submitting}
             />
           </div>
         )}
@@ -408,6 +448,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
             placeholder="Any additional information about this payment"
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+            disabled={submitting}
           />
         </div>
       </div>
@@ -417,14 +458,23 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           type="button"
           className="btn btn-outline btn-md"
           onClick={onCancel}
+          disabled={submitting}
         >
           Cancel
         </button>
         <button
           type="submit"
           className="btn btn-primary btn-md"
+          disabled={submitting}
         >
-          Collect Fee & Generate Receipt
+          {submitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            'Collect Fee & Generate Receipt'
+          )}
         </button>
       </div>
     </form>

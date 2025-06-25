@@ -58,7 +58,8 @@ const FeeCollection = () => {
           id,
           admission_number,
           student_name,
-          class:class_id(name),
+          class_id,
+          class:class_id(id, name),
           registration_type,
           status,
           village_id,
@@ -125,8 +126,8 @@ const FeeCollection = () => {
         // Calculate total fees
         let totalFees = 0;
         
-        // Add school fees
-        const classFees = feeStructure?.filter(fee => fee.class_id === student.class_id) || [];
+        // Add school fees - Fix: Use student.class?.id instead of student.class_id
+        const classFees = feeStructure?.filter(fee => fee.class_id === student.class?.id) || [];
         const totalSchoolFees = classFees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
         totalFees += totalSchoolFees;
         
@@ -180,6 +181,7 @@ const FeeCollection = () => {
           name: student.student_name,
           admissionNumber: student.admission_number,
           class: student.class?.name,
+          class_id: student.class?.id, // Add class_id for form usage
           status,
           pending: `₹${pendingAmount.toLocaleString('en-IN')}`,
           pendingAmount, // Raw number for sorting
@@ -213,58 +215,29 @@ const FeeCollection = () => {
       // Get student details
       const student = students[selectedStudent!];
       
-      // Create payment record
-      const { data, error } = await supabase
-        .from('fee_payments')
-        .insert([{
-          student_id: student.id,
-          amount_paid: parseFloat(paymentData.amount_paid),
-          payment_date: paymentData.payment_date,
-          payment_method: paymentData.payment_method,
-          transaction_id: paymentData.transaction_id || null,
-          receipt_number: paymentData.receipt_number || `RC-${Date.now()}`,
-          notes: paymentData.notes || null,
-          created_by: user.id
-        }])
-        .select(`
-          *,
-          payment_allocation (
-            id,
-            bus_fee_amount,
-            school_fee_amount
-          )
-        `)
-        .single();
-
-      if (error) throw error;
-
-      // Get allocation details
-      const busAmount = data.payment_allocation?.[0]?.bus_fee_amount || 0;
-      const schoolAmount = data.payment_allocation?.[0]?.school_fee_amount || 0;
+      // Show success message
+      toast.success('Payment recorded successfully');
       
-      // Create receipt data
+      // Create receipt data from the payment data returned by the form
       const receipt = {
-        receiptNumber: data.receipt_number,
-        date: new Date(data.payment_date).toLocaleDateString('en-IN'),
+        receiptNumber: paymentData.receipt_number,
+        date: new Date(paymentData.payment_date).toLocaleDateString('en-IN'),
         student: {
           name: student.name,
           admissionNumber: student.admissionNumber,
           class: student.class?.split('-')[0] || '',
           section: student.class?.split('-')[1] || '',
         },
-        busAmount,
-        schoolAmount,
-        total: data.amount_paid,
-        paymentMethod: data.payment_method,
-        transactionId: data.transaction_id,
+        busAmount: paymentData.payment_allocation?.[0]?.bus_fee_amount || 0,
+        schoolAmount: paymentData.payment_allocation?.[0]?.school_fee_amount || 0,
+        total: paymentData.amount_paid,
+        paymentMethod: paymentData.payment_method,
+        transactionId: paymentData.transaction_id,
         collectedBy: user.name
       };
 
       setReceiptData(receipt);
       setShowReceipt(true);
-      
-      // Show success message
-      toast.success('Payment recorded successfully');
       
       // Refresh student list
       await fetchStudents();
