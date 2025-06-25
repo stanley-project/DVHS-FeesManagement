@@ -51,7 +51,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       // Get current academic year
       const { data: academicYear, error: yearError } = await supabase
         .from('academic_years')
-        .select('id')
+        .select('id, start_date')
         .eq('is_current', true)
         .single();
 
@@ -85,7 +85,18 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           .maybeSingle();
 
         if (!busFeeError && busFee) {
-          totalBusFees = parseFloat(busFee.fee_amount);
+          // Calculate monthly bus fees based on current date
+          const currentDate = new Date();
+          const academicYearStartDate = new Date(academicYear.start_date);
+          const monthsPassed = (
+            (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
+            currentDate.getMonth() - academicYearStartDate.getMonth() + 
+            (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
+          ) + 1; // Add 1 to include current month
+          
+          // Monthly bus fee
+          const monthlyBusFee = parseFloat(busFee.fee_amount);
+          totalBusFees = monthlyBusFee * monthsPassed;
         }
       }
 
@@ -95,7 +106,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           .from('fee_structure')
           .select(`
             amount,
-            applicable_to_new_students_only
+            applicable_to_new_students_only,
+            is_recurring_monthly
           `)
           .eq('academic_year_id', academicYear.id)
           .eq('class_id', student.class_id);
@@ -106,8 +118,26 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
             registrationType === 'new' || !fee.applicable_to_new_students_only
           );
           
-          totalSchoolFees = applicableFees.reduce((sum, fee) => 
-            sum + parseFloat(fee.amount), 0);
+          // Calculate monthly fees based on current date
+          const currentDate = new Date();
+          const academicYearStartDate = new Date(academicYear.start_date);
+          const monthsPassed = (
+            (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
+            currentDate.getMonth() - academicYearStartDate.getMonth() + 
+            (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
+          ) + 1; // Add 1 to include current month
+          
+          // Calculate total school fees
+          applicableFees.forEach(fee => {
+            const feeAmount = parseFloat(fee.amount);
+            if (fee.is_recurring_monthly) {
+              // Monthly fee
+              totalSchoolFees += feeAmount * monthsPassed;
+            } else {
+              // One-time fee
+              totalSchoolFees += feeAmount;
+            }
+          });
         }
       }
 
