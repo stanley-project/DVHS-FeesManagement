@@ -2,13 +2,9 @@ export interface FeeType {
   id: string;
   name: string;
   description?: string;
-  frequency: 'monthly' | 'quarterly' | 'annual' | 'ad_hoc';
+  frequency: 'monthly' | 'quarterly' | 'annual';
   category: 'school' | 'bus';
   is_monthly: boolean;
-  is_for_new_students_only: boolean;
-  effective_from?: string;
-  effective_to?: string;
-  last_updated_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -18,12 +14,9 @@ export interface FeeStructure {
   class_id: string;
   fee_type_id: string;
   amount: number;
-  academic_year_id: string;
   due_date: string;
-  applicable_to_new_students_only: boolean;
   is_recurring_monthly: boolean;
-  notes?: string;
-  last_updated_by?: string;
+  academic_year_id: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -44,8 +37,6 @@ export interface BusFeeStructure {
   effective_from_date: string;
   effective_to_date: string;
   is_active: boolean;
-  notes?: string;
-  last_updated_by?: string;
   created_at?: string;
   updated_at?: string;
 }

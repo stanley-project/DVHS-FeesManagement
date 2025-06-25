@@ -11,9 +11,6 @@ interface FeeType {
   frequency: 'monthly' | 'quarterly' | 'annual';
   category: 'school' | 'bus';
   is_monthly: boolean;
-  is_for_new_students_only: boolean;
-  effective_from?: string;
-  effective_to?: string;
   created_at: string;
   updated_at: string;
 }
@@ -30,9 +27,7 @@ interface FeeStructureItem {
   fee_type_id: string;
   amount: number;
   due_date: string;
-  applicable_to_new_students_only: boolean;
   is_recurring_monthly: boolean;
-  notes?: string;
   class_name?: string;
   fee_type_name?: string;
   fee_type_category?: string;
@@ -153,7 +148,7 @@ const SchoolFeeForm = ({
         .select(`
           *,
           class:class_id(id, name),
-          fee_type:fee_type_id(id, name, category, frequency, is_monthly, is_for_new_students_only)
+          fee_type:fee_type_id(id, name, category, frequency, is_monthly)
         `)
         .eq('academic_year_id', academicYearId);
 
@@ -165,9 +160,7 @@ const SchoolFeeForm = ({
         fee_type_id: item.fee_type_id,
         amount: parseFloat(item.amount),
         due_date: item.due_date,
-        applicable_to_new_students_only: item.applicable_to_new_students_only,
         is_recurring_monthly: item.is_recurring_monthly,
-        notes: item.notes,
         class_name: item.class?.name,
         fee_type_name: item.fee_type?.name,
         fee_type_category: item.fee_type?.category,
@@ -266,9 +259,7 @@ const SchoolFeeForm = ({
       fee_type_id: '',
       amount: 0,
       due_date: new Date().toISOString().split('T')[0],
-      applicable_to_new_students_only: false,
-      is_recurring_monthly: false,
-      notes: '',
+      is_recurring_monthly: true,
       fee_type_category: selectedCategory !== 'all' ? selectedCategory : undefined
     };
     setFeeStructure([...feeStructure, newItem]);
@@ -293,7 +284,6 @@ const SchoolFeeForm = ({
         newStructure[index].fee_type_category = feeType.category;
         newStructure[index].fee_type_frequency = feeType.frequency;
         newStructure[index].is_recurring_monthly = feeType.is_monthly;
-        newStructure[index].applicable_to_new_students_only = feeType.is_for_new_students_only;
       }
     }
 
@@ -306,71 +296,6 @@ const SchoolFeeForm = ({
     }
 
     setFeeStructure(newStructure);
-  };
-
-  // Copy from previous year
-  const handleCopyFromPrevious = async () => {
-    try {
-      setLoading(true);
-      
-      // Get previous academic year
-      const { data: currentYear, error: yearError } = await supabase
-        .from('academic_years')
-        .select('previous_year_id')
-        .eq('id', academicYearId)
-        .single();
-
-      if (yearError || !currentYear?.previous_year_id) {
-        throw new Error('No previous academic year found');
-      }
-
-      // Get fee structure from previous year
-      const { data: previousStructure, error: structureError } = await supabase
-        .from('fee_structure')
-        .select(`
-          *,
-          class:class_id(name),
-          fee_type:fee_type_id(*)
-        `)
-        .eq('academic_year_id', currentYear.previous_year_id);
-
-      if (structureError) throw structureError;
-
-      if (!previousStructure?.length) {
-        throw new Error('No fee structure found for previous year');
-      }
-
-      // Map previous structure to current classes
-      const mappedStructure: FeeStructureItem[] = [];
-      
-      for (const item of previousStructure) {
-        // Find corresponding class in current year
-        const currentClass = classes.find(c => c.name === item.class?.name);
-        
-        if (currentClass) {
-          mappedStructure.push({
-            class_id: currentClass.id,
-            fee_type_id: item.fee_type_id,
-            amount: parseFloat(item.amount),
-            due_date: new Date().toISOString().split('T')[0],
-            applicable_to_new_students_only: item.applicable_to_new_students_only,
-            is_recurring_monthly: item.is_recurring_monthly,
-            notes: `Copied from ${currentYear.previous_year_id}`,
-            class_name: currentClass.name,
-            fee_type_name: item.fee_type?.name,
-            fee_type_category: item.fee_type?.category,
-            fee_type_frequency: item.fee_type?.frequency
-          });
-        }
-      }
-
-      setFeeStructure(mappedStructure);
-      toast.success(`Copied ${mappedStructure.length} fee structures from previous year`);
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   // Validate form data
@@ -486,7 +411,7 @@ const SchoolFeeForm = ({
             <button
               type="button"
               className="btn btn-outline btn-sm"
-              onClick={handleCopyFromPrevious}
+              onClick={onCopyFromPrevious}
               disabled={loading}
             >
               <Copy className="h-4 w-4 mr-2" />
@@ -550,7 +475,7 @@ const SchoolFeeForm = ({
                     {items.map((item, globalIndex) => {
                       const actualIndex = feeStructure.findIndex(fs => fs === item);
                       return (
-                        <div key={actualIndex} className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 border rounded-lg">
+                        <div key={actualIndex} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-lg">
                           {/* Class Selection */}
                           <div className="space-y-1">
                             <label className="text-xs font-medium text-muted-foreground">Class</label>
@@ -609,31 +534,6 @@ const SchoolFeeForm = ({
                               onChange={(e) => updateFeeStructureItem(actualIndex, 'due_date', e.target.value)}
                               required
                             />
-                          </div>
-
-                          {/* Options */}
-                          <div className="space-y-2">
-                            <label className="text-xs font-medium text-muted-foreground">Options</label>
-                            <div className="space-y-1">
-                              <label className="flex items-center gap-2 text-xs">
-                                <input
-                                  type="checkbox"
-                                  checked={item.is_recurring_monthly}
-                                  onChange={(e) => updateFeeStructureItem(actualIndex, 'is_recurring_monthly', e.target.checked)}
-                                  className="h-3 w-3"
-                                />
-                                Monthly Recurring
-                              </label>
-                              <label className="flex items-center gap-2 text-xs">
-                                <input
-                                  type="checkbox"
-                                  checked={item.applicable_to_new_students_only}
-                                  onChange={(e) => updateFeeStructureItem(actualIndex, 'applicable_to_new_students_only', e.target.checked)}
-                                  className="h-3 w-3"
-                                />
-                                New Students Only
-                              </label>
-                            </div>
                           </div>
 
                           {/* Actions */}

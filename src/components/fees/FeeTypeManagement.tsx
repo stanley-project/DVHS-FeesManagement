@@ -10,9 +10,6 @@ interface FeeType {
   frequency: 'monthly' | 'quarterly' | 'annual';
   category: 'school' | 'bus';
   is_monthly: boolean;
-  is_for_new_students_only: boolean;
-  effective_from?: string;
-  effective_to?: string;
   created_at: string;
   updated_at: string;
 }
@@ -33,10 +30,7 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
     description: '',
     frequency: 'monthly' as const,
     category: 'school' as const,
-    is_monthly: false,
-    is_for_new_students_only: false,
-    effective_from: '',
-    effective_to: ''
+    is_monthly: true
   });
 
   const { 
@@ -97,10 +91,7 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
       description: feeType.description || '',
       frequency: feeType.frequency,
       category: feeType.category,
-      is_monthly: feeType.is_monthly,
-      is_for_new_students_only: feeType.is_for_new_students_only,
-      effective_from: feeType.effective_from || '',
-      effective_to: feeType.effective_to || ''
+      is_monthly: feeType.is_monthly
     });
     setShowForm(true);
   };
@@ -124,10 +115,7 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
       description: '',
       frequency: 'monthly',
       category: 'school',
-      is_monthly: false,
-      is_for_new_students_only: false,
-      effective_from: '',
-      effective_to: ''
+      is_monthly: true
     });
     setEditingFeeType(null);
     setShowForm(false);
@@ -184,7 +172,7 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Name</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Category</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Frequency</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Options</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Monthly</th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
@@ -209,18 +197,15 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                       </td>
                       <td className="px-4 py-3 capitalize">{feeType.frequency}</td>
                       <td className="px-4 py-3">
-                        <div className="space-y-1">
-                          {feeType.is_monthly && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
-                              Monthly
-                            </span>
-                          )}
-                          {feeType.is_for_new_students_only && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-orange-100 text-orange-800">
-                              New Students Only
-                            </span>
-                          )}
-                        </div>
+                        {feeType.is_monthly ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            Yes
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800">
+                            No
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-2">
@@ -312,16 +297,6 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                         <option value="annual">Annual</option>
                       </select>
                     </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium">Effective From</label>
-                      <input
-                        type="date"
-                        className="input"
-                        value={formData.effective_from}
-                        onChange={(e) => setFormData({ ...formData, effective_from: e.target.value })}
-                      />
-                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -343,16 +318,6 @@ const FeeTypeManagement: React.FC<FeeTypeManagementProps> = ({ onClose }) => {
                         className="h-4 w-4 rounded border-input"
                       />
                       <span className="text-sm font-medium">Monthly Recurring Fee</span>
-                    </label>
-
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.is_for_new_students_only}
-                        onChange={(e) => setFormData({ ...formData, is_for_new_students_only: e.target.checked })}
-                        className="h-4 w-4 rounded border-input"
-                      />
-                      <span className="text-sm font-medium">Applicable to New Students Only</span>
                     </label>
                   </div>
 

@@ -9,10 +9,6 @@ interface FeeType {
   frequency: 'monthly' | 'quarterly' | 'annual';
   category: 'school' | 'bus';
   is_monthly: boolean;
-  is_for_new_students_only: boolean;
-  effective_from?: string;
-  effective_to?: string;
-  last_updated_by?: string;
   created_at: string;
   updated_at: string;
 }
@@ -24,10 +20,7 @@ interface FeeStructure {
   amount: number;
   academic_year_id: string;
   due_date: string;
-  applicable_to_new_students_only: boolean;
   is_recurring_monthly: boolean;
-  notes?: string;
-  last_updated_by?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -44,7 +37,7 @@ export function useSchoolFees() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Fetch all fee types (removed category filter)
+  // Fetch all fee types
   const fetchFeeTypes = useCallback(async (): Promise<FeeType[]> => {
     try {
       setLoading(true);
@@ -150,7 +143,6 @@ export function useSchoolFees() {
       const structureToInsert = data.fee_structure.map(item => ({
         ...item,
         academic_year_id: data.academic_year_id,
-        last_updated_by: data.updated_by,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }));
@@ -226,8 +218,7 @@ export function useSchoolFees() {
             id: undefined, // Remove ID for new insertion
             class_id: currentClassId,
             academic_year_id: currentYearId,
-            due_date: new Date().toISOString().split('T')[0],
-            notes: `Copied from previous year (${currentYear.previous_year_id})`
+            due_date: new Date().toISOString().split('T')[0]
           };
         })
         .filter(Boolean) as FeeStructureWithDetails[];
