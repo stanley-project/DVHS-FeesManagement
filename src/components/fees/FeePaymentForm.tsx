@@ -29,6 +29,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
+  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
@@ -57,6 +58,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       if (yearError) {
         throw new Error('Failed to fetch current academic year');
       }
+
+      // Set the current academic year ID
+      setCurrentAcademicYearId(academicYear.id);
 
       // Get student details with class information
       const { data: student, error: studentError } = await supabase
@@ -231,6 +235,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       return false;
     }
 
+    if (!currentAcademicYearId) {
+      setError('Academic year information is missing');
+      return false;
+    }
+
     return true;
   };
 
@@ -262,7 +271,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         transaction_id: null, // No transaction ID for any payment method
         receipt_number: receiptNumber,
         notes: formData.notes,
-        created_by: user.id
+        created_by: user.id,
+        academic_year_id: currentAcademicYearId
       };
 
       // Try to use the Edge Function to create payment with service role
