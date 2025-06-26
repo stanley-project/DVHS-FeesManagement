@@ -62,17 +62,13 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       // Get student details with class information
       const { data: student, error: studentError } = await supabase
         .from('students')
-        .select('village_id, has_school_bus, class_id')
+        .select('village_id, has_school_bus, class_id, registration_type')
         .eq('id', studentId)
         .single();
 
       if (studentError) {
         throw new Error('Failed to fetch student details');
       }
-
-      // Calculate total fees
-      let totalBusFees = 0;
-      let totalSchoolFees = 0;
 
       // Calculate months passed since academic year start
       const currentDate = new Date();
@@ -84,6 +80,10 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       ) + 1; // Add 1 to include current month
 
       console.log('Months passed since academic year start:', monthsPassed);
+
+      // Calculate total fees
+      let totalBusFees = 0;
+      let totalSchoolFees = 0;
 
       // Get bus fees if student uses school bus
       if (student.has_school_bus && student.village_id) {
@@ -110,6 +110,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           .select(`
             amount,
             is_recurring_monthly,
+            applicable_to_new_students_only,
             fee_type:fee_type_id(name)
           `)
           .eq('academic_year_id', academicYear.id)
@@ -118,6 +119,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         if (!schoolFeeError && schoolFees) {
           // Calculate total school fees
           schoolFees.forEach(fee => {
+            // Filter fees based on registration type
+            if (fee.applicable_to_new_students_only && student.registration_type !== 'new') {
+              return; // Skip this fee for continuing students
+            }
+            
             const feeAmount = parseFloat(fee.amount);
             if (fee.is_recurring_monthly) {
               // Monthly fee
