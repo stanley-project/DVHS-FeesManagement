@@ -126,15 +126,19 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           // Calculate total school fees
           schoolFees.forEach(fee => {
             const feeAmount = parseFloat(fee.amount);
-            if (fee.is_recurring_monthly) {
-              // Monthly fee
-              const monthlyTotal = feeAmount * monthsPassed;
-              console.log(`DEBUG - Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassed, '=', monthlyTotal);
-              totalSchoolFees += monthlyTotal;
-            } else {
-              // One-time fee
-              console.log(`DEBUG - One-time fee (${fee.fee_type?.name}):`, feeAmount);
-              totalSchoolFees += feeAmount;
+            
+            // Only include fees with category 'school' in the school fees calculation
+            if (fee.fee_type?.category === 'school') {
+              if (fee.is_recurring_monthly) {
+                // Monthly fee
+                const monthlyTotal = feeAmount * monthsPassed;
+                console.log(`DEBUG - Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassed, '=', monthlyTotal);
+                totalSchoolFees += monthlyTotal;
+              } else {
+                // One-time fee
+                console.log(`DEBUG - One-time fee (${fee.fee_type?.name}):`, feeAmount);
+                totalSchoolFees += feeAmount;
+              }
             }
           });
         }
