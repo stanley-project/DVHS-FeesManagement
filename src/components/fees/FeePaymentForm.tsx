@@ -70,6 +70,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         throw new Error('Failed to fetch student details');
       }
 
+      console.log('DEBUG - Student details:', student);
+
       // Calculate total fees
       let totalBusFees = 0;
       let totalSchoolFees = 0;
@@ -83,7 +85,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
       ) + 1; // Add 1 to include current month
 
-      console.log('Months passed since academic year start:', monthsPassed);
+      console.log('DEBUG - Months passed since academic year start:', monthsPassed);
+      console.log('DEBUG - Academic year start date:', academicYearStartDate.toISOString());
+      console.log('DEBUG - Current date:', currentDate.toISOString());
 
       // Get bus fees if student uses school bus
       if (student.has_school_bus && student.village_id) {
@@ -99,7 +103,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
           // Monthly bus fee
           const monthlyBusFee = parseFloat(busFee.fee_amount);
           totalBusFees = monthlyBusFee * monthsPassed;
-          console.log('Monthly bus fee:', monthlyBusFee, 'Total bus fees:', totalBusFees);
+          console.log('DEBUG - Monthly bus fee:', monthlyBusFee, 'Total bus fees:', totalBusFees);
         }
       }
 
@@ -108,29 +112,39 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         const { data: schoolFees, error: schoolFeeError } = await supabase
           .from('fee_structure')
           .select(`
+            id,
             amount,
             is_recurring_monthly,
-            fee_type:fee_type_id(name)
+            fee_type:fee_type_id(name, category, is_monthly)
           `)
           .eq('academic_year_id', academicYear.id)
           .eq('class_id', student.class_id);
 
         if (!schoolFeeError && schoolFees) {
+          console.log('DEBUG - Fetched school fees for student class:', schoolFees);
+          
           // Calculate total school fees
           schoolFees.forEach(fee => {
             const feeAmount = parseFloat(fee.amount);
             if (fee.is_recurring_monthly) {
               // Monthly fee
-              totalSchoolFees += feeAmount * monthsPassed;
-              console.log(`Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassed, '=', feeAmount * monthsPassed);
+              const monthlyTotal = feeAmount * monthsPassed;
+              console.log(`DEBUG - Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassed, '=', monthlyTotal);
+              totalSchoolFees += monthlyTotal;
             } else {
               // One-time fee
+              console.log(`DEBUG - One-time fee (${fee.fee_type?.name}):`, feeAmount);
               totalSchoolFees += feeAmount;
-              console.log(`One-time fee (${fee.fee_type?.name}):`, feeAmount);
             }
           });
         }
       }
+
+      console.log('DEBUG - Total fees calculation:', {
+        totalBusFees,
+        totalSchoolFees,
+        totalFees: totalBusFees + totalSchoolFees
+      });
 
       // Get paid amounts
       const { data: payments, error: paymentsError } = await supabase
@@ -169,9 +183,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
       const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
 
-      console.log('Total fees calculation:', {
-        totalBusFees,
-        totalSchoolFees,
+      console.log('DEBUG - Payment calculation:', {
         paidBusFees,
         paidSchoolFees,
         pendingBusFees,
