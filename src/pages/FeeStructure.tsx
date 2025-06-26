@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, Plus, Settings, History, Copy, Trash2, Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { supabase } from '../lib/supabase';
 import { useAcademicYears } from '../hooks/useAcademicYears';
 import { useSchoolFees } from '../hooks/useSchoolFees';
 import { useBusFees } from '../hooks/useBusFees';
@@ -58,7 +59,7 @@ const FeeStructure = () => {
     try {
       if (!selectedYear) return;
       
-      const { data, error } = await schoolFees.supabase
+      const { data, error } = await supabase
         .from('classes')
         .select('id, name')
         .eq('academic_year_id', selectedYear)
@@ -145,7 +146,7 @@ const FeeStructure = () => {
         return;
       }
       
-      const { error } = await schoolFees.supabase
+      const { error } = await supabase
         .from('fee_structure')
         .delete()
         .eq('id', id);
@@ -175,7 +176,7 @@ const FeeStructure = () => {
         academic_year_id: selectedYear
       };
       
-      const { data, error } = await schoolFees.supabase
+      const { data, error } = await supabase
         .from('fee_structure')
         .insert([newItem])
         .select();
