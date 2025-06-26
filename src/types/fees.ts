@@ -2,7 +2,7 @@ export interface FeeType {
   id: string;
   name: string;
   description?: string;
-  frequency: 'monthly' | 'quarterly' | 'annual' | 'ad_hoc';
+  frequency: 'monthly' | 'quarterly' | 'annual';
   category: 'school' | 'bus';
   is_monthly: boolean;
   created_at: string;
@@ -14,10 +14,9 @@ export interface FeeStructure {
   class_id: string;
   fee_type_id: string;
   amount: number;
-  academic_year_id: string;
   due_date: string;
-  applicable_to_new_students_only: boolean;
   is_recurring_monthly: boolean;
+  academic_year_id: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -30,18 +29,6 @@ export interface FeeStructureWithDetails extends FeeStructure {
   fee_type?: FeeType;
 }
 
-export interface AdmissionFeeSetting {
-  id: string;
-  academic_year_id: string;
-  amount: number;
-  effective_from: string;
-  effective_to?: string;
-  is_active: boolean;
-  created_by?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface BusFeeStructure {
   id: string;
   village_id: string;
@@ -50,7 +37,6 @@ export interface BusFeeStructure {
   effective_from_date: string;
   effective_to_date: string;
   is_active: boolean;
-  notes?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -105,24 +91,11 @@ export interface BusFeeHistory {
   updated_at?: string;
 }
 
-export interface AdmissionFeeHistory {
-  id: string;
-  previous_amount?: number;
-  new_amount: number;
-  academic_year_id: string;
-  change_date: string;
-  changed_by?: string;
-  reason?: string;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface FeeCalculation {
   student_id: string;
   academic_year_id: string;
   total_school_fees: number;
   total_bus_fees: number;
-  total_admission_fees: number;
   total_amount: number;
   amount_paid: number;
   outstanding_amount: number;
