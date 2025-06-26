@@ -32,7 +32,6 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
-    transaction_id: '',
     payment_date: new Date().toISOString().split('T')[0],
     notes: ''
   });
@@ -232,12 +231,6 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       return false;
     }
 
-    // Validate transaction ID for online payments
-    if (formData.payment_method === 'online' && !formData.transaction_id.trim()) {
-      setError('Transaction ID is required for online payments');
-      return false;
-    }
-
     return true;
   };
 
@@ -266,7 +259,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         amount_paid: parseFloat(formData.amount_paid),
         payment_date: formData.payment_date,
         payment_method: formData.payment_method,
-        transaction_id: formData.transaction_id || null,
+        transaction_id: null, // No transaction ID for any payment method
         receipt_number: receiptNumber,
         notes: formData.notes,
         created_by: user.id
@@ -494,24 +487,6 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
             <option value="online">Online Transfer</option>
           </select>
         </div>
-        
-        {formData.payment_method === 'online' && (
-          <div className="space-y-2">
-            <label htmlFor="transaction_id" className="block text-sm font-medium">
-              Transaction ID *
-            </label>
-            <input
-              id="transaction_id"
-              type="text"
-              className="input"
-              placeholder="Enter transaction ID"
-              value={formData.transaction_id}
-              onChange={(e) => setFormData({ ...formData, transaction_id: e.target.value })}
-              required={formData.payment_method === 'online'}
-              disabled={submitting}
-            />
-          </div>
-        )}
         
         <div className="space-y-2 md:col-span-2">
           <label htmlFor="notes" className="block text-sm font-medium">
