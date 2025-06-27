@@ -62,6 +62,7 @@ export interface FeePayment {
   receipt_number: string;
   notes?: string;
   created_by: string;
+  academic_year_id: string;
   created_at?: string;
   updated_at?: string;
   allocation?: PaymentAllocation;
