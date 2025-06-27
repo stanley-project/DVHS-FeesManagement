@@ -18,17 +18,20 @@ const FeeCollection = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [receiptData, setReceiptData] = useState<any>(null);
+  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(null);
   
   useEffect(() => {
-    fetchStudents();
-  }, [searchQuery]);
+    fetchCurrentAcademicYear();
+  }, []);
 
-  const fetchStudents = async () => {
+  useEffect(() => {
+    if (currentAcademicYearId) {
+      fetchStudents();
+    }
+  }, [searchQuery, currentAcademicYearId]);
+
+  const fetchCurrentAcademicYear = async () => {
     try {
-      setError(null);
-      setLoading(true);
-
-      // Get current academic year with proper error handling
       const { data: currentYear, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
@@ -39,7 +42,6 @@ const FeeCollection = () => {
       if (yearError) {
         if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
           setError('No active academic year found. Please contact the administrator.');
-          setLoading(false);
           return;
         }
         throw yearError;
@@ -47,9 +49,24 @@ const FeeCollection = () => {
 
       if (!currentYear) {
         setError('No active academic year found. Please contact the administrator.');
-        setLoading(false);
         return;
       }
+
+      setCurrentAcademicYearId(currentYear.id);
+    } catch (err: any) {
+      console.error('Error fetching current academic year:', err);
+      setError(err.message || 'Failed to fetch academic year information');
+    }
+  };
+
+  const fetchStudents = async () => {
+    if (!currentAcademicYearId) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setLoading(true);
 
       // Get students with their fee status
       let query = supabase
@@ -105,7 +122,7 @@ const FeeCollection = () => {
           class_id,
           amount
         `)
-        .eq('academic_year_id', currentYear.id);
+        .eq('academic_year_id', currentAcademicYearId);
 
       if (feeError) throw feeError;
 
@@ -116,7 +133,7 @@ const FeeCollection = () => {
           village_id,
           fee_amount
         `)
-        .eq('academic_year_id', currentYear.id)
+        .eq('academic_year_id', currentAcademicYearId)
         .eq('is_active', true);
 
       if (busError) throw busError;
@@ -247,6 +264,20 @@ const FeeCollection = () => {
     }
   };
 
+  // Don't render the form if we don't have academic year ID
+  if (!currentAcademicYearId && !error) {
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <h2 className="text-lg font-medium mb-2">Loading...</h2>
+            <p className="text-muted-foreground">Fetching academic year information...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
@@ -346,6 +377,7 @@ const FeeCollection = () => {
                 onCancel={() => setSelectedStudent(null)}
                 studentId={students[selectedStudent].id}
                 registrationType={students[selectedStudent].registrationType}
+                academicYearId={currentAcademicYearId}
               />
             </div>
           ) : (

@@ -9,6 +9,7 @@ interface FeePaymentFormProps {
   onCancel: () => void;
   studentId?: string;
   registrationType?: 'new' | 'continuing';
+  academicYearId: string;
 }
 
 interface FeeStatus {
@@ -23,13 +24,12 @@ interface FeeStatus {
   total_pending: number;
 }
 
-const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: FeePaymentFormProps) => {
+const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, academicYearId }: FeePaymentFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
-  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
@@ -38,29 +38,26 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
   });
 
   useEffect(() => {
-    if (studentId) {
+    if (studentId && academicYearId) {
       fetchFeeStatus();
     }
-  }, [studentId]);
+  }, [studentId, academicYearId]);
 
   const fetchFeeStatus = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get current academic year
+      // Get academic year details
       const { data: academicYear, error: yearError } = await supabase
         .from('academic_years')
         .select('id, start_date')
-        .eq('is_current', true)
+        .eq('id', academicYearId)
         .single();
 
       if (yearError) {
-        throw new Error('Failed to fetch current academic year');
+        throw new Error('Failed to fetch academic year details');
       }
-
-      // Set the current academic year ID
-      setCurrentAcademicYearId(academicYear.id);
 
       // Get student details with class information
       const { data: student, error: studentError } = await supabase
@@ -235,7 +232,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
       return false;
     }
 
-    if (!currentAcademicYearId) {
+    if (!academicYearId) {
       setError('Academic year information is missing');
       return false;
     }
@@ -272,7 +269,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType }: Fee
         receipt_number: receiptNumber,
         notes: formData.notes,
         created_by: user.id,
-        academic_year_id: currentAcademicYearId
+        academic_year_id: academicYearId // Use the prop directly
       };
 
       // Try to use the Edge Function to create payment with service role
