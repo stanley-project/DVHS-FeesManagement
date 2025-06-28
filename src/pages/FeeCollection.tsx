@@ -69,26 +69,30 @@ const FeeCollection = () => {
       setLoading(true);
 
       // Get current academic year with proper error handling
-      const { data: currentYear, error: yearError } = await supabase
-        .from('academic_years')
-        .select('id')
-        .eq('is_current', true)
-        .limit(1)
-        .single();
+      if (!currentAcademicYearId && !loadingAcademicYear) {
+        const { data: currentYear, error: yearError } = await supabase
+          .from('academic_years')
+          .select('id')
+          .eq('is_current', true)
+          .limit(1)
+          .single();
 
-      if (yearError) {
-        if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+        if (yearError) {
+          if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
+            setError('No active academic year found. Please contact the administrator.');
+            setLoading(false);
+            return;
+          }
+          throw yearError;
+        }
+
+        if (!currentYear) {
           setError('No active academic year found. Please contact the administrator.');
           setLoading(false);
           return;
         }
-        throw yearError;
-      }
-
-      if (!currentYear) {
-        setError('No active academic year found. Please contact the administrator.');
-        setLoading(false);
-        return;
+        
+        setCurrentAcademicYearId(currentYear.id);
       }
 
       // Get students with their fee status
@@ -138,14 +142,31 @@ const FeeCollection = () => {
 
       if (paymentsError) throw paymentsError;
 
+      // Calculate months passed since academic year start
+      const currentDate = new Date();
+      const { data: academicYearData } = await supabase
+        .from('academic_years')
+        .select('start_date')
+        .eq('id', currentAcademicYearId)
+        .single();
+        
+      const academicYearStartDate = academicYearData ? new Date(academicYearData.start_date) : new Date();
+      const monthsPassed = (
+        (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
+        currentDate.getMonth() - academicYearStartDate.getMonth() + 
+        (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
+      ) + 1; // Add 1 to include current month
+
       // Get fee structure for current academic year
       const { data: feeStructure, error: feeError } = await supabase
         .from('fee_structure')
         .select(`
           class_id,
-          amount
+          amount,
+          is_recurring_monthly,
+          fee_type:fee_type_id(category)
         `)
-        .eq('academic_year_id', currentYear.id);
+        .eq('academic_year_id', currentAcademicYearId);
 
       if (feeError) throw feeError;
 
@@ -156,7 +177,7 @@ const FeeCollection = () => {
           village_id,
           fee_amount
         `)
-        .eq('academic_year_id', currentYear.id)
+        .eq('academic_year_id', currentAcademicYearId)
         .eq('is_active', true);
 
       if (busError) throw busError;
@@ -164,40 +185,60 @@ const FeeCollection = () => {
       // Process students data
       const processedStudents = studentsData.map(student => {
         // Calculate total fees
-        let totalFees = 0;
+        let totalSchoolFees = 0;
+        let totalBusFees = 0;
         
         // Add school fees - Use student.class_id directly
-        const classFees = feeStructure?.filter(fee => fee.class_id === student.class_id) || [];
-        const totalSchoolFees = classFees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
-        totalFees += totalSchoolFees;
+        const classFees = feeStructure?.filter(fee => 
+          fee.class_id === student.class_id && 
+          fee.fee_type?.category === 'school'
+        ) || [];
+        
+        classFees.forEach(fee => {
+          const feeAmount = parseFloat(fee.amount);
+          if (fee.is_recurring_monthly) {
+            // Monthly fee
+            totalSchoolFees += feeAmount * monthsPassed;
+          } else {
+            // One-time fee
+            totalSchoolFees += feeAmount;
+          }
+        });
         
         // Add bus fees if applicable
-        let busFee = 0;
         if (student.has_school_bus && student.village_id) {
           const villageBusFee = busFees?.find(fee => fee.village_id === student.village_id);
           if (villageBusFee) {
-            busFee = parseFloat(villageBusFee.fee_amount);
-            totalFees += busFee;
+            const monthlyBusFee = parseFloat(villageBusFee.fee_amount);
+            totalBusFees = monthlyBusFee * monthsPassed;
           }
         }
         
+        const totalFees = totalSchoolFees + totalBusFees;
+        
         // Calculate paid amount
         const studentPayments = payments?.filter(payment => payment.student_id === student.id) || [];
-        let totalPaid = 0;
+        let paidBusFees = 0;
+        let paidSchoolFees = 0;
         
         studentPayments.forEach(payment => {
           if (payment.payment_allocation && payment.payment_allocation.length > 0) {
             // Use allocation if available
             const allocation = payment.payment_allocation[0];
-            totalPaid += parseFloat(allocation.bus_fee_amount || 0) + parseFloat(allocation.school_fee_amount || 0);
+            paidBusFees += parseFloat(allocation.bus_fee_amount || 0);
+            paidSchoolFees += parseFloat(allocation.school_fee_amount || 0);
           } else {
             // Fallback to total payment amount
-            totalPaid += parseFloat(payment.amount_paid || 0);
+            paidSchoolFees += parseFloat(payment.amount_paid || 0);
           }
         });
         
+        const totalPaid = paidBusFees + paidSchoolFees;
+        
         // Calculate pending amount
-        const pendingAmount = Math.max(0, totalFees - totalPaid);
+        const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
+        const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
+        const pendingAmount = pendingBusFees + pendingSchoolFees;
         
         // Determine payment status
         let status = 'pending';
@@ -221,7 +262,7 @@ const FeeCollection = () => {
           name: student.student_name,
           admissionNumber: student.admission_number,
           class: student.class?.name,
-          class_id: student.class_id, // Use class_id directly
+          class_id: student.class_id,
           status,
           pending: `₹${pendingAmount.toLocaleString('en-IN')}`,
           pendingAmount, // Raw number for sorting
