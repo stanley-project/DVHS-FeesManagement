@@ -99,7 +99,7 @@ const FeeCollection = () => {
           admission_number,
           student_name,
           class_id,
-          class:class_id(id, name),
+          class:class_id(name),
           registration_type,
           status,
           village_id,
@@ -320,7 +320,7 @@ const FeeCollection = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search by ID, name or class"
+                placeholder="Search by admission number or name"
                 className="input pl-10"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}

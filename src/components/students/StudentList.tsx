@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react';
 interface Student {
   id: string;
   name: string;
+  admissionNumber: string;
   status?: string;
   pending?: string;
   class?: string;
@@ -27,7 +28,7 @@ const StudentList = ({ students, selectedStudent, onSelectStudent }: StudentList
             <div>
               <p className="font-medium">{student.name}</p>
               <p className="text-xs text-muted-foreground">
-                {student.id} {student.class && `| ${student.class}`}
+                {student.admissionNumber} {student.class && `| ${student.class}`}
               </p>
             </div>
             <ArrowRight className={`h-4 w-4 transition-opacity ${selectedStudent === index ? 'opacity-100 text-primary' : 'opacity-0'}`} />
