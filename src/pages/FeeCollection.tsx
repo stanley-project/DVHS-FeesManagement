@@ -23,8 +23,17 @@ const FeeCollection = () => {
   
   useEffect(() => {
     fetchCurrentAcademicYear();
-    fetchStudents();
-  }, [searchQuery]);
+  }, []);
+
+  useEffect(() => {
+    // Only fetch students after academic year is loaded and available
+    if (!loadingAcademicYear && currentAcademicYearId) {
+      fetchStudents();
+    } else if (!loadingAcademicYear && !currentAcademicYearId) {
+      setError('No active academic year found. Please contact the administrator.');
+      setLoading(false);
+    }
+  }, [searchQuery, loadingAcademicYear, currentAcademicYearId]);
 
   const fetchCurrentAcademicYear = async () => {
     try {
@@ -38,6 +47,7 @@ const FeeCollection = () => {
 
       if (yearError) {
         console.error('Error fetching current academic year:', yearError);
+        setError('Error loading academic year data.');
         return;
       }
 
@@ -54,10 +64,13 @@ const FeeCollection = () => {
           
         if (!latestError && latestYear) {
           setCurrentAcademicYearId(latestYear.id);
+        } else {
+          setCurrentAcademicYearId(null);
         }
       }
     } catch (err) {
       console.error('Error in fetchCurrentAcademicYear:', err);
+      setError('Failed to load academic year data.');
     } finally {
       setLoadingAcademicYear(false);
     }
@@ -68,31 +81,11 @@ const FeeCollection = () => {
       setError(null);
       setLoading(true);
 
-      // Get current academic year with proper error handling
-      if (!currentAcademicYearId && !loadingAcademicYear) {
-        const { data: currentYear, error: yearError } = await supabase
-          .from('academic_years')
-          .select('id')
-          .eq('is_current', true)
-          .limit(1)
-          .single();
-
-        if (yearError) {
-          if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-            setError('No active academic year found. Please contact the administrator.');
-            setLoading(false);
-            return;
-          }
-          throw yearError;
-        }
-
-        if (!currentYear) {
-          setError('No active academic year found. Please contact the administrator.');
-          setLoading(false);
-          return;
-        }
-        
-        setCurrentAcademicYearId(currentYear.id);
+      // Ensure we have a valid academic year ID before proceeding
+      if (!currentAcademicYearId) {
+        setError('No active academic year found. Please contact the administrator.');
+        setLoading(false);
+        return;
       }
 
       // Get students with their fee status
@@ -126,7 +119,7 @@ const FeeCollection = () => {
         return;
       }
 
-      // Get fee payments for all students - Fixed the select parameter
+      // Get fee payments for all students
       const { data: payments, error: paymentsError } = await supabase
         .from('fee_payments')
         .select(`
@@ -138,19 +131,22 @@ const FeeCollection = () => {
             bus_fee_amount,
             school_fee_amount
           )
-        `);
+        `)
+        .eq('academic_year_id', currentAcademicYearId);
 
       if (paymentsError) throw paymentsError;
 
       // Calculate months passed since academic year start
       const currentDate = new Date();
-      const { data: academicYearData } = await supabase
+      const { data: academicYearData, error: academicYearError } = await supabase
         .from('academic_years')
         .select('start_date')
         .eq('id', currentAcademicYearId)
         .single();
+
+      if (academicYearError) throw academicYearError;
         
-      const academicYearStartDate = academicYearData ? new Date(academicYearData.start_date) : new Date();
+      const academicYearStartDate = new Date(academicYearData.start_date);
       const monthsPassed = (
         (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
         currentDate.getMonth() - academicYearStartDate.getMonth() + 
@@ -380,7 +376,7 @@ const FeeCollection = () => {
               <div className="text-center py-4 text-error">
                 {error}
               </div>
-            ) : loading ? (
+            ) : loading || loadingAcademicYear ? (
               <div className="text-center py-4 text-muted-foreground">
                 Loading students...
               </div>
