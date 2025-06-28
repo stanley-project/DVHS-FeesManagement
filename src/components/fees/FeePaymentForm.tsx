@@ -290,10 +290,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       }
 
       // Direct insert with explicit column selection to avoid ambiguity
+      // Remove academic_year_id from select to avoid ambiguous column reference
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
         .insert(paymentData)
-        .select('id, student_id, amount_paid, payment_date, payment_method, transaction_id, receipt_number, notes, created_by, academic_year_id, created_at, updated_at')
+        .select('id, student_id, amount_paid, payment_date, payment_method, transaction_id, receipt_number, notes, created_by, created_at, updated_at')
         .single();
 
       if (directError) {
@@ -315,6 +316,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         // Add allocation data to payment response
         const paymentWithAllocation = {
           ...directPayment,
+          academic_year_id: academicYearId, // Add it back to the response
           payment_allocation: allocation ? [allocation] : []
         };
 
