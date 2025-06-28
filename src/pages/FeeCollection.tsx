@@ -32,23 +32,22 @@ const FeeCollection = () => {
 
   const fetchCurrentAcademicYear = async () => {
     try {
+      setError(null);
+      
       const { data: currentYear, error: yearError } = await supabase
         .from('academic_years')
         .select('id')
         .eq('is_current', true)
-        .limit(1)
-        .single();
+        .maybeSingle();
 
       if (yearError) {
-        if (yearError.message.includes('JSON object requested, multiple (or no) rows returned')) {
-          setError('No active academic year found. Please contact the administrator.');
-          return;
-        }
-        throw yearError;
+        console.error('Error fetching current academic year:', yearError);
+        setError('Failed to fetch academic year information. Please contact the administrator.');
+        return;
       }
 
       if (!currentYear) {
-        setError('No active academic year found. Please contact the administrator.');
+        setError('No active academic year found. Please contact the administrator to set up the current academic year.');
         return;
       }
 
@@ -264,6 +263,20 @@ const FeeCollection = () => {
     }
   };
 
+  // Show error state if we have an error and no academic year ID
+  if (error && !currentAcademicYearId) {
+    return (
+      <div className="space-y-6 animate-fadeIn">
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <h2 className="text-lg font-medium mb-2 text-error">Configuration Error</h2>
+            <p className="text-muted-foreground">{error}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Don't render the form if we don't have academic year ID
   if (!currentAcademicYearId && !error) {
     return (
@@ -377,7 +390,7 @@ const FeeCollection = () => {
                 onCancel={() => setSelectedStudent(null)}
                 studentId={students[selectedStudent].id}
                 registrationType={students[selectedStudent].registrationType}
-                academicYearId={currentAcademicYearId}
+                academicYearId={currentAcademicYearId!}
               />
             </div>
           ) : (

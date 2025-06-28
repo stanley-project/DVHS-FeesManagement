@@ -253,6 +253,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return;
     }
 
+    if (!academicYearId) {
+      setError('Academic year information is missing');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
@@ -269,8 +274,10 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         receipt_number: receiptNumber,
         notes: formData.notes,
         created_by: user.id,
-        academic_year_id: academicYearId // Use the prop directly
+        academic_year_id: academicYearId // Ensure this is always set
       };
+
+      console.log('DEBUG - Payment data being submitted:', paymentData);
 
       // Try to use the Edge Function to create payment with service role
       try {
@@ -317,17 +324,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         // Fall back to direct insert if RPC fails
       }
 
-      // Direct insert as last resort
+      // Direct insert as last resort - use a simpler select to avoid ambiguous column reference
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
         .insert(paymentData)
-        .select(`
-          *,
-          payment_allocation (
-            bus_fee_amount,
-            school_fee_amount
-          )
-        `)
+        .select('*')
         .single();
 
       if (directError) {
@@ -335,7 +336,22 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         throw new Error('Failed to process payment. Please try again.');
       }
 
-      onSubmit(directPayment);
+      // If direct insert succeeds, fetch the payment allocation separately
+      if (directPayment) {
+        const { data: allocation } = await supabase
+          .from('payment_allocation')
+          .select('bus_fee_amount, school_fee_amount')
+          .eq('payment_id', directPayment.id)
+          .maybeSingle();
+
+        // Add allocation data to payment response
+        const paymentWithAllocation = {
+          ...directPayment,
+          payment_allocation: allocation ? [allocation] : []
+        };
+
+        onSubmit(paymentWithAllocation);
+      }
 
     } catch (error: any) {
       console.error('Error processing payment:', error);
