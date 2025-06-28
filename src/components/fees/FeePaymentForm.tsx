@@ -90,13 +90,13 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       // Get student details with class information
       const { data: student, error: studentError } = await supabase
         .from('students')
-        .select('village_id, has_school_bus, class_id')
+        .select(`
+          village_id, has_school_bus, class_id
+        `)
         .eq('id', studentId)
         .single();
 
-      if (studentError) {
-        throw new Error('Failed to fetch student details');
-      }
+      if (studentError) throw studentError;
 
       console.log('DEBUG - Student details:', student);
 
@@ -291,8 +291,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Create payment data object
-      const paymentData = {
+      console.log('DEBUG - Payment data being submitted:', {
         student_id: studentId,
         amount_paid: parseFloat(formData.amount_paid),
         payment_date: formData.payment_date,
@@ -301,23 +300,21 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         notes: formData.notes,
         created_by: user.id,
         academic_year_id: currentAcademicYearId
-      };
-
-      console.log('DEBUG - Payment data being submitted:', paymentData);
+      });
 
       // Try to use the RPC function to create payment
       try {
         const { data: rpcResult, error: rpcError } = await supabase.rpc(
           'insert_fee_payment_v2',
           {
-            p_student_id: paymentData.student_id,
-            p_amount_paid: paymentData.amount_paid,
-            p_payment_date: paymentData.payment_date,
-            p_payment_method: paymentData.payment_method,
-            p_receipt_number: paymentData.receipt_number,
-            p_notes: paymentData.notes,
-            p_created_by: paymentData.created_by,
-            p_academic_year_id: paymentData.academic_year_id
+            p_student_id: studentId,
+            p_amount_paid: parseFloat(formData.amount_paid),
+            p_payment_date: formData.payment_date,
+            p_payment_method: formData.payment_method,
+            p_receipt_number: receiptNumber,
+            p_notes: formData.notes,
+            p_created_by: user.id,
+            p_academic_year_id: currentAcademicYearId
           }
         );
 
@@ -351,11 +348,17 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       // Direct insert as fallback - with explicit table alias in the select
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
-        .insert(paymentData)
-        .select(`
-          *,
-          payment_allocation (*)
-        `)
+        .insert({
+          student_id: studentId,
+          amount_paid: parseFloat(formData.amount_paid),
+          payment_date: formData.payment_date,
+          payment_method: formData.payment_method,
+          receipt_number: receiptNumber,
+          notes: formData.notes,
+          created_by: user.id,
+          academic_year_id: currentAcademicYearId
+        })
+        .select('*')
         .single();
 
       if (directError) {
@@ -363,7 +366,23 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         throw new Error('Failed to process payment: ' + directError.message);
       }
 
-      onSubmit(directPayment);
+      // Fetch the payment allocation separately
+      const { data: allocations, error: allocError } = await supabase
+        .from('payment_allocation')
+        .select('*')
+        .eq('payment_id', directPayment.id);
+
+      if (allocError) {
+        console.error('Error fetching allocations:', allocError);
+      }
+
+      // Combine the payment with its allocations
+      const completePayment = {
+        ...directPayment,
+        payment_allocation: allocations || []
+      };
+
+      onSubmit(completePayment);
 
     } catch (error: any) {
       console.error('Error processing payment:', error);
