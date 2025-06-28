@@ -345,7 +345,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         // Fall back to direct insert if RPC fails
       }
 
-      // Direct insert as fallback - with explicit table alias in the select
+      // Direct insert as fallback - with explicit column list to avoid ambiguity
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
         .insert({
@@ -358,7 +358,19 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           created_by: user.id,
           academic_year_id: currentAcademicYearId
         })
-        .select('*')
+        .select(`
+          id,
+          student_id,
+          amount_paid,
+          payment_date,
+          payment_method,
+          receipt_number,
+          notes,
+          created_by,
+          academic_year_id,
+          created_at,
+          updated_at
+        `)
         .single();
 
       if (directError) {
