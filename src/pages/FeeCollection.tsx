@@ -122,12 +122,12 @@ const FeeCollection = () => {
         return;
       }
 
-      // Get fee payments for all students - Fix ambiguous student_id reference
+      // Get fee payments for all students - Fixed the select parameter
       const { data: payments, error: paymentsError } = await supabase
         .from('fee_payments')
         .select(`
           id,
-          fee_payments.student_id,
+          student_id,
           amount_paid,
           payment_date,
           payment_allocation (
