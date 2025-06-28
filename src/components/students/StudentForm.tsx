@@ -29,6 +29,7 @@ interface FormData {
   father_aadhar?: string;
   village_id: string;
   has_school_bus: boolean;
+  bus_start_date?: string;
   registration_type: 'new' | 'continuing';
   previous_admission_number?: string;
   rejoining_reason?: string;
@@ -58,6 +59,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
       registration_type: registrationType === 'new' ? 'new' : 'continuing',
       has_school_bus: false,
       admission_date: new Date().toISOString().split('T')[0],
+      bus_start_date: new Date().toISOString().split('T')[0],
       gender: 'male',
       village_id: '' // Ensure village_id has a default value
     }
@@ -65,6 +67,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
 
   const watchClassId = watch('class_id');
   const watchVillageId = watch('village_id');
+  const watchHasSchoolBus = watch('has_school_bus');
 
   // Set form values when initialData changes
   useEffect(() => {
@@ -84,6 +87,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         father_aadhar: initialData.father_aadhar || '',
         village_id: initialData.village_id || '',
         has_school_bus: initialData.has_school_bus,
+        bus_start_date: initialData.bus_start_date || '',
         registration_type: initialData.registration_type,
         previous_admission_number: initialData.previous_admission_number || '',
         rejoining_reason: initialData.rejoining_reason || ''
@@ -127,6 +131,13 @@ const StudentForm: React.FC<StudentFormProps> = ({
     }
   }, [watchVillageId, setValue]);
 
+  // Set bus_start_date to today when has_school_bus is toggled on
+  useEffect(() => {
+    if (watchHasSchoolBus && !watch('bus_start_date')) {
+      setValue('bus_start_date', new Date().toISOString().split('T')[0]);
+    }
+  }, [watchHasSchoolBus, setValue, watch]);
+
   const onFormSubmit = async (data: FormData) => {
     try {
       setIsSubmitting(true);
@@ -167,6 +178,11 @@ const StudentForm: React.FC<StudentFormProps> = ({
         throw new Error('PEN must be exactly 11 alphanumeric characters');
       }
 
+      // Validate bus_start_date if has_school_bus is true
+      if (data.has_school_bus && !data.bus_start_date) {
+        throw new Error('Bus start date is required when school bus is selected');
+      }
+
       // Prepare submission data - use PEN column directly
       const submissionData = {
         admission_number: data.admission_number,
@@ -182,6 +198,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         father_aadhar: data.father_aadhar || null,
         village_id: data.village_id,
         has_school_bus: data.has_school_bus,
+        bus_start_date: data.has_school_bus ? data.bus_start_date : null,
         registration_type: data.registration_type,
         previous_admission_number: data.previous_admission_number || null,
         rejoining_reason: data.rejoining_reason || null,
@@ -514,7 +531,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
       <div className="space-y-4">
         <h3 className="text-lg font-medium">Transport Information</h3>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-4">
           <input
             id="has_school_bus"
             type="checkbox"
@@ -525,6 +542,29 @@ const StudentForm: React.FC<StudentFormProps> = ({
             Requires School Bus Service
           </label>
         </div>
+
+        {/* Bus Start Date - Only show when has_school_bus is checked */}
+        {watchHasSchoolBus && (
+          <div className="space-y-2">
+            <label htmlFor="bus_start_date" className="block text-sm font-medium">
+              Bus Service Start Date *
+            </label>
+            <input
+              id="bus_start_date"
+              type="date"
+              className="input"
+              {...register('bus_start_date', { 
+                required: 'Bus start date is required when school bus is selected'
+              })}
+            />
+            {errors.bus_start_date && (
+              <p className="text-sm text-error">{errors.bus_start_date.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Bus fees will be calculated from this date
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Registration Type Specific Fields */}

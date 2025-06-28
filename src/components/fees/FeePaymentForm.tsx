@@ -91,7 +91,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       const { data: student, error: studentError } = await supabase
         .from('students')
         .select(`
-          village_id, has_school_bus, class_id
+          village_id, has_school_bus, class_id, bus_start_date
         `)
         .eq('id', studentId)
         .single();
@@ -113,13 +113,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         .single();
         
       const academicYearStartDate = academicYearData ? new Date(academicYearData.start_date) : new Date();
-      const monthsPassed = (
-        (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
-        currentDate.getMonth() - academicYearStartDate.getMonth() + 
-        (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
-      ) + 1; // Add 1 to include current month
-
-      console.log('DEBUG - Months passed since academic year start:', monthsPassed);
+      
+      // Calculate months passed for school fees (from academic year start)
+      const monthsPassedSchool = calculateMonthsBetween(academicYearStartDate, currentDate);
+      
+      console.log('DEBUG - Months passed since academic year start:', monthsPassedSchool);
       console.log('DEBUG - Academic year start date:', academicYearStartDate.toISOString());
       console.log('DEBUG - Current date:', currentDate.toISOString());
 
@@ -134,9 +132,20 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .maybeSingle();
 
         if (!busFeeError && busFee) {
+          // Use bus_start_date if available, otherwise use academic year start date
+          const busStartDate = student.bus_start_date 
+            ? new Date(student.bus_start_date) 
+            : academicYearStartDate;
+            
+          // Calculate months passed for bus fees (from bus start date)
+          const monthsPassedBus = calculateMonthsBetween(busStartDate, currentDate);
+          
           // Monthly bus fee
           const monthlyBusFee = parseFloat(busFee.fee_amount);
-          totalBusFees = monthlyBusFee * monthsPassed;
+          totalBusFees = monthlyBusFee * monthsPassedBus;
+          
+          console.log('DEBUG - Bus start date:', busStartDate.toISOString());
+          console.log('DEBUG - Months passed for bus fees:', monthsPassedBus);
           console.log('DEBUG - Monthly bus fee:', monthlyBusFee, 'Total bus fees:', totalBusFees);
         }
       }
@@ -165,8 +174,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             if (fee.fee_type?.category === 'school') {
               if (fee.is_recurring_monthly) {
                 // Monthly fee
-                const monthlyTotal = feeAmount * monthsPassed;
-                console.log(`DEBUG - Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassed, '=', monthlyTotal);
+                const monthlyTotal = feeAmount * monthsPassedSchool;
+                console.log(`DEBUG - Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassedSchool, '=', monthlyTotal);
                 totalSchoolFees += monthlyTotal;
               } else {
                 // One-time fee
@@ -244,6 +253,16 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper function to calculate months between two dates (inclusive of start month)
+  const calculateMonthsBetween = (startDate: Date, endDate: Date): number => {
+    return (
+      (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+      (endDate.getMonth() - startDate.getMonth()) +
+      (endDate.getDate() >= startDate.getDate() ? 0 : -1) +
+      1 // Add 1 to include the start month
+    );
   };
 
   const validateForm = () => {

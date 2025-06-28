@@ -172,6 +172,12 @@ const StudentDetails = ({ student, onClose, onEdit }: StudentDetailsProps) => {
                       {student.has_school_bus ? 'Yes' : 'No'}
                     </span>
                   </div>
+                  {student.has_school_bus && student.bus_start_date && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Bus Service Start Date</p>
+                      <p className="font-medium">{new Date(student.bus_start_date).toLocaleDateString()}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

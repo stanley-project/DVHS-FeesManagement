@@ -76,6 +76,16 @@ const FeeCollection = () => {
     }
   };
 
+  // Helper function to calculate months between two dates (inclusive of start month)
+  const calculateMonthsBetween = (startDate: Date, endDate: Date): number => {
+    return (
+      (endDate.getFullYear() - startDate.getFullYear()) * 12 +
+      (endDate.getMonth() - startDate.getMonth()) +
+      (endDate.getDate() >= startDate.getDate() ? 0 : -1) +
+      1 // Add 1 to include the start month
+    );
+  };
+
   const fetchStudents = async () => {
     try {
       setError(null);
@@ -100,7 +110,8 @@ const FeeCollection = () => {
           registration_type,
           status,
           village_id,
-          has_school_bus
+          has_school_bus,
+          bus_start_date
         `)
         .eq('status', 'active');
 
@@ -136,8 +147,7 @@ const FeeCollection = () => {
 
       if (paymentsError) throw paymentsError;
 
-      // Calculate months passed since academic year start
-      const currentDate = new Date();
+      // Get academic year start date
       const { data: academicYearData, error: academicYearError } = await supabase
         .from('academic_years')
         .select('start_date')
@@ -147,11 +157,10 @@ const FeeCollection = () => {
       if (academicYearError) throw academicYearError;
         
       const academicYearStartDate = new Date(academicYearData.start_date);
-      const monthsPassed = (
-        (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
-        currentDate.getMonth() - academicYearStartDate.getMonth() + 
-        (currentDate.getDate() >= academicYearStartDate.getDate() ? 0 : -1)
-      ) + 1; // Add 1 to include current month
+      const currentDate = new Date();
+      
+      // Calculate months passed for school fees
+      const monthsPassedSchool = calculateMonthsBetween(academicYearStartDate, currentDate);
 
       // Get fee structure for current academic year
       const { data: feeStructure, error: feeError } = await supabase
@@ -194,7 +203,7 @@ const FeeCollection = () => {
           const feeAmount = parseFloat(fee.amount);
           if (fee.is_recurring_monthly) {
             // Monthly fee
-            totalSchoolFees += feeAmount * monthsPassed;
+            totalSchoolFees += feeAmount * monthsPassedSchool;
           } else {
             // One-time fee
             totalSchoolFees += feeAmount;
@@ -205,8 +214,16 @@ const FeeCollection = () => {
         if (student.has_school_bus && student.village_id) {
           const villageBusFee = busFees?.find(fee => fee.village_id === student.village_id);
           if (villageBusFee) {
+            // Use bus_start_date if available, otherwise use academic year start date
+            const busStartDate = student.bus_start_date 
+              ? new Date(student.bus_start_date) 
+              : academicYearStartDate;
+              
+            // Calculate months passed for bus fees
+            const monthsPassedBus = calculateMonthsBetween(busStartDate, currentDate);
+            
             const monthlyBusFee = parseFloat(villageBusFee.fee_amount);
-            totalBusFees = monthlyBusFee * monthsPassed;
+            totalBusFees = monthlyBusFee * monthsPassedBus;
           }
         }
         
@@ -267,7 +284,8 @@ const FeeCollection = () => {
           lastPaymentDate,
           registrationType: student.registration_type,
           has_school_bus: student.has_school_bus,
-          village_id: student.village_id
+          village_id: student.village_id,
+          bus_start_date: student.bus_start_date
         };
       });
 

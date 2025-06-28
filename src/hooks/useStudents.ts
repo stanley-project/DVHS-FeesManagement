@@ -20,6 +20,7 @@ export interface Student {
   father_aadhar?: string;
   village_id?: string;
   has_school_bus: boolean;
+  bus_start_date?: string;
   registration_type: 'new' | 'continuing';
   last_registration_date?: string;
   last_registration_type?: 'new' | 'continuing';
