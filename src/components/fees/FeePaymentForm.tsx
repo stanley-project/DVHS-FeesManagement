@@ -9,7 +9,7 @@ interface FeePaymentFormProps {
   onCancel: () => void;
   studentId?: string;
   registrationType?: 'new' | 'continuing';
-  academicYearId: string;
+  academicYearId?: string;
 }
 
 interface FeeStatus {
@@ -30,6 +30,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
+  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(academicYearId || null);
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
@@ -38,37 +39,64 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
   });
 
   useEffect(() => {
-    if (studentId && academicYearId) {
+    if (studentId) {
       fetchFeeStatus();
     }
-  }, [studentId, academicYearId]);
+  }, [studentId]);
+
+  useEffect(() => {
+    if (academicYearId) {
+      setCurrentAcademicYearId(academicYearId);
+    }
+  }, [academicYearId]);
 
   const fetchFeeStatus = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Get academic year details
-      const { data: academicYear, error: yearError } = await supabase
-        .from('academic_years')
-        .select('id, start_date')
-        .eq('id', academicYearId)
-        .single();
+      // Get current academic year if not provided
+      if (!currentAcademicYearId) {
+        const { data: currentAcademicYear, error: yearError } = await supabase
+          .from('academic_years')
+          .select('id, start_date')
+          .eq('is_current', true)
+          .maybeSingle();
 
-      if (yearError) {
-        throw new Error('Failed to fetch academic year details');
+        if (yearError) {
+          throw new Error('Failed to fetch current academic year');
+        }
+
+        if (!currentAcademicYear) {
+          // Try to get the latest academic year
+          const { data: latestYear, error: latestError } = await supabase
+            .from('academic_years')
+            .select('id, year_name')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestError || !latestYear) {
+            throw new Error('No academic year found');
+          }
+          
+          setCurrentAcademicYearId(latestYear.id);
+        } else {
+          // Set the current academic year ID
+          setCurrentAcademicYearId(currentAcademicYear.id);
+        }
       }
 
       // Get student details with class information
       const { data: student, error: studentError } = await supabase
         .from('students')
-        .select(`
-          village_id, has_school_bus, class_id
-        `)
+        .select('village_id, has_school_bus, class_id')
         .eq('id', studentId)
         .single();
 
-      if (studentError) throw new Error('Failed to fetch student details');
+      if (studentError) {
+        throw new Error('Failed to fetch student details');
+      }
 
       console.log('DEBUG - Student details:', student);
 
@@ -78,7 +106,13 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
       // Calculate months passed since academic year start
       const currentDate = new Date();
-      const academicYearStartDate = new Date(academicYear.start_date);
+      const { data: academicYearData } = await supabase
+        .from('academic_years')
+        .select('start_date')
+        .eq('id', currentAcademicYearId)
+        .single();
+        
+      const academicYearStartDate = academicYearData ? new Date(academicYearData.start_date) : new Date();
       const monthsPassed = (
         (currentDate.getFullYear() - academicYearStartDate.getFullYear()) * 12 + 
         currentDate.getMonth() - academicYearStartDate.getMonth() + 
@@ -95,7 +129,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .from('bus_fee_structure')
           .select('fee_amount')
           .eq('village_id', student.village_id)
-          .eq('academic_year_id', academicYear.id)
+          .eq('academic_year_id', currentAcademicYearId)
           .eq('is_active', true)
           .maybeSingle();
 
@@ -117,7 +151,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             is_recurring_monthly,
             fee_type:fee_type_id(name, category, is_monthly)
           `)
-          .eq('academic_year_id', academicYear.id)
+          .eq('academic_year_id', currentAcademicYearId)
           .eq('class_id', student.class_id);
 
         if (!schoolFeeError && schoolFees) {
@@ -230,7 +264,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return false;
     }
 
-    if (!academicYearId) {
+    if (!currentAcademicYearId) {
       setError('Academic year information is missing');
       return false;
     }
@@ -251,145 +285,89 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return;
     }
 
-    if (!academicYearId) {
-      setError('Academic year information is missing');
-      return;
-    }
-
-    if (!studentId) {
-      setError('Student information is missing');
-      return;
-    }
-
     try {
       setSubmitting(true);
 
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      console.log('DEBUG - Payment data being submitted:', {
+      // Create payment data object
+      const paymentData = {
         student_id: studentId,
         amount_paid: parseFloat(formData.amount_paid),
         payment_date: formData.payment_date,
         payment_method: formData.payment_method,
         receipt_number: receiptNumber,
-        notes: formData.notes || '',
+        notes: formData.notes,
         created_by: user.id,
-        academic_year_id: academicYearId
-      });
+        academic_year_id: currentAcademicYearId
+      };
 
-      // Use the RPC function to avoid column ambiguity
-      const { data: payment, error: rpcError } = await supabase
-        .rpc('insert_fee_payment', {
-          p_student_id: studentId,
-          p_amount_paid: parseFloat(formData.amount_paid),
-          p_payment_date: formData.payment_date,
-          p_payment_method: formData.payment_method,
-          p_receipt_number: receiptNumber,
-          p_notes: formData.notes || '',
-          p_created_by: user.id,
-          p_academic_year_id: academicYearId
-        });
+      console.log('DEBUG - Payment data being submitted:', paymentData);
 
-      if (rpcError) {
-        console.error('RPC payment error:', rpcError);
-        
-        // Fallback approach - try direct insert with explicit column names
-        const { data: directPayment, error: directError } = await supabase
-          .from('fee_payments')
-          .insert([{
-            student_id: studentId,
-            amount_paid: parseFloat(formData.amount_paid),
-            payment_date: formData.payment_date,
-            payment_method: formData.payment_method,
-            receipt_number: receiptNumber,
-            notes: formData.notes || '',
-            created_by: user.id,
-            academic_year_id: academicYearId
-          }])
-          .select('id')
-          .single();
+      // Try to use the RPC function to create payment
+      try {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+          'insert_fee_payment_v2',
+          {
+            p_student_id: paymentData.student_id,
+            p_amount_paid: paymentData.amount_paid,
+            p_payment_date: paymentData.payment_date,
+            p_payment_method: paymentData.payment_method,
+            p_receipt_number: paymentData.receipt_number,
+            p_notes: paymentData.notes,
+            p_created_by: paymentData.created_by,
+            p_academic_year_id: paymentData.academic_year_id
+          }
+        );
 
-        if (directError) {
-          console.error('Direct payment error:', directError);
-          throw new Error(`Failed to process payment: ${directError.message}`);
+        if (rpcError) {
+          console.error('RPC error:', rpcError);
+          throw new Error(rpcError.message);
         }
 
-        if (!directPayment) {
-          throw new Error('Failed to create payment record');
-        }
-
-        // Fetch the complete payment with its allocation
-        const { data: completePayment, error: fetchError } = await supabase
+        // Fetch the created payment with its allocation
+        const { data: payment, error: fetchError } = await supabase
           .from('fee_payments')
           .select(`
-            id,
-            student_id,
-            amount_paid,
-            payment_date,
-            payment_method,
-            receipt_number,
-            notes,
-            created_by,
-            payment_allocation (
-              id,
-              bus_fee_amount,
-              school_fee_amount
-            )
+            *,
+            payment_allocation (*)
           `)
-          .eq('id', directPayment.id)
+          .eq('id', rpcResult.payment_id)
           .single();
 
         if (fetchError) {
-          console.error('Error fetching complete payment:', fetchError);
-          // Still return the basic payment data
-          onSubmit(directPayment);
-          return;
+          console.error('Error fetching created payment:', fetchError);
+          throw new Error('Payment created but failed to retrieve details');
         }
 
-        onSubmit(completePayment || directPayment);
+        onSubmit(payment);
         return;
+      } catch (rpcError) {
+        console.error('RPC approach failed:', rpcError);
+        // Fall back to direct insert if RPC fails
       }
 
-      if (!payment || !payment.payment_id) {
-        throw new Error('Failed to create payment record');
-      }
-
-      // Fetch the complete payment with allocation
-      const { data: completePayment, error: fetchError } = await supabase
+      // Direct insert as fallback - with explicit table alias in the select
+      const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
+        .insert(paymentData)
         .select(`
-          id,
-          student_id,
-          amount_paid,
-          payment_date,
-          payment_method,
-          receipt_number,
-          notes,
-          created_by,
-          payment_allocation (
-            id,
-            bus_fee_amount,
-            school_fee_amount
-          )
+          *,
+          payment_allocation (*)
         `)
-        .eq('id', payment.payment_id)
         .single();
 
-      if (fetchError) {
-        console.error('Error fetching complete payment:', fetchError);
-        // Still consider the payment successful
-        onSubmit({ id: payment.payment_id, student_id: studentId, amount_paid: parseFloat(formData.amount_paid) });
-        return;
+      if (directError) {
+        console.error('Direct payment creation error:', directError);
+        throw new Error('Failed to process payment: ' + directError.message);
       }
 
-      onSubmit(completePayment || { id: payment.payment_id, student_id: studentId, amount_paid: parseFloat(formData.amount_paid) });
-      toast.success('Payment processed successfully!');
+      onSubmit(directPayment);
 
     } catch (error: any) {
       console.error('Error processing payment:', error);
       setError(error.message || 'Failed to process payment. Please try again.');
-      toast.error(error.message || 'Failed to process payment');
     } finally {
       setSubmitting(false);
     }
