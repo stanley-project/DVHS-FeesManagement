@@ -44,6 +44,8 @@ interface UseStudentsOptions {
   statusFilter?: string;
   page?: number;
   limit?: number;
+  sortField?: string;
+  sortDirection?: 'asc' | 'desc';
 }
 
 export function useStudents(options: UseStudentsOptions = {}) {
@@ -82,15 +84,22 @@ export function useStudents(options: UseStudentsOptions = {}) {
         query = query.eq('status', options.statusFilter);
       }
 
+      // Apply sorting
+      if (options.sortField) {
+        query = query.order(options.sortField, { 
+          ascending: options.sortDirection === 'asc' 
+        });
+      } else {
+        // Default sorting by admission number
+        query = query.order('admission_number', { ascending: true });
+      }
+
       // Apply pagination
       if (options.page && options.limit) {
         const from = (options.page - 1) * options.limit;
         const to = from + options.limit - 1;
         query = query.range(from, to);
       }
-
-      // Order by admission number
-      query = query.order('admission_number', { ascending: true });
 
       const { data, error: fetchError, count } = await query;
 
@@ -134,8 +143,15 @@ export function useStudents(options: UseStudentsOptions = {}) {
         query = query.eq('status', options.statusFilter);
       }
 
-      // Order by admission number
-      query = query.order('admission_number', { ascending: true });
+      // Apply sorting
+      if (options.sortField) {
+        query = query.order(options.sortField, { 
+          ascending: options.sortDirection === 'asc' 
+        });
+      } else {
+        // Default sorting by admission number
+        query = query.order('admission_number', { ascending: true });
+      }
 
       const { data, error: fetchError } = await query;
 
@@ -239,7 +255,15 @@ export function useStudents(options: UseStudentsOptions = {}) {
 
   useEffect(() => {
     fetchStudents();
-  }, [options.search, options.classFilter, options.sectionFilter, options.statusFilter, options.page]);
+  }, [
+    options.search, 
+    options.classFilter, 
+    options.sectionFilter, 
+    options.statusFilter, 
+    options.page,
+    options.sortField,
+    options.sortDirection
+  ]);
 
   return {
     students,

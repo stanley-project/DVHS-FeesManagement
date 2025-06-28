@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Upload, Download, Filter, Eye, Pencil, ToggleLeft, Trash2 } from 'lucide-react';
+import { Plus, Upload, Download, Filter, Eye, Pencil, ToggleLeft, Trash2, ArrowUpDown } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { useStudents, Student } from '../../hooks/useStudents';
 import { useClasses } from '../../hooks/useClasses';
@@ -18,6 +18,8 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [isExporting, setIsExporting] = useState(false);
+  const [sortField, setSortField] = useState<string>('admission_number');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const itemsPerPage = 10;
 
   const { classes } = useClasses();
@@ -34,7 +36,9 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
     classFilter: selectedClass,
     statusFilter: selectedStatus,
     page: currentPage,
-    limit: itemsPerPage
+    limit: itemsPerPage,
+    sortField,
+    sortDirection
   });
 
   const handleDelete = async (student: Student) => {
@@ -57,6 +61,19 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update student status');
     }
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // Toggle direction if clicking the same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new field and default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    // Reset to first page when sorting changes
+    setCurrentPage(1);
   };
 
   const handleExportStudents = async () => {
@@ -227,11 +244,51 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
               <table className="w-full">
                 <thead>
                   <tr className="border-b">
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Admission No.</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Student Name</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Class</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Admission Date</th>
-                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">Status</th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      <button 
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('admission_number')}
+                      >
+                        Admission No.
+                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'admission_number' ? 'text-primary' : ''}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      <button 
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('student_name')}
+                      >
+                        Student Name
+                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'student_name' ? 'text-primary' : ''}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      <button 
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('class_id')}
+                      >
+                        Class
+                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'class_id' ? 'text-primary' : ''}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      <button 
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('admission_date')}
+                      >
+                        Admission Date
+                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'admission_date' ? 'text-primary' : ''}`} />
+                      </button>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground">
+                      <button 
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('status')}
+                      >
+                        Status
+                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'status' ? 'text-primary' : ''}`} />
+                      </button>
+                    </th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
