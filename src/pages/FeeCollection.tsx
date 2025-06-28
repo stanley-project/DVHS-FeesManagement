@@ -129,7 +129,7 @@ const FeeCollection = () => {
           id,
           amount_paid,
           payment_date,
-          fee_payments.student_id,
+          student_id,
           payment_allocation (
             bus_fee_amount,
             school_fee_amount
