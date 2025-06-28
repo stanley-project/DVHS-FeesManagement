@@ -62,7 +62,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       // Get student details with class information
       const { data: student, error: studentError } = await supabase
         .from('students')
-        .select('village_id, has_school_bus, class_id')
+        .select(`
+          village_id, has_school_bus, class_id
+        `)
         .eq('id', studentId)
         .single();
 
@@ -288,40 +290,52 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         throw new Error('Academic year ID is required but missing');
       }
 
-      // Direct insert with explicit column selection to avoid ambiguity
-      // Explicitly list all columns to avoid ambiguity
-      const { data: directPayment, error: directError } = await supabase
+      // Use a simplified approach - insert with minimal columns selected
+      const { data: payment, error: insertError } = await supabase
         .from('fee_payments')
-        .insert(paymentData)
-        .select('id, student_id, amount_paid, payment_date, payment_method, receipt_number, notes, created_by')
+        .insert([paymentData])
+        .select('id')
         .single();
 
-      if (directError) {
-        console.error('Direct payment creation error:', directError);
-        throw new Error(`Failed to process payment: ${directError.message}`);
+      if (insertError) {
+        console.error('Payment insert error:', insertError);
+        throw new Error(`Failed to process payment: ${insertError.message}`);
       }
 
-      // If direct insert succeeds, fetch the payment allocation separately
-      if (directPayment) {
-        // Wait a moment for the trigger to create the allocation
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const { data: allocation } = await supabase
-          .from('payment_allocation')
-          .select('bus_fee_amount, school_fee_amount')
-          .eq('payment_id', directPayment.id)
-          .maybeSingle();
-
-        // Add allocation data to payment response
-        const paymentWithAllocation = {
-          ...directPayment,
-          academic_year_id: academicYearId, // Add it back to the response
-          payment_allocation: allocation ? [allocation] : []
-        };
-
-        onSubmit(paymentWithAllocation);
-        toast.success('Payment processed successfully!');
+      if (!payment) {
+        throw new Error('Failed to create payment record');
       }
+
+      // Fetch the complete payment with allocation after successful insert
+      const { data: completePayment, error: fetchError } = await supabase
+        .from('fee_payments')
+        .select(`
+          id, 
+          student_id, 
+          amount_paid, 
+          payment_date, 
+          payment_method, 
+          receipt_number, 
+          notes, 
+          created_by,
+          payment_allocation (
+            id,
+            bus_fee_amount,
+            school_fee_amount
+          )
+        `)
+        .eq('id', payment.id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching complete payment:', fetchError);
+        // Still consider the payment successful even if we can't fetch details
+        onSubmit(payment);
+        return;
+      }
+
+      onSubmit(completePayment);
+      toast.success('Payment processed successfully!');
 
     } catch (error: any) {
       console.error('Error processing payment:', error);
