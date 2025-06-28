@@ -290,11 +290,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         throw new Error('Academic year ID is required but missing');
       }
 
-      // Use a simplified approach - insert with only the fee_payments table id selected
+      // Use correct select syntax - just 'id' instead of 'fee_payments.id'
       const { data: payment, error: insertError } = await supabase
         .from('fee_payments')
         .insert([paymentData])
-        .select('fee_payments.id')
+        .select('id')
         .single();
 
       if (insertError) {
