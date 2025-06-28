@@ -258,86 +258,54 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return;
     }
 
+    if (!studentId) {
+      setError('Student information is missing');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Create payment record using a direct insert approach
+      // Create payment record - ensure all required fields are present
       const paymentData = {
         student_id: studentId,
         amount_paid: parseFloat(formData.amount_paid),
         payment_date: formData.payment_date,
         payment_method: formData.payment_method,
-        transaction_id: null, // No transaction ID for any payment method
+        transaction_id: null,
         receipt_number: receiptNumber,
-        notes: formData.notes,
+        notes: formData.notes || '',
         created_by: user.id,
-        academic_year_id: academicYearId // Ensure this is always set
+        academic_year_id: academicYearId // Ensure this is always set and not null
       };
 
       console.log('DEBUG - Payment data being submitted:', paymentData);
 
-      // Try to use the Edge Function to create payment with service role
-      try {
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-fee-payment`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ payment_data: paymentData })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create payment');
-        }
-
-        const payment = await response.json();
-        onSubmit(payment);
-        return;
-      } catch (edgeFunctionError) {
-        console.error('Edge function error:', edgeFunctionError);
-        // Fall back to direct insert if edge function fails
+      // Validate that academic_year_id is not null before proceeding
+      if (!paymentData.academic_year_id) {
+        throw new Error('Academic year ID is required but missing');
       }
 
-      // Use RPC function to create payment with proper authentication context
-      try {
-        const { data: payment, error: paymentError } = await supabase
-          .rpc('create_fee_payment', {
-            payment_data: paymentData
-          });
-
-        if (paymentError) {
-          console.error('Payment creation error:', paymentError);
-          throw new Error(paymentError.message || 'Failed to create payment record');
-        }
-
-        if (payment) {
-          onSubmit(payment);
-          return;
-        }
-      } catch (rpcError) {
-        console.error('RPC error:', rpcError);
-        // Fall back to direct insert if RPC fails
-      }
-
-      // Direct insert as last resort - use a simpler select to avoid ambiguous column reference
+      // Direct insert with explicit column selection to avoid ambiguity
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
         .insert(paymentData)
-        .select('*')
+        .select('id, student_id, amount_paid, payment_date, payment_method, transaction_id, receipt_number, notes, created_by, academic_year_id, created_at, updated_at')
         .single();
 
       if (directError) {
         console.error('Direct payment creation error:', directError);
-        throw new Error('Failed to process payment. Please try again.');
+        throw new Error(`Failed to process payment: ${directError.message}`);
       }
 
       // If direct insert succeeds, fetch the payment allocation separately
       if (directPayment) {
+        // Wait a moment for the trigger to create the allocation
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const { data: allocation } = await supabase
           .from('payment_allocation')
           .select('bus_fee_amount, school_fee_amount')
@@ -351,11 +319,13 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         };
 
         onSubmit(paymentWithAllocation);
+        toast.success('Payment processed successfully!');
       }
 
     } catch (error: any) {
       console.error('Error processing payment:', error);
       setError(error.message || 'Failed to process payment. Please try again.');
+      toast.error(error.message || 'Failed to process payment');
     } finally {
       setSubmitting(false);
     }
