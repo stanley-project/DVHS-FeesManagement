@@ -271,7 +271,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Create payment record - ensure all required fields are present
+      // Create payment record with explicit column mapping to avoid ambiguity
       const paymentData = {
         student_id: studentId,
         amount_paid: parseFloat(formData.amount_paid),
@@ -280,7 +280,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         receipt_number: receiptNumber,
         notes: formData.notes || '',
         created_by: user.id,
-        academic_year_id: academicYearId // Ensure this is always set and not null
+        academic_year_id: academicYearId
       };
 
       console.log('DEBUG - Payment data being submitted:', paymentData);
@@ -290,19 +290,94 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         throw new Error('Academic year ID is required but missing');
       }
 
-      // Use correct select syntax - just 'id' instead of 'fee_payments.id'
+      // Use RPC function to handle the insert operation to avoid column ambiguity
       const { data: payment, error: insertError } = await supabase
-        .from('fee_payments')
-        .insert([paymentData])
-        .select('id')
-        .single();
+        .rpc('insert_fee_payment', {
+          p_student_id: studentId,
+          p_amount_paid: parseFloat(formData.amount_paid),
+          p_payment_date: formData.payment_date,
+          p_payment_method: formData.payment_method,
+          p_receipt_number: receiptNumber,
+          p_notes: formData.notes || '',
+          p_created_by: user.id,
+          p_academic_year_id: academicYearId
+        });
 
       if (insertError) {
         console.error('Payment insert error:', insertError);
-        throw new Error(`Failed to process payment: ${insertError.message}`);
+        
+        // Fallback to direct insert with explicit table qualification
+        const { data: fallbackPayment, error: fallbackError } = await supabase
+          .from('fee_payments')
+          .insert([{
+            student_id: studentId,
+            amount_paid: parseFloat(formData.amount_paid),
+            payment_date: formData.payment_date,
+            payment_method: formData.payment_method,
+            receipt_number: receiptNumber,
+            notes: formData.notes || '',
+            created_by: user.id,
+            academic_year_id: academicYearId
+          }])
+          .select(`
+            id,
+            student_id,
+            amount_paid,
+            payment_date,
+            payment_method,
+            receipt_number,
+            notes,
+            created_by,
+            academic_year_id
+          `)
+          .single();
+
+        if (fallbackError) {
+          console.error('Fallback payment insert error:', fallbackError);
+          throw new Error(`Failed to process payment: ${fallbackError.message}`);
+        }
+
+        if (!fallbackPayment) {
+          throw new Error('Failed to create payment record');
+        }
+
+        // Use fallback payment for subsequent operations
+        const paymentId = fallbackPayment.id;
+        
+        // Fetch complete payment details
+        const { data: completePayment, error: fetchError } = await supabase
+          .from('fee_payments')
+          .select(`
+            id, 
+            student_id, 
+            amount_paid, 
+            payment_date, 
+            payment_method, 
+            receipt_number, 
+            notes, 
+            created_by,
+            payment_allocation!inner (
+              id,
+              bus_fee_amount,
+              school_fee_amount
+            )
+          `)
+          .eq('id', paymentId)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching complete payment:', fetchError);
+          // Still consider the payment successful even if we can't fetch details
+          onSubmit(fallbackPayment);
+          return;
+        }
+
+        onSubmit(completePayment || fallbackPayment);
+        toast.success('Payment processed successfully!');
+        return;
       }
 
-      if (!payment) {
+      if (!payment || !payment.payment_id) {
         throw new Error('Failed to create payment record');
       }
 
@@ -318,19 +393,19 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           receipt_number, 
           notes, 
           created_by,
-          payment_allocation (
+          payment_allocation!inner (
             id,
             bus_fee_amount,
             school_fee_amount
           )
         `)
-        .eq('id', payment.id)
+        .eq('id', payment.payment_id)
         .single();
 
       if (fetchError) {
         console.error('Error fetching complete payment:', fetchError);
         // Still consider the payment successful even if we can't fetch details
-        onSubmit(payment);
+        onSubmit({ id: payment.payment_id, ...paymentData });
         return;
       }
 
