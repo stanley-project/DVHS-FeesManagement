@@ -290,7 +290,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       }
 
       // Direct insert with explicit column selection to avoid ambiguity
-      // Remove academic_year_id from select to avoid ambiguous column reference
+      // Avoid selecting academic_year_id to prevent ambiguous column reference
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
         .insert(paymentData)
