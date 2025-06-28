@@ -7,15 +7,19 @@ import { useSchoolFees } from '../hooks/useSchoolFees';
 import { useBusFees } from '../hooks/useBusFees';
 import { FeeType, FeeStructure as FeeStructureType } from '../types/fees';
 import AddFeeItemModal from '../components/fees/AddFeeItemModal';
+import AddBusFeeModal from '../components/fees/AddBusFeeModal';
 import FeeTypeModal from '../components/fees/FeeTypeModal';
 import FeeStructureTable from '../components/fees/FeeStructureTable';
+import BusFeeStructureTable from '../components/fees/BusFeeStructureTable';
 
 const FeeStructure = () => {
   const [activeTab, setActiveTab] = useState('school');
   const [showFeeTypeModal, setShowFeeTypeModal] = useState(false);
   const [showAddFeeModal, setShowAddFeeModal] = useState(false);
+  const [showAddBusFeeModal, setShowAddBusFeeModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('all');
+  const [editingFee, setEditingFee] = useState<any>(null);
   
   const { academicYears, loading: yearsLoading } = useAcademicYears();
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
@@ -47,8 +51,12 @@ const FeeStructure = () => {
     try {
       if (!selectedYear) return;
       
-      const data = await schoolFees.fetchFeeStructure(selectedYear);
-      setFeeStructures(data);
+      if (activeTab === 'school') {
+        const data = await schoolFees.fetchFeeStructure(selectedYear);
+        setFeeStructures(data);
+      } else if (activeTab === 'bus') {
+        await busFees.fetchBusFees(selectedYear);
+      }
     } catch (err) {
       console.error('Error fetching fee structure:', err);
       toast.error('Failed to load fee structure');
@@ -161,6 +169,27 @@ const FeeStructure = () => {
     }
   };
 
+  const handleDeleteBusFee = async (id: string) => {
+    try {
+      if (!confirm('Are you sure you want to delete this bus fee?')) {
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('bus_fee_structure')
+        .delete()
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      toast.success('Bus fee deleted successfully');
+      fetchFeeStructure();
+    } catch (err) {
+      console.error('Error deleting bus fee:', err);
+      toast.error('Failed to delete bus fee');
+    }
+  };
+
   const handleAddFeeItem = async (formData: any) => {
     try {
       if (!selectedYear) {
@@ -192,9 +221,59 @@ const FeeStructure = () => {
     }
   };
 
+  const handleAddBusFee = async (formData: any) => {
+    try {
+      if (!selectedYear) {
+        throw new Error('No academic year selected');
+      }
+      
+      const busFeeData = {
+        village_id: formData.village_id,
+        fee_amount: formData.fee_amount,
+        effective_from_date: formData.effective_from_date,
+        effective_to_date: formData.effective_to_date,
+        is_active: formData.is_active,
+        academic_year_id: selectedYear
+      };
+      
+      if (formData.id) {
+        // Update existing bus fee
+        const { error } = await supabase
+          .from('bus_fee_structure')
+          .update(busFeeData)
+          .eq('id', formData.id);
+          
+        if (error) throw error;
+        
+        toast.success('Bus fee updated successfully');
+      } else {
+        // Insert new bus fee
+        const { error } = await supabase
+          .from('bus_fee_structure')
+          .insert([busFeeData]);
+          
+        if (error) throw error;
+        
+        toast.success('Bus fee added successfully');
+      }
+      
+      setShowAddBusFeeModal(false);
+      setEditingFee(null);
+      fetchFeeStructure();
+    } catch (err) {
+      console.error('Error saving bus fee:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save bus fee');
+    }
+  };
+
   const handleEditFeeStructure = async (fee: FeeStructureType) => {
     // This would be implemented for editing existing fee items
     toast.info('Edit functionality will be implemented');
+  };
+
+  const handleEditBusFee = (fee: any) => {
+    setEditingFee(fee);
+    setShowAddBusFeeModal(true);
   };
 
   const exportFeeStructure = async () => {
@@ -327,10 +406,17 @@ const FeeStructure = () => {
                 <div className="flex gap-2">
                   <button
                     className="btn btn-outline btn-sm"
-                    onClick={() => setShowAddFeeModal(true)}
+                    onClick={() => {
+                      setEditingFee(null);
+                      if (activeTab === 'school') {
+                        setShowAddFeeModal(true);
+                      } else {
+                        setShowAddBusFeeModal(true);
+                      }
+                    }}
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Fee Item
+                    Add {activeTab === 'school' ? 'Fee Item' : 'Bus Fee'}
                   </button>
                   <button
                     className="btn btn-outline btn-sm"
@@ -348,39 +434,49 @@ const FeeStructure = () => {
                 </div>
               </div>
               
-              {/* Search and Filters */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-muted-foreground" />
+              {/* Search and Filters - Only show for school fees */}
+              {activeTab === 'school' && (
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Search by class or fee type..."
+                      className="input pl-10 w-full"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Search by class or fee type..."
-                    className="input pl-10 w-full"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+                  
+                  <select
+                    className="input"
+                    value={selectedClass}
+                    onChange={(e) => setSelectedClass(e.target.value)}
+                  >
+                    <option value="all">All Classes</option>
+                    {classes.map(cls => (
+                      <option key={cls.id} value={cls.id}>{cls.name}</option>
+                    ))}
+                  </select>
                 </div>
-                
-                <select
-                  className="input"
-                  value={selectedClass}
-                  onChange={(e) => setSelectedClass(e.target.value)}
-                >
-                  <option value="all">All Classes</option>
-                  {classes.map(cls => (
-                    <option key={cls.id} value={cls.id}>{cls.name}</option>
-                  ))}
-                </select>
-              </div>
+              )}
               
               {/* Fee Structure Table */}
-              <FeeStructureTable 
-                feeStructures={filteredFeeStructures}
-                onDelete={handleDeleteFeeStructure}
-                onEdit={handleEditFeeStructure}
-              />
+              {activeTab === 'school' ? (
+                <FeeStructureTable 
+                  feeStructures={filteredFeeStructures}
+                  onDelete={handleDeleteFeeStructure}
+                  onEdit={handleEditFeeStructure}
+                />
+              ) : (
+                <BusFeeStructureTable 
+                  academicYearId={selectedYear}
+                  onDelete={handleDeleteBusFee}
+                  onEdit={handleEditBusFee}
+                />
+              )}
             </div>
           )}
         </div>
@@ -395,6 +491,19 @@ const FeeStructure = () => {
           feeTypes={feeTypes}
           isSchoolFee={activeTab === 'school'}
           academicYearId={selectedYear || ''}
+        />
+      )}
+
+      {/* Add Bus Fee Modal */}
+      {showAddBusFeeModal && (
+        <AddBusFeeModal
+          onClose={() => {
+            setShowAddBusFeeModal(false);
+            setEditingFee(null);
+          }}
+          onSubmit={handleAddBusFee}
+          academicYearId={selectedYear || ''}
+          editingFee={editingFee}
         />
       )}
 
