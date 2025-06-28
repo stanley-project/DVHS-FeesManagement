@@ -76,6 +76,17 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
     setCurrentPage(1);
   };
 
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="h-4 w-4" />;
+    }
+    return (
+      <ArrowUpDown 
+        className={`h-4 w-4 text-primary ${sortDirection === 'desc' ? 'transform rotate-180' : ''}`} 
+      />
+    );
+  };
+
   const handleExportStudents = async () => {
     try {
       setIsExporting(true);
@@ -250,7 +261,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                         onClick={() => handleSort('admission_number')}
                       >
                         Admission No.
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'admission_number' ? 'text-primary' : ''}`} />
+                        {getSortIcon('admission_number')}
                       </button>
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">
@@ -259,7 +270,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                         onClick={() => handleSort('student_name')}
                       >
                         Student Name
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'student_name' ? 'text-primary' : ''}`} />
+                        {getSortIcon('student_name')}
                       </button>
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">
@@ -268,7 +279,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                         onClick={() => handleSort('class_id')}
                       >
                         Class
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'class_id' ? 'text-primary' : ''}`} />
+                        {getSortIcon('class_id')}
                       </button>
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">
@@ -277,7 +288,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                         onClick={() => handleSort('admission_date')}
                       >
                         Admission Date
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'admission_date' ? 'text-primary' : ''}`} />
+                        {getSortIcon('admission_date')}
                       </button>
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">
@@ -286,7 +297,7 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
                         onClick={() => handleSort('status')}
                       >
                         Status
-                        <ArrowUpDown className={`h-4 w-4 ${sortField === 'status' ? 'text-primary' : ''}`} />
+                        {getSortIcon('status')}
                       </button>
                     </th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
