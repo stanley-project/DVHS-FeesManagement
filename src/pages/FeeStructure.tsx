@@ -245,7 +245,7 @@ const FeeStructure = () => {
           .from('bus_fee_structure')
           .update(busFeeData)
           .eq('id', formData.id)
-          .select('*');
+          .select();
           
         if (error) {
           console.error('Update error:', error);
@@ -259,7 +259,7 @@ const FeeStructure = () => {
         const { data, error } = await supabase
           .from('bus_fee_structure')
           .insert([busFeeData])
-          .select('*');
+          .select();
           
         if (error) {
           console.error('Insert error:', error);

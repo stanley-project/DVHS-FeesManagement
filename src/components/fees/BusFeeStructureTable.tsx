@@ -204,7 +204,7 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
             <th className="px-4 py-3 text-right font-medium text-muted-foreground">Actions</th>
           </tr>
         </thead>
-        <tbody className="divide-y">
+        <tbody>
           {busFees.map((fee) => (
             <tr key={fee.id} className="hover:bg-muted/50">
               <td className="px-4 py-3 font-medium">{fee.village?.name || 'Unknown'}</td>
