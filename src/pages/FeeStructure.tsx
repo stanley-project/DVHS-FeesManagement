@@ -243,7 +243,12 @@ const FeeStructure = () => {
         // Update existing bus fee
         const { data, error } = await supabase
           .from('bus_fee_structure')
-          .update(busFeeData)
+          .update({
+            fee_amount: formData.fee_amount,
+            effective_from_date: formData.effective_from_date,
+            effective_to_date: formData.effective_to_date,
+            is_active: formData.is_active
+          })
           .eq('id', formData.id)
           .select();
           
