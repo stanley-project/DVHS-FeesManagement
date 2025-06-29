@@ -12,6 +12,8 @@ export const useBusFees = () => {
     setError(null);
 
     try {
+      console.log('Fetching bus fees for academic year:', academicYearId);
+      
       const { data, error: supabaseError } = await supabase
         .from('bus_fee_structure')
         .select(`
@@ -32,9 +34,11 @@ export const useBusFees = () => {
 
       console.log('useBusFees: Fetched bus fees:', data); 
       setBusFees(data || []);
+      return data;
     } catch (err: any) {
       console.error('Error fetching bus fees:', err);
       setError(err);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -45,6 +49,8 @@ export const useBusFees = () => {
     setError(null);
 
     try {
+      console.log('Saving bus fees:', fees);
+      
       // First, validate all fees
       for (const fee of fees) {
         if (!fee.village_id) {
@@ -69,10 +75,12 @@ export const useBusFees = () => {
       }
 
       // Process each fee
+      const results = [];
       for (const fee of fees) {
         if (fee.id) {
           // Update existing fee
-          const { error } = await supabase
+          console.log('Updating existing fee:', fee);
+          const { data, error } = await supabase
             .from('bus_fee_structure')
             .update({
               fee_amount: fee.fee_amount,
@@ -81,12 +89,20 @@ export const useBusFees = () => {
               is_active: fee.is_active,
               academic_year_id: fee.academic_year_id
             })
-            .eq('id', fee.id);
+            .eq('id', fee.id)
+            .select();
             
-          if (error) throw error;
+          if (error) {
+            console.error('Error updating bus fee:', error);
+            throw error;
+          }
+          
+          console.log('Update result:', data);
+          results.push(data);
         } else {
           // Insert new fee
-          const { error } = await supabase
+          console.log('Inserting new fee:', fee);
+          const { data, error } = await supabase
             .from('bus_fee_structure')
             .insert([{
               village_id: fee.village_id,
@@ -95,13 +111,26 @@ export const useBusFees = () => {
               effective_to_date: fee.effective_to_date,
               is_active: fee.is_active,
               academic_year_id: fee.academic_year_id
-            }]);
+            }])
+            .select();
             
-          if (error) throw error;
+          if (error) {
+            console.error('Error inserting bus fee:', error);
+            throw error;
+          }
+          
+          console.log('Insert result:', data);
+          results.push(data);
         }
       }
       
+      // Refresh the bus fees list
+      if (fees.length > 0) {
+        await fetchBusFees(fees[0].academic_year_id);
+      }
+      
       toast.success('Bus fees saved successfully');
+      return results;
     } catch (err: any) {
       console.error('Error saving bus fees:', err);
       setError(err);
@@ -153,8 +182,9 @@ export const useBusFees = () => {
       }));
 
       // Insert new fees
+      const results = [];
       for (const fee of newFees) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('bus_fee_structure')
           .insert([{
             village_id: fee.village_id,
@@ -163,9 +193,11 @@ export const useBusFees = () => {
             effective_to_date: fee.effective_to_date,
             is_active: true,
             academic_year_id: academicYearId
-          }]);
+          }])
+          .select();
           
         if (error) throw error;
+        results.push(data);
       }
 
       // Refresh the fees list

@@ -36,6 +36,7 @@ const AddBusFeeModal = ({
     
     // If editing, set form data
     if (editingFee) {
+      console.log('Setting form data from editing fee:', editingFee);
       setFormData({
         village_id: editingFee.village_id,
         fee_amount: editingFee.fee_amount.toString(),

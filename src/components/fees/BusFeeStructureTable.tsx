@@ -45,6 +45,8 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
         return;
       }
 
+      console.log('Fetching bus fees for academic year:', academicYearId);
+      
       const { data, error } = await supabase
         .from('bus_fee_structure')
         .select(`
@@ -60,6 +62,8 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
         .eq('is_active', true);
 
       if (error) throw error;
+
+      console.log('Fetched bus fees data:', data);
 
       // Sort the data based on the selected field and direction
       const sortedData = [...(data || [])].sort((a, b) => {
@@ -92,7 +96,7 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
         return 0;
       });
 
-      console.log('Fetched bus fees:', sortedData);
+      console.log('Sorted bus fees:', sortedData);
       setBusFees(sortedData);
     } catch (err) {
       console.error('Error fetching bus fees:', err);
@@ -120,6 +124,11 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
       console.error('Error deleting bus fee:', err);
       toast.error('Failed to delete bus fee');
     }
+  };
+
+  const handleEdit = (fee: BusFeeStructure) => {
+    console.log('Editing bus fee:', fee);
+    onEdit(fee);
   };
 
   if (loading) {
@@ -211,7 +220,7 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
               <td className="px-4 py-3">
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={() => onEdit(fee)}
+                    onClick={() => handleEdit(fee)}
                     className="p-1 hover:bg-muted rounded-md"
                     title="Edit"
                   >

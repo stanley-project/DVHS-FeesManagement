@@ -272,6 +272,7 @@ const FeeStructure = () => {
       
       setShowAddBusFeeModal(false);
       setEditingFee(null);
+      // Refresh the fee structure data
       fetchFeeStructure();
     } catch (err) {
       console.error('Error saving bus fee:', err);
