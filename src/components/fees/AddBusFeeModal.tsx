@@ -20,6 +20,7 @@ const AddBusFeeModal = ({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [academicYear, setAcademicYear] = useState<{start_date: string, end_date: string} | null>(null);
   
   const [formData, setFormData] = useState({
     village_id: '',
@@ -31,6 +32,7 @@ const AddBusFeeModal = ({
 
   useEffect(() => {
     fetchVillages();
+    fetchAcademicYear();
     
     // If editing, set form data
     if (editingFee) {
@@ -65,6 +67,34 @@ const AddBusFeeModal = ({
     }
   };
 
+  const fetchAcademicYear = async () => {
+    try {
+      if (!academicYearId) return;
+      
+      const { data, error } = await supabase
+        .from('academic_years')
+        .select('start_date, end_date')
+        .eq('id', academicYearId)
+        .single();
+      
+      if (error) throw error;
+      
+      setAcademicYear(data);
+      
+      // Set default dates based on academic year
+      if (data && !editingFee) {
+        setFormData(prev => ({
+          ...prev,
+          effective_from_date: data.start_date,
+          effective_to_date: data.end_date
+        }));
+      }
+    } catch (err) {
+      console.error('Error fetching academic year:', err);
+      setError('Failed to load academic year details');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -94,6 +124,20 @@ const AddBusFeeModal = ({
       
       if (fromDate >= toDate) {
         throw new Error('Effective to date must be after effective from date');
+      }
+      
+      // Validate dates against academic year
+      if (academicYear) {
+        const academicStartDate = new Date(academicYear.start_date);
+        const academicEndDate = new Date(academicYear.end_date);
+        
+        if (fromDate < academicStartDate) {
+          throw new Error(`Effective from date cannot be before academic year start (${academicYear.start_date})`);
+        }
+        
+        if (toDate > academicEndDate) {
+          throw new Error(`Effective to date cannot be after academic year end (${academicYear.end_date})`);
+        }
       }
       
       const submissionData = {
@@ -190,7 +234,14 @@ const AddBusFeeModal = ({
                     value={formData.effective_from_date}
                     onChange={(e) => setFormData({ ...formData, effective_from_date: e.target.value })}
                     required
+                    min={academicYear?.start_date}
+                    max={academicYear?.end_date}
                   />
+                  {academicYear && (
+                    <p className="text-xs text-muted-foreground">
+                      Must be within academic year: {academicYear.start_date} to {academicYear.end_date}
+                    </p>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
@@ -202,6 +253,8 @@ const AddBusFeeModal = ({
                     value={formData.effective_to_date}
                     onChange={(e) => setFormData({ ...formData, effective_to_date: e.target.value })}
                     required
+                    min={formData.effective_from_date}
+                    max={academicYear?.end_date}
                   />
                 </div>
               </div>
