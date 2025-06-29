@@ -90,7 +90,7 @@ export const useBusFees = () => {
               academic_year_id: fee.academic_year_id
             })
             .eq('id', fee.id)
-            .select();
+            .select('*');
             
           if (error) {
             console.error('Error updating bus fee:', error);
@@ -112,7 +112,7 @@ export const useBusFees = () => {
               is_active: fee.is_active,
               academic_year_id: fee.academic_year_id
             }])
-            .select();
+            .select('*');
             
           if (error) {
             console.error('Error inserting bus fee:', error);
@@ -194,7 +194,7 @@ export const useBusFees = () => {
             is_active: true,
             academic_year_id: academicYearId
           }])
-          .select();
+          .select('*');
           
         if (error) throw error;
         results.push(data);
