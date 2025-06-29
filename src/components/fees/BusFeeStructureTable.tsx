@@ -92,6 +92,7 @@ const BusFeeStructureTable = ({ academicYearId, onEdit, onDelete }: BusFeeStruct
         return 0;
       });
 
+      console.log('Fetched bus fees:', sortedData);
       setBusFees(sortedData);
     } catch (err) {
       console.error('Error fetching bus fees:', err);

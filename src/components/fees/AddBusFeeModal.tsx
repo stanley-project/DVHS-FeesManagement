@@ -147,6 +147,7 @@ const AddBusFeeModal = ({
         id: editingFee?.id
       };
       
+      console.log('Submitting bus fee data:', submissionData);
       await onSubmit(submissionData);
       onClose();
     } catch (err) {

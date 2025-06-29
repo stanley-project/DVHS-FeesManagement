@@ -236,24 +236,37 @@ const FeeStructure = () => {
         academic_year_id: selectedYear
       };
       
+      console.log('Bus fee data to save:', busFeeData);
+      console.log('Is this an update?', !!formData.id);
+      
       if (formData.id) {
         // Update existing bus fee
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('bus_fee_structure')
           .update(busFeeData)
-          .eq('id', formData.id);
+          .eq('id', formData.id)
+          .select();
           
-        if (error) throw error;
+        if (error) {
+          console.error('Update error:', error);
+          throw error;
+        }
         
+        console.log('Update response:', data);
         toast.success('Bus fee updated successfully');
       } else {
         // Insert new bus fee
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('bus_fee_structure')
-          .insert([busFeeData]);
+          .insert([busFeeData])
+          .select();
           
-        if (error) throw error;
+        if (error) {
+          console.error('Insert error:', error);
+          throw error;
+        }
         
+        console.log('Insert response:', data);
         toast.success('Bus fee added successfully');
       }
       
@@ -272,6 +285,7 @@ const FeeStructure = () => {
   };
 
   const handleEditBusFee = (fee: any) => {
+    console.log('Editing bus fee:', fee);
     setEditingFee(fee);
     setShowAddBusFeeModal(true);
   };
