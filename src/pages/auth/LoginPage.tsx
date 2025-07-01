@@ -128,14 +128,6 @@ const LoginPage = () => {
             </button>
           </form>
           
-          <div className="mt-6 text-center text-sm">
-            <p className="text-muted-foreground">
-               // For demo purposes, use:<br /> 
-              Admin: 9876543210 / ADMN2025<br />
-              Accountant: 9876543211 / ACCT2025<br />
-              Teacher: 9876543212 / TCHR2025
-            </p>
-          </div>
         </div>
       </div>
     </div>
