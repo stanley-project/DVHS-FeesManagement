@@ -286,7 +286,7 @@ const FeeCollection = () => {
           id: student.id,
           name: student.student_name,
           admissionNumber: student.admission_number,
-          class: student.class?.name,
+          class: student.class?.name || '',
           class_id: student.class_id,
           status,
           pending: `₹${pendingAmount.toLocaleString('en-IN')}`,
@@ -357,8 +357,8 @@ const FeeCollection = () => {
         student: {
           name: student.name,
           admissionNumber: student.admissionNumber,
-          class: student.class?.split('-')[0] || '',
-          section: student.class?.split('-')[1] || '',
+          class: (student.class || '').split('-')[0] || '',
+          section: (student.class || '').split('-')[1] || '',
         },
         busAmount: paymentData.payment_allocation?.[0]?.bus_fee_amount || 0,
         schoolAmount: paymentData.payment_allocation?.[0]?.school_fee_amount || 0,
@@ -437,15 +437,16 @@ const FeeCollection = () => {
 
       if (error) throw error;
 
-      // Format receipt data
+      // Format receipt data with defensive checks
+      const className = data.student?.class?.name || '';
       const receipt = {
         receiptNumber: data.receipt_number,
         date: new Date(data.payment_date).toLocaleDateString('en-IN'),
         student: {
-          name: data.student.student_name,
-          admissionNumber: data.student.admission_number,
-          class: data.student.class?.name?.split('-')[0] || '',
-          section: data.student.section || data.student.class?.name?.split('-')[1] || '',
+          name: data.student?.student_name || '',
+          admissionNumber: data.student?.admission_number || '',
+          class: className.split('-')[0] || '',
+          section: data.student?.section || className.split('-')[1] || '',
         },
         busAmount: data.payment_allocation?.[0]?.bus_fee_amount || 0,
         schoolAmount: data.payment_allocation?.[0]?.school_fee_amount || 0,

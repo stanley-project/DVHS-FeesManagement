@@ -259,15 +259,16 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
 
       if (error) throw error;
 
-      // Format receipt data
+      // Format receipt data with defensive checks
+      const className = data.student?.class?.name || '';
       const receipt = {
         receiptNumber: data.receipt_number,
         date: new Date(data.payment_date).toLocaleDateString('en-IN'),
         student: {
-          name: data.student.student_name,
-          admissionNumber: data.student.admission_number,
-          class: data.student.class?.name?.split('-')[0] || '',
-          section: data.student.section || data.student.class?.name?.split('-')[1] || '',
+          name: data.student?.student_name || '',
+          admissionNumber: data.student?.admission_number || '',
+          class: className.split('-')[0] || '',
+          section: data.student?.section || className.split('-')[1] || '',
         },
         busAmount: data.payment_allocation?.[0]?.bus_fee_amount || 0,
         schoolAmount: data.payment_allocation?.[0]?.school_fee_amount || 0,
