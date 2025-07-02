@@ -19,7 +19,9 @@ const paymentSchema = z.object({
   payment_date: z.string().min(1, 'Payment date is required'),
   payment_method: z.enum(['cash', 'online']),
   notes: z.string().optional(),
-  split_equally: z.boolean().optional()
+  split_type: z.enum(['standard', 'proportional', 'equal']),
+  payment_period: z.enum(['current', 'advance', 'past']),
+  payment_months: z.number().min(1).max(12)
 });
 
 type FormData = z.infer<typeof paymentSchema>;
@@ -27,7 +29,34 @@ type FormData = z.infer<typeof paymentSchema>;
 const EditPaymentModal = ({ payment, onClose, onUpdate }: EditPaymentModalProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [splitPaymentEqually, setSplitPaymentEqually] = useState(false);
+
+  // Get the current split type from metadata
+  const getSplitTypeFromMetadata = (): 'standard' | 'proportional' | 'equal' => {
+    if (!payment.metadata) return 'standard';
+    
+    if (payment.metadata.split_type) {
+      return payment.metadata.split_type as 'standard' | 'proportional' | 'equal';
+    }
+    
+    // For backward compatibility with old equal split
+    if (payment.metadata.split_equally) {
+      return 'equal';
+    }
+    
+    return 'standard';
+  };
+
+  // Get payment period from metadata
+  const getPaymentPeriodFromMetadata = (): 'current' | 'advance' | 'past' => {
+    if (!payment.metadata || !payment.metadata.payment_period) return 'current';
+    return payment.metadata.payment_period as 'current' | 'advance' | 'past';
+  };
+
+  // Get payment months from metadata
+  const getPaymentMonthsFromMetadata = (): number => {
+    if (!payment.metadata || !payment.metadata.payment_months) return 1;
+    return parseInt(payment.metadata.payment_months.toString()) || 1;
+  };
 
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>({
     defaultValues: {
@@ -35,19 +64,15 @@ const EditPaymentModal = ({ payment, onClose, onUpdate }: EditPaymentModalProps)
       payment_date: payment.payment_date,
       payment_method: payment.payment_method,
       notes: payment.notes || '',
-      split_equally: false
+      split_type: getSplitTypeFromMetadata(),
+      payment_period: getPaymentPeriodFromMetadata(),
+      payment_months: getPaymentMonthsFromMetadata()
     }
   });
 
-  // Check if the payment was originally split equally
-  useEffect(() => {
-    if (payment.metadata && payment.metadata.split_equally) {
-      setSplitPaymentEqually(true);
-      setValue('split_equally', true);
-    }
-  }, [payment, setValue]);
-
   const watchAmount = watch('amount_paid');
+  const watchSplitType = watch('split_type');
+  const watchPaymentPeriod = watch('payment_period');
 
   const onFormSubmit = async (data: FormData) => {
     try {
@@ -61,8 +86,11 @@ const EditPaymentModal = ({ payment, onClose, onUpdate }: EditPaymentModalProps)
         payment_method: data.payment_method,
         notes: data.notes,
         metadata: {
-          ...payment.metadata,
-          split_equally: data.split_equally
+          split_type: data.split_type,
+          payment_period: data.payment_period,
+          payment_months: data.payment_months,
+          // Preserve other metadata fields
+          ...(payment.metadata || {})
         }
       };
 
@@ -75,6 +103,80 @@ const EditPaymentModal = ({ payment, onClose, onUpdate }: EditPaymentModalProps)
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Calculate proportional split preview
+  const calculateProportionalSplit = () => {
+    if (!watchAmount || parseFloat(watchAmount) <= 0) {
+      return { busAmount: 0, schoolAmount: 0 };
+    }
+
+    // Get allocation from payment
+    const busAllocation = payment.payment_allocation?.[0]?.bus_fee_amount 
+      ? parseFloat(payment.payment_allocation[0].bus_fee_amount) 
+      : 0;
+    
+    const schoolAllocation = payment.payment_allocation?.[0]?.school_fee_amount 
+      ? parseFloat(payment.payment_allocation[0].school_fee_amount) 
+      : 0;
+    
+    const totalAllocation = busAllocation + schoolAllocation;
+    
+    if (totalAllocation <= 0) {
+      return { busAmount: 0, schoolAmount: parseFloat(watchAmount) };
+    }
+    
+    const busRatio = busAllocation / totalAllocation;
+    const schoolRatio = schoolAllocation / totalAllocation;
+    
+    const paymentAmount = parseFloat(watchAmount);
+    let busAmount = Math.round((paymentAmount * busRatio) * 100) / 100;
+    let schoolAmount = Math.round((paymentAmount * schoolRatio) * 100) / 100;
+    
+    // Adjust for rounding errors
+    const diff = paymentAmount - (busAmount + schoolAmount);
+    if (Math.abs(diff) > 0.01) {
+      schoolAmount += diff;
+    }
+    
+    return { busAmount, schoolAmount };
+  };
+
+  // Get split preview based on selected type
+  const getSplitPreview = () => {
+    if (!watchAmount || parseFloat(watchAmount) <= 0) {
+      return null;
+    }
+
+    const paymentAmount = parseFloat(watchAmount);
+    
+    if (watchSplitType === 'proportional') {
+      const { busAmount, schoolAmount } = calculateProportionalSplit();
+      return (
+        <div className="mt-2 text-sm text-muted-foreground">
+          <p>
+            The payment will be split proportionally based on monthly dues:
+          </p>
+          <ul className="list-disc pl-5 mt-1">
+            <li>Bus fees: ₹{busAmount.toFixed(2)} ({Math.round(busAmount/paymentAmount*100)}%)</li>
+            <li>School fees: ₹{schoolAmount.toFixed(2)} ({Math.round(schoolAmount/paymentAmount*100)}%)</li>
+          </ul>
+        </div>
+      );
+    } else if (watchSplitType === 'equal') {
+      const halfAmount = paymentAmount / 2;
+      return (
+        <div className="mt-2 text-sm text-muted-foreground">
+          <p>
+            The payment will be divided equally: 
+            ₹{halfAmount.toFixed(2)} for bus fees and 
+            ₹{halfAmount.toFixed(2)} for school fees.
+          </p>
+        </div>
+      );
+    }
+    
+    return null;
   };
 
   return (
@@ -156,6 +258,46 @@ const EditPaymentModal = ({ payment, onClose, onUpdate }: EditPaymentModalProps)
           </div>
 
           <div className="space-y-2">
+            <label htmlFor="payment_period" className="block text-sm font-medium">
+              Payment Period
+            </label>
+            <select
+              id="payment_period"
+              className="input"
+              {...register('payment_period')}
+              disabled={isSubmitting}
+            >
+              <option value="current">Current Month</option>
+              <option value="advance">Advance Payment</option>
+              <option value="past">Past Dues</option>
+            </select>
+          </div>
+          
+          {watchPaymentPeriod !== 'current' && (
+            <div className="space-y-2">
+              <label htmlFor="payment_months" className="block text-sm font-medium">
+                Number of Months
+              </label>
+              <input
+                id="payment_months"
+                type="number"
+                className="input"
+                {...register('payment_months', { 
+                  valueAsNumber: true,
+                  min: 1,
+                  max: 12
+                })}
+                min="1"
+                max="12"
+                disabled={isSubmitting}
+              />
+              <p className="text-xs text-muted-foreground">
+                {watchPaymentPeriod === 'advance' ? 'Months to pay in advance' : 'Past months to cover'}
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
             <label htmlFor="notes" className="block text-sm font-medium">
               Remarks
             </label>
@@ -170,31 +312,55 @@ const EditPaymentModal = ({ payment, onClose, onUpdate }: EditPaymentModalProps)
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                id="split_equally"
-                type="checkbox"
-                className="h-4 w-4 rounded border-input"
-                checked={splitPaymentEqually}
-                onChange={(e) => {
-                  setSplitPaymentEqually(e.target.checked);
-                  setValue('split_equally', e.target.checked);
-                }}
-                disabled={isSubmitting}
-              />
-              <label htmlFor="split_equally" className="text-sm font-medium">
-                Split payment equally between bus and school fees
+            <label className="block text-sm font-medium mb-2">
+              Payment Allocation Method
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <label className="relative">
+                <input
+                  type="radio"
+                  value="standard"
+                  {...register('split_type')}
+                  className="peer sr-only"
+                  disabled={isSubmitting}
+                />
+                <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
+                  <span className="font-medium">Standard</span>
+                  <span className="text-xs text-muted-foreground">Bus fees first, then school fees</span>
+                </div>
+              </label>
+
+              <label className="relative">
+                <input
+                  type="radio"
+                  value="proportional"
+                  {...register('split_type')}
+                  className="peer sr-only"
+                  disabled={isSubmitting}
+                />
+                <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
+                  <span className="font-medium">Proportional</span>
+                  <span className="text-xs text-muted-foreground">Based on monthly fee ratio</span>
+                </div>
+              </label>
+
+              <label className="relative">
+                <input
+                  type="radio"
+                  value="equal"
+                  {...register('split_type')}
+                  className="peer sr-only"
+                  disabled={isSubmitting}
+                />
+                <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
+                  <span className="font-medium">Equal Split</span>
+                  <span className="text-xs text-muted-foreground">50% to each fee type</span>
+                </div>
               </label>
             </div>
-            {splitPaymentEqually && watchAmount && (
-              <div className="mt-2 text-sm text-muted-foreground">
-                <p>
-                  The payment will be divided equally: 
-                  ₹{(parseFloat(watchAmount) / 2).toFixed(2)} for bus fees and 
-                  ₹{(parseFloat(watchAmount) / 2).toFixed(2)} for school fees.
-                </p>
-              </div>
-            )}
+            
+            {getSplitPreview()}
+            
             <p className="text-xs text-warning">
               Note: Changing this option will recalculate the fee allocation.
             </p>

@@ -32,7 +32,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(academicYearId || null);
-  const [splitPaymentEqually, setSplitPaymentEqually] = useState(false);
+  const [splitType, setSplitType] = useState<'standard' | 'proportional' | 'equal'>('standard');
+  const [paymentPeriod, setPaymentPeriod] = useState<'current' | 'advance' | 'past'>('current');
+  const [paymentMonths, setPaymentMonths] = useState(1);
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
@@ -308,7 +310,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
     try {
       setIsSubmitting(true);
-      
+
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -321,13 +323,15 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         notes: formData.notes,
         created_by: user.id,
         academic_year_id: currentAcademicYearId,
-        split_equally: splitPaymentEqually
+        split_type: splitType,
+        payment_period: paymentPeriod,
+        payment_months: paymentMonths
       });
 
       // Try to use the RPC function to create payment
       try {
         const { data: rpcResult, error: rpcError } = await supabase.rpc(
-          'insert_fee_payment_v3',
+          'insert_fee_payment_v4',
           {
             p_student_id: studentId,
             p_amount_paid: parseFloat(formData.amount_paid),
@@ -337,7 +341,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             p_notes: formData.notes,
             p_created_by: user.id,
             p_academic_year_id: currentAcademicYearId,
-            p_split_equally: splitPaymentEqually
+            p_split_type: splitType,
+            p_payment_period: paymentPeriod,
+            p_payment_months: paymentMonths
           }
         );
 
@@ -351,6 +357,12 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .from('fee_payments')
           .select(`
             *,
+            student:student_id(
+              id,
+              student_name,
+              admission_number,
+              class:class_id(name)
+            ),
             payment_allocation (*)
           `)
           .eq('id', rpcResult.payment_id)
@@ -380,7 +392,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           notes: formData.notes,
           created_by: user.id,
           academic_year_id: currentAcademicYearId,
-          metadata: { split_equally: splitPaymentEqually }
+          metadata: {
+            split_type: splitType,
+            payment_period: paymentPeriod,
+            payment_months: paymentMonths
+          }
         })
         .select(`
           id,
@@ -426,6 +442,81 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Calculate proportional split preview
+  const calculateProportionalSplit = () => {
+    if (!feeStatus || !formData.amount_paid || parseFloat(formData.amount_paid) <= 0) {
+      return { busAmount: 0, schoolAmount: 0 };
+    }
+
+    const paymentAmount = parseFloat(formData.amount_paid);
+    const totalMonthlyDue = (feeStatus.total_bus_fees / monthsPassedBus) + (feeStatus.total_school_fees / monthsPassedSchool);
+    
+    if (totalMonthlyDue <= 0) {
+      return { busAmount: 0, schoolAmount: paymentAmount };
+    }
+
+    const monthlyBusFee = feeStatus.total_bus_fees / monthsPassedBus;
+    const monthlySchoolFee = feeStatus.total_school_fees / monthsPassedSchool;
+    
+    const busRatio = monthlyBusFee / totalMonthlyDue;
+    const schoolRatio = monthlySchoolFee / totalMonthlyDue;
+    
+    let busAmount = Math.round((paymentAmount * busRatio) * 100) / 100;
+    let schoolAmount = Math.round((paymentAmount * schoolRatio) * 100) / 100;
+    
+    // Adjust for rounding errors
+    const diff = paymentAmount - (busAmount + schoolAmount);
+    if (Math.abs(diff) > 0.01) {
+      schoolAmount += diff;
+    }
+    
+    return { busAmount, schoolAmount };
+  };
+
+  // Get months passed for calculations
+  const monthsPassedSchool = feeStatus?.total_school_fees && feeStatus.total_school_fees > 0 ? 
+    Math.ceil(feeStatus.total_school_fees / (feeStatus.total_school_fees / 4)) : 4; // Assuming 4 months if can't calculate
+  
+  const monthsPassedBus = feeStatus?.total_bus_fees && feeStatus.total_bus_fees > 0 ? 
+    Math.ceil(feeStatus.total_bus_fees / (feeStatus.total_bus_fees / 4)) : 4; // Assuming 4 months if can't calculate
+
+  // Calculate split preview based on selected type
+  const getSplitPreview = () => {
+    if (!formData.amount_paid || parseFloat(formData.amount_paid) <= 0 || !feeStatus) {
+      return null;
+    }
+
+    const paymentAmount = parseFloat(formData.amount_paid);
+    
+    if (splitType === 'proportional') {
+      const { busAmount, schoolAmount } = calculateProportionalSplit();
+      return (
+        <div className="mt-2 text-sm text-muted-foreground">
+          <p>
+            The payment will be split proportionally based on monthly dues:
+          </p>
+          <ul className="list-disc pl-5 mt-1">
+            <li>Bus fees: ₹{busAmount.toFixed(2)} ({Math.round(busAmount/paymentAmount*100)}%)</li>
+            <li>School fees: ₹{schoolAmount.toFixed(2)} ({Math.round(schoolAmount/paymentAmount*100)}%)</li>
+          </ul>
+        </div>
+      );
+    } else if (splitType === 'equal') {
+      const halfAmount = paymentAmount / 2;
+      return (
+        <div className="mt-2 text-sm text-muted-foreground">
+          <p>
+            The payment will be divided equally: 
+            ₹{halfAmount.toFixed(2)} for bus fees and 
+            ₹{halfAmount.toFixed(2)} for school fees.
+          </p>
+        </div>
+      );
+    }
+    
+    return null;
   };
 
   if (loading) {
@@ -503,7 +594,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
           {feeStatus.total_pending > 0 && (
             <div className="text-sm text-muted-foreground mt-2">
-              <p>Note: Payments will be automatically allocated to bus fees first, then school fees.</p>
+              <p>Note: By default, payments will be allocated to bus fees first, then school fees.</p>
             </div>
           )}
         </div>
@@ -577,6 +668,44 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             <option value="online">Online Transfer</option>
           </select>
         </div>
+
+        <div className="space-y-2">
+          <label htmlFor="payment_period" className="block text-sm font-medium">
+            Payment Period
+          </label>
+          <select
+            id="payment_period"
+            className="input"
+            value={paymentPeriod}
+            onChange={(e) => setPaymentPeriod(e.target.value as 'current' | 'advance' | 'past')}
+            disabled={isSubmitting}
+          >
+            <option value="current">Current Month</option>
+            <option value="advance">Advance Payment</option>
+            <option value="past">Past Dues</option>
+          </select>
+        </div>
+        
+        {paymentPeriod !== 'current' && (
+          <div className="space-y-2">
+            <label htmlFor="payment_months" className="block text-sm font-medium">
+              Number of Months
+            </label>
+            <input
+              id="payment_months"
+              type="number"
+              className="input"
+              value={paymentMonths}
+              onChange={(e) => setPaymentMonths(parseInt(e.target.value) || 1)}
+              min="1"
+              max="12"
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              {paymentPeriod === 'advance' ? 'Months to pay in advance' : 'Past months to cover'}
+            </p>
+          </div>
+        )}
         
         <div className="space-y-2 md:col-span-2">
           <label htmlFor="notes" className="block text-sm font-medium">
@@ -594,28 +723,57 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         </div>
 
         <div className="md:col-span-2">
-          <div className="flex items-center gap-2">
-            <input
-              id="split_equally"
-              type="checkbox"
-              className="h-4 w-4 rounded border-input"
-              checked={splitPaymentEqually}
-              onChange={(e) => setSplitPaymentEqually(e.target.checked)}
-              disabled={isSubmitting}
-            />
-            <label htmlFor="split_equally" className="text-sm font-medium">
-              Split payment equally between bus and school fees
+          <label className="block text-sm font-medium mb-2">
+            Payment Allocation Method
+          </label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="relative">
+              <input
+                type="radio"
+                name="splitType"
+                className="peer sr-only"
+                checked={splitType === 'standard'}
+                onChange={() => setSplitType('standard')}
+                disabled={isSubmitting}
+              />
+              <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
+                <span className="font-medium">Standard</span>
+                <span className="text-xs text-muted-foreground">Bus fees first, then school fees</span>
+              </div>
+            </label>
+
+            <label className="relative">
+              <input
+                type="radio"
+                name="splitType"
+                className="peer sr-only"
+                checked={splitType === 'proportional'}
+                onChange={() => setSplitType('proportional')}
+                disabled={isSubmitting}
+              />
+              <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
+                <span className="font-medium">Proportional</span>
+                <span className="text-xs text-muted-foreground">Based on monthly fee ratio</span>
+              </div>
+            </label>
+
+            <label className="relative">
+              <input
+                type="radio"
+                name="splitType"
+                className="peer sr-only"
+                checked={splitType === 'equal'}
+                onChange={() => setSplitType('equal')}
+                disabled={isSubmitting}
+              />
+              <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
+                <span className="font-medium">Equal Split</span>
+                <span className="text-xs text-muted-foreground">50% to each fee type</span>
+              </div>
             </label>
           </div>
-          {splitPaymentEqually && formData.amount_paid && (
-            <div className="mt-2 text-sm text-muted-foreground">
-              <p>
-                The payment will be divided equally: 
-                ₹{(parseFloat(formData.amount_paid) / 2).toFixed(2)} for bus fees and 
-                ₹{(parseFloat(formData.amount_paid) / 2).toFixed(2)} for school fees.
-              </p>
-            </div>
-          )}
+          
+          {getSplitPreview()}
         </div>
       </div>
       
