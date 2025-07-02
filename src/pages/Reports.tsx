@@ -5,6 +5,7 @@ import OutstandingReport from '../components/reports/OutstandingReport';
 import StudentReport from '../components/reports/StudentReport';
 import AnalyticsDashboard from '../components/reports/AnalyticsDashboard';
 import { supabase } from '../lib/supabase';
+import { useFeePayments } from '../hooks/useFeePayments';
 
 const Reports = () => {
   const [activeTab, setActiveTab] = useState('collection');
@@ -18,6 +19,10 @@ const Reports = () => {
   const [classes, setClasses] = useState<{id: string, name: string}[]>([]);
   const [feeTypes, setFeeTypes] = useState<{id: string, name: string}[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showRecalculateButton, setShowRecalculateButton] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
+  
+  const { recalculateAllAllocations } = useFeePayments();
   
   // Fetch classes and fee types for filters
   useEffect(() => {
@@ -54,6 +59,20 @@ const Reports = () => {
         setClasses(classesData || []);
         setFeeTypes(feeTypesData || []);
         
+        // Check if user is administrator to show recalculate button
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData?.user) {
+          const { data: userRole } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', userData.user.id)
+            .single();
+            
+          if (userRole && userRole.role === 'administrator') {
+            setShowRecalculateButton(true);
+          }
+        }
+        
       } catch (err) {
         console.error('Error fetching filter data:', err);
       } finally {
@@ -64,12 +83,44 @@ const Reports = () => {
     fetchFilterData();
   }, []);
   
+  const handleRecalculateAllocations = async () => {
+    try {
+      setRecalculating(true);
+      await recalculateAllAllocations();
+      alert('All payment allocations have been recalculated successfully.');
+    } catch (error) {
+      console.error('Failed to recalculate allocations:', error);
+      alert('Failed to recalculate allocations. Please try again.');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+  
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
         <h1>Reports</h1>
         
         <div className="flex gap-2">
+          {showRecalculateButton && (
+            <button 
+              className="btn btn-outline btn-sm inline-flex items-center"
+              onClick={handleRecalculateAllocations}
+              disabled={recalculating}
+            >
+              {recalculating ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent mr-2"></div>
+                  Recalculating...
+                </>
+              ) : (
+                <>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Recalculate Allocations
+                </>
+              )}
+            </button>
+          )}
           <button className="btn btn-outline btn-sm inline-flex items-center">
             <Mail className="mr-2 h-4 w-4" />
             Email Report

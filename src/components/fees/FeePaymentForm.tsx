@@ -63,9 +63,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .eq('is_current', true)
           .maybeSingle();
 
-        if (yearError) {
-          throw new Error('Failed to fetch current academic year');
-        }
+        if (yearError) throw new Error('Failed to fetch current academic year');
 
         if (!currentAcademicYear) {
           // Try to get the latest academic year

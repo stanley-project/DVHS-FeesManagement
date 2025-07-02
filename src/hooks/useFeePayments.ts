@@ -216,6 +216,28 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     }
   };
 
+  // Function to recalculate all payment allocations
+  const recalculateAllAllocations = async () => {
+    try {
+      setLoading(true);
+      
+      // Call the RPC function to recalculate all allocations
+      const { error } = await supabase.rpc('recalculate_all_payment_allocations');
+      
+      if (error) throw error;
+      
+      // Refresh payments after recalculation
+      await fetchPayments();
+      
+      return { success: true };
+    } catch (err) {
+      console.error('Error recalculating allocations:', err);
+      throw err instanceof Error ? err : new Error('Failed to recalculate allocations');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchPayments();
   }, [fetchPayments]);
@@ -228,6 +250,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     summary,
     fetchPayments,
     createPayment,
-    getPaymentReceipt
+    getPaymentReceipt,
+    recalculateAllAllocations
   };
 }
