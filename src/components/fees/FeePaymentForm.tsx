@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, Info } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface FeePaymentFormProps {
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => void;
   onCancel: () => void;
   studentId?: string;
   registrationType?: 'new' | 'continuing';
@@ -13,34 +13,39 @@ interface FeePaymentFormProps {
 }
 
 interface FeeStatus {
-  total_fees: number;
-  total_paid: number;
-  outstanding: number;
   total_bus_fees: number;
   total_school_fees: number;
+  total_fees: number;
   paid_bus_fees: number;
   paid_school_fees: number;
+  total_paid: number;
   pending_bus_fees: number;
   pending_school_fees: number;
   total_pending: number;
+  monthly_bus_fee: number;
+  monthly_school_fee: number;
 }
 
 const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, academicYearId }: FeePaymentFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(academicYearId || null);
-  const [splitType, setSplitType] = useState<'standard' | 'proportional' | 'equal'>('standard');
-  const [paymentPeriod, setPaymentPeriod] = useState<'current' | 'advance' | 'past'>('current');
-  const [paymentMonths, setPaymentMonths] = useState(1);
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
     payment_date: new Date().toISOString().split('T')[0],
-    notes: ''
+    notes: '',
+    split_type: 'standard' as 'standard' | 'proportional' | 'equal',
+    payment_period: 'current' as 'current' | 'advance' | 'past',
+    payment_months: 1
   });
+  const [allocationPreview, setAllocationPreview] = useState<{
+    bus_allocation: number;
+    school_allocation: number;
+  } | null>(null);
 
   useEffect(() => {
     if (studentId) {
@@ -53,6 +58,13 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       setCurrentAcademicYearId(academicYearId);
     }
   }, [academicYearId]);
+
+  useEffect(() => {
+    // Calculate allocation preview when amount or split type changes
+    if (feeStatus && formData.amount_paid) {
+      calculateAllocationPreview();
+    }
+  }, [formData.amount_paid, formData.split_type, feeStatus]);
 
   const fetchFeeStatus = async () => {
     try {
@@ -67,7 +79,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .eq('is_current', true)
           .maybeSingle();
 
-        if (yearError) throw yearError;
+        if (yearError) {
+          throw new Error('Failed to fetch current academic year');
+        }
 
         if (!currentAcademicYear) {
           // Try to get the latest academic year
@@ -105,6 +119,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       // Calculate total fees
       let totalBusFees = 0;
       let totalSchoolFees = 0;
+      let monthlyBusFee = 0;
+      let monthlySchoolFee = 0;
 
       // Calculate months passed since academic year start
       const currentDate = new Date();
@@ -143,7 +159,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           const monthsPassedBus = calculateMonthsBetween(busStartDate, currentDate);
           
           // Monthly bus fee
-          const monthlyBusFee = parseFloat(busFee.fee_amount);
+          monthlyBusFee = parseFloat(busFee.fee_amount);
           totalBusFees = monthlyBusFee * monthsPassedBus;
           
           console.log('DEBUG - Bus start date:', busStartDate.toISOString());
@@ -168,7 +184,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         if (!schoolFeeError && schoolFees) {
           console.log('DEBUG - Fetched school fees for student class:', schoolFees);
           
-          // Calculate total school fees
+          // Calculate total school fees and monthly school fees
           schoolFees.forEach(fee => {
             const feeAmount = parseFloat(fee.amount);
             
@@ -176,6 +192,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             if (fee.fee_type?.category === 'school') {
               if (fee.is_recurring_monthly) {
                 // Monthly fee
+                monthlySchoolFee += feeAmount;
                 const monthlyTotal = feeAmount * monthsPassedSchool;
                 console.log(`DEBUG - Monthly fee (${fee.fee_type?.name}):`, feeAmount, 'x', monthsPassedSchool, '=', monthlyTotal);
                 totalSchoolFees += monthlyTotal;
@@ -183,6 +200,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                 // One-time fee
                 console.log(`DEBUG - One-time fee (${fee.fee_type?.name}):`, feeAmount);
                 totalSchoolFees += feeAmount;
+                // For monthly calculation, distribute one-time fees across the academic year
+                monthlySchoolFee += feeAmount / monthsPassedSchool;
               }
             }
           });
@@ -192,7 +211,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       console.log('DEBUG - Total fees calculation:', {
         totalBusFees,
         totalSchoolFees,
-        totalFees: totalBusFees + totalSchoolFees
+        totalFees: totalBusFees + totalSchoolFees,
+        monthlyBusFee,
+        monthlySchoolFee
       });
 
       // Get paid amounts
@@ -201,6 +222,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         .select(`
           id,
           amount_paid,
+          payment_date,
           payment_allocation (
             bus_fee_amount,
             school_fee_amount
@@ -226,7 +248,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         });
       }
 
-      // Calculate pending amounts
+      // Calculate outstanding amount
       const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
       const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
       const totalPending = pendingBusFees + pendingSchoolFees;
@@ -235,7 +257,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         paidBusFees,
         paidSchoolFees,
         pendingBusFees,
-        pendingSchoolFees
+        pendingSchoolFees,
+        totalPending
       });
 
       setFeeStatus({
@@ -248,7 +271,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         pending_bus_fees: pendingBusFees,
         pending_school_fees: pendingSchoolFees,
         total_pending: totalPending,
-        outstanding: totalPending
+        monthly_bus_fee: monthlyBusFee,
+        monthly_school_fee: monthlySchoolFee
       });
 
     } catch (error: any) {
@@ -267,6 +291,71 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       (endDate.getDate() >= startDate.getDate() ? 0 : -1) +
       1 // Add 1 to include the start month
     );
+  };
+
+  const calculateAllocationPreview = () => {
+    if (!feeStatus || !formData.amount_paid) {
+      setAllocationPreview(null);
+      return;
+    }
+
+    const paymentAmount = parseFloat(formData.amount_paid);
+    let busAllocation = 0;
+    let schoolAllocation = 0;
+
+    // Calculate based on split type
+    if (formData.split_type === 'proportional') {
+      // Calculate total monthly due
+      const totalMonthlyDue = feeStatus.monthly_bus_fee + feeStatus.monthly_school_fee;
+      
+      // Calculate ratios
+      const busRatio = totalMonthlyDue > 0 ? feeStatus.monthly_bus_fee / totalMonthlyDue : 0;
+      const schoolRatio = totalMonthlyDue > 0 ? feeStatus.monthly_school_fee / totalMonthlyDue : 1;
+      
+      // Allocate proportionally
+      busAllocation = Math.round((paymentAmount * busRatio) * 100) / 100;
+      schoolAllocation = paymentAmount - busAllocation; // Ensure exact total
+      
+      // Adjust if allocations exceed pending amounts
+      if (busAllocation > feeStatus.pending_bus_fees) {
+        schoolAllocation += (busAllocation - feeStatus.pending_bus_fees);
+        busAllocation = feeStatus.pending_bus_fees;
+      }
+      
+      if (schoolAllocation > feeStatus.pending_school_fees) {
+        busAllocation += (schoolAllocation - feeStatus.pending_school_fees);
+        schoolAllocation = feeStatus.pending_school_fees;
+      }
+    } else if (formData.split_type === 'equal') {
+      // Split equally
+      busAllocation = Math.round((paymentAmount / 2) * 100) / 100;
+      schoolAllocation = paymentAmount - busAllocation; // Ensure exact total
+      
+      // Adjust if allocations exceed pending amounts
+      if (busAllocation > feeStatus.pending_bus_fees) {
+        schoolAllocation += (busAllocation - feeStatus.pending_bus_fees);
+        busAllocation = feeStatus.pending_bus_fees;
+      }
+      
+      if (schoolAllocation > feeStatus.pending_school_fees) {
+        busAllocation += (schoolAllocation - feeStatus.pending_school_fees);
+        schoolAllocation = feeStatus.pending_school_fees;
+      }
+    } else {
+      // Standard allocation: bus fees first, then school fees
+      if (paymentAmount <= feeStatus.pending_bus_fees) {
+        busAllocation = paymentAmount;
+        schoolAllocation = 0;
+      } else {
+        busAllocation = feeStatus.pending_bus_fees;
+        schoolAllocation = Math.min(paymentAmount - feeStatus.pending_bus_fees, feeStatus.pending_school_fees);
+      }
+    }
+
+    setAllocationPreview({
+      bus_allocation: busAllocation,
+      school_allocation: schoolAllocation
+    });
   };
 
   const validateForm = () => {
@@ -309,7 +398,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     }
 
     try {
-      setIsSubmitting(true);
+      setSubmitting(true);
 
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -323,12 +412,12 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         notes: formData.notes,
         created_by: user.id,
         academic_year_id: currentAcademicYearId,
-        split_type: splitType,
-        payment_period: paymentPeriod,
-        payment_months: paymentMonths
+        split_type: formData.split_type,
+        payment_period: formData.payment_period,
+        payment_months: formData.payment_months
       });
 
-      // Try to use the RPC function to create payment
+      // Try to use the RPC function to create payment with split options
       try {
         const { data: rpcResult, error: rpcError } = await supabase.rpc(
           'insert_fee_payment_v4',
@@ -341,9 +430,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             p_notes: formData.notes,
             p_created_by: user.id,
             p_academic_year_id: currentAcademicYearId,
-            p_split_type: splitType,
-            p_payment_period: paymentPeriod,
-            p_payment_months: paymentMonths
+            p_split_type: formData.split_type,
+            p_payment_period: formData.payment_period,
+            p_payment_months: formData.payment_months
           }
         );
 
@@ -357,12 +446,6 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .from('fee_payments')
           .select(`
             *,
-            student:student_id(
-              id,
-              student_name,
-              admission_number,
-              class:class_id(name)
-            ),
             payment_allocation (*)
           `)
           .eq('id', rpcResult.payment_id)
@@ -373,14 +456,14 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           throw new Error('Payment created but failed to retrieve details');
         }
 
-        await onSubmit(payment);
+        onSubmit(payment);
         return;
       } catch (rpcError) {
         console.error('RPC approach failed:', rpcError);
         // Fall back to direct insert if RPC fails
       }
 
-      // Direct insert as fallback - with explicit column list to avoid ambiguity
+      // Direct insert as fallback - with metadata for split options
       const { data: directPayment, error: directError } = await supabase
         .from('fee_payments')
         .insert({
@@ -393,9 +476,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           created_by: user.id,
           academic_year_id: currentAcademicYearId,
           metadata: {
-            split_type: splitType,
-            payment_period: paymentPeriod,
-            payment_months: paymentMonths
+            split_type: formData.split_type,
+            payment_period: formData.payment_period,
+            payment_months: formData.payment_months
           }
         })
         .select(`
@@ -408,6 +491,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           notes,
           created_by,
           academic_year_id,
+          metadata,
           created_at,
           updated_at
         `)
@@ -434,89 +518,14 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         payment_allocation: allocations || []
       };
 
-      await onSubmit(completePayment);
+      onSubmit(completePayment);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing payment:', error);
-      setError(error instanceof Error ? error.message : 'Failed to process payment. Please try again.');
+      setError(error.message || 'Failed to process payment. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setSubmitting(false);
     }
-  };
-
-  // Calculate proportional split preview
-  const calculateProportionalSplit = () => {
-    if (!feeStatus || !formData.amount_paid || parseFloat(formData.amount_paid) <= 0) {
-      return { busAmount: 0, schoolAmount: 0 };
-    }
-
-    const paymentAmount = parseFloat(formData.amount_paid);
-    const totalMonthlyDue = (feeStatus.total_bus_fees / monthsPassedBus) + (feeStatus.total_school_fees / monthsPassedSchool);
-    
-    if (totalMonthlyDue <= 0) {
-      return { busAmount: 0, schoolAmount: paymentAmount };
-    }
-
-    const monthlyBusFee = feeStatus.total_bus_fees / monthsPassedBus;
-    const monthlySchoolFee = feeStatus.total_school_fees / monthsPassedSchool;
-    
-    const busRatio = monthlyBusFee / totalMonthlyDue;
-    const schoolRatio = monthlySchoolFee / totalMonthlyDue;
-    
-    let busAmount = Math.round((paymentAmount * busRatio) * 100) / 100;
-    let schoolAmount = Math.round((paymentAmount * schoolRatio) * 100) / 100;
-    
-    // Adjust for rounding errors
-    const diff = paymentAmount - (busAmount + schoolAmount);
-    if (Math.abs(diff) > 0.01) {
-      schoolAmount += diff;
-    }
-    
-    return { busAmount, schoolAmount };
-  };
-
-  // Get months passed for calculations
-  const monthsPassedSchool = feeStatus?.total_school_fees && feeStatus.total_school_fees > 0 ? 
-    Math.ceil(feeStatus.total_school_fees / (feeStatus.total_school_fees / 4)) : 4; // Assuming 4 months if can't calculate
-  
-  const monthsPassedBus = feeStatus?.total_bus_fees && feeStatus.total_bus_fees > 0 ? 
-    Math.ceil(feeStatus.total_bus_fees / (feeStatus.total_bus_fees / 4)) : 4; // Assuming 4 months if can't calculate
-
-  // Calculate split preview based on selected type
-  const getSplitPreview = () => {
-    if (!formData.amount_paid || parseFloat(formData.amount_paid) <= 0 || !feeStatus) {
-      return null;
-    }
-
-    const paymentAmount = parseFloat(formData.amount_paid);
-    
-    if (splitType === 'proportional') {
-      const { busAmount, schoolAmount } = calculateProportionalSplit();
-      return (
-        <div className="mt-2 text-sm text-muted-foreground">
-          <p>
-            The payment will be split proportionally based on monthly dues:
-          </p>
-          <ul className="list-disc pl-5 mt-1">
-            <li>Bus fees: ₹{busAmount.toFixed(2)} ({Math.round(busAmount/paymentAmount*100)}%)</li>
-            <li>School fees: ₹{schoolAmount.toFixed(2)} ({Math.round(schoolAmount/paymentAmount*100)}%)</li>
-          </ul>
-        </div>
-      );
-    } else if (splitType === 'equal') {
-      const halfAmount = paymentAmount / 2;
-      return (
-        <div className="mt-2 text-sm text-muted-foreground">
-          <p>
-            The payment will be divided equally: 
-            ₹{halfAmount.toFixed(2)} for bus fees and 
-            ₹{halfAmount.toFixed(2)} for school fees.
-          </p>
-        </div>
-      );
-    }
-    
-    return null;
   };
 
   if (loading) {
@@ -539,7 +548,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
       {feeStatus && (
         <div className="bg-muted p-4 rounded-md space-y-4">
-          <h3 className="font-medium">Fee Summary</h3>
+          <h3 className="font-medium mb-2">Fee Summary</h3>
           
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
@@ -562,6 +571,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                 <div>
                   <p className="text-muted-foreground">Bus Fees</p>
                   <p className="font-medium">₹{feeStatus.total_bus_fees.toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-muted-foreground">Monthly: ₹{feeStatus.monthly_bus_fee.toLocaleString('en-IN')}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Paid</p>
@@ -580,6 +590,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
               <div>
                 <p className="text-muted-foreground">School Fees</p>
                 <p className="font-medium">₹{feeStatus.total_school_fees.toLocaleString('en-IN')}</p>
+                <p className="text-xs text-muted-foreground">Monthly: ₹{feeStatus.monthly_school_fee.toLocaleString('en-IN')}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">Paid</p>
@@ -594,7 +605,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
           {feeStatus.total_pending > 0 && (
             <div className="text-sm text-muted-foreground mt-2">
-              <p>Note: By default, payments will be allocated to bus fees first, then school fees.</p>
+              <p>Note: Payment allocation will be based on the selected split method below.</p>
             </div>
           )}
         </div>
@@ -619,7 +630,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
               required
               min="1"
               step="0.01"
-              disabled={isSubmitting}
+              disabled={submitting}
             />
           </div>
           {feeStatus && feeStatus.total_pending > 0 && (
@@ -630,7 +641,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                 ...formData, 
                 amount_paid: feeStatus.total_pending.toString() 
               })}
-              disabled={isSubmitting}
+              disabled={submitting}
             >
               Pay full pending amount (₹{feeStatus.total_pending.toLocaleString('en-IN')})
             </button>
@@ -648,7 +659,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             value={formData.payment_date}
             onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
             required
-            disabled={isSubmitting}
+            disabled={submitting}
           />
         </div>
         
@@ -662,7 +673,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             value={formData.payment_method}
             onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as 'cash' | 'online' })}
             required
-            disabled={isSubmitting}
+            disabled={submitting}
           >
             <option value="cash">Cash</option>
             <option value="online">Online Transfer</option>
@@ -670,40 +681,57 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         </div>
 
         <div className="space-y-2">
+          <label htmlFor="split_type" className="block text-sm font-medium">
+            Payment Allocation Method *
+          </label>
+          <select
+            id="split_type"
+            className="input"
+            value={formData.split_type}
+            onChange={(e) => setFormData({ ...formData, split_type: e.target.value as 'standard' | 'proportional' | 'equal' })}
+            required
+            disabled={submitting}
+          >
+            <option value="standard">Standard (Bus fees first, then School fees)</option>
+            <option value="proportional">Proportional (Based on monthly fee ratio)</option>
+            <option value="equal">Equal Split (50% to each fee type)</option>
+          </select>
+        </div>
+
+        <div className="space-y-2">
           <label htmlFor="payment_period" className="block text-sm font-medium">
-            Payment Period
+            Payment Period *
           </label>
           <select
             id="payment_period"
             className="input"
-            value={paymentPeriod}
-            onChange={(e) => setPaymentPeriod(e.target.value as 'current' | 'advance' | 'past')}
-            disabled={isSubmitting}
+            value={formData.payment_period}
+            onChange={(e) => setFormData({ ...formData, payment_period: e.target.value as 'current' | 'advance' | 'past' })}
+            required
+            disabled={submitting}
           >
             <option value="current">Current Month</option>
             <option value="advance">Advance Payment</option>
             <option value="past">Past Dues</option>
           </select>
         </div>
-        
-        {paymentPeriod !== 'current' && (
+
+        {formData.payment_period !== 'current' && (
           <div className="space-y-2">
             <label htmlFor="payment_months" className="block text-sm font-medium">
-              Number of Months
+              Number of Months *
             </label>
             <input
               id="payment_months"
               type="number"
               className="input"
-              value={paymentMonths}
-              onChange={(e) => setPaymentMonths(parseInt(e.target.value) || 1)}
+              value={formData.payment_months}
+              onChange={(e) => setFormData({ ...formData, payment_months: parseInt(e.target.value) || 1 })}
               min="1"
               max="12"
-              disabled={isSubmitting}
+              required
+              disabled={submitting}
             />
-            <p className="text-xs text-muted-foreground">
-              {paymentPeriod === 'advance' ? 'Months to pay in advance' : 'Past months to cover'}
-            </p>
           </div>
         )}
         
@@ -718,80 +746,56 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             placeholder="Any additional information about this payment"
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            disabled={isSubmitting}
+            disabled={submitting}
           />
         </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm font-medium mb-2">
-            Payment Allocation Method
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <label className="relative">
-              <input
-                type="radio"
-                name="splitType"
-                className="peer sr-only"
-                checked={splitType === 'standard'}
-                onChange={() => setSplitType('standard')}
-                disabled={isSubmitting}
-              />
-              <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
-                <span className="font-medium">Standard</span>
-                <span className="text-xs text-muted-foreground">Bus fees first, then school fees</span>
-              </div>
-            </label>
-
-            <label className="relative">
-              <input
-                type="radio"
-                name="splitType"
-                className="peer sr-only"
-                checked={splitType === 'proportional'}
-                onChange={() => setSplitType('proportional')}
-                disabled={isSubmitting}
-              />
-              <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
-                <span className="font-medium">Proportional</span>
-                <span className="text-xs text-muted-foreground">Based on monthly fee ratio</span>
-              </div>
-            </label>
-
-            <label className="relative">
-              <input
-                type="radio"
-                name="splitType"
-                className="peer sr-only"
-                checked={splitType === 'equal'}
-                onChange={() => setSplitType('equal')}
-                disabled={isSubmitting}
-              />
-              <div className="flex flex-col items-center p-4 bg-muted rounded-lg cursor-pointer border-2 border-transparent peer-checked:border-primary peer-checked:bg-primary/10">
-                <span className="font-medium">Equal Split</span>
-                <span className="text-xs text-muted-foreground">50% to each fee type</span>
-              </div>
-            </label>
-          </div>
-          
-          {getSplitPreview()}
-        </div>
       </div>
+
+      {/* Payment Allocation Preview */}
+      {allocationPreview && formData.amount_paid && (
+        <div className="bg-muted/50 p-4 rounded-md border">
+          <div className="flex items-center gap-2 mb-2">
+            <Info className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-medium">Payment Allocation Preview</h4>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Bus Fee Allocation</p>
+              <p className="font-medium">₹{allocationPreview.bus_allocation.toLocaleString('en-IN')}</p>
+              {feeStatus && feeStatus.monthly_bus_fee > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {Math.round((allocationPreview.bus_allocation / parseFloat(formData.amount_paid)) * 100)}% of payment
+                </p>
+              )}
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">School Fee Allocation</p>
+              <p className="font-medium">₹{allocationPreview.school_allocation.toLocaleString('en-IN')}</p>
+              {feeStatus && feeStatus.monthly_school_fee > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {Math.round((allocationPreview.school_allocation / parseFloat(formData.amount_paid)) * 100)}% of payment
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="border-t pt-4 flex flex-col sm:flex-row justify-end gap-3">
         <button
           type="button"
           className="btn btn-outline btn-md"
           onClick={onCancel}
-          disabled={isSubmitting}
+          disabled={submitting}
         >
           Cancel
         </button>
         <button
           type="submit"
           className="btn btn-primary btn-md"
-          disabled={isSubmitting}
+          disabled={submitting}
         >
-          {isSubmitting ? (
+          {submitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing...

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, ArrowRight, Filter, Download, FileText } from 'lucide-react';
+import { Search, ArrowRight, Filter, Download, FileText, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import StudentList from '../components/students/StudentList';
 import FeePaymentForm from '../components/fees/FeePaymentForm';
 import PaymentReceipt from '../components/fees/PaymentReceipt';
 import DailyCollectionReport from '../components/fees/DailyCollectionReport';
+import EditPaymentModal from '../components/fees/EditPaymentModal';
 
 const FeeCollection = () => {
   const { user } = useAuth();
@@ -14,8 +15,12 @@ const FeeCollection = () => {
   const [selectedStudent, setSelectedStudent] = useState<number | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showDailyCollection, setShowDailyCollection] = useState(false);
+  const [showEditPayment, setShowEditPayment] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
   const [students, setStudents] = useState<any[]>([]);
+  const [studentPayments, setStudentPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingPayments, setLoadingPayments] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receiptData, setReceiptData] = useState<any>(null);
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(null);
@@ -34,6 +39,13 @@ const FeeCollection = () => {
       setLoading(false);
     }
   }, [searchQuery, loadingAcademicYear, currentAcademicYearId]);
+
+  useEffect(() => {
+    // Fetch student payments when a student is selected
+    if (selectedStudent !== null && students[selectedStudent]) {
+      fetchStudentPayments(students[selectedStudent].id);
+    }
+  }, [selectedStudent, students]);
 
   const fetchCurrentAcademicYear = async () => {
     try {
@@ -301,6 +313,31 @@ const FeeCollection = () => {
     }
   };
 
+  const fetchStudentPayments = async (studentId: string) => {
+    try {
+      setLoadingPayments(true);
+      
+      const { data, error } = await supabase
+        .from('fee_payments')
+        .select(`
+          *,
+          payment_allocation(*),
+          created_by_user:created_by(name)
+        `)
+        .eq('student_id', studentId)
+        .order('payment_date', { ascending: false });
+        
+      if (error) throw error;
+      
+      setStudentPayments(data || []);
+    } catch (err: any) {
+      console.error('Error fetching student payments:', err);
+      // Don't set error state to avoid disrupting the main UI
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
   const handlePaymentSubmit = async (paymentData: any) => {
     try {
       if (!user) {
@@ -328,17 +365,104 @@ const FeeCollection = () => {
         total: paymentData.amount_paid,
         paymentMethod: paymentData.payment_method,
         transactionId: paymentData.transaction_id,
-        collectedBy: user.name
+        collectedBy: user.name,
+        splitType: paymentData.metadata?.split_type || 'standard',
+        paymentPeriod: paymentData.metadata?.payment_period || 'current',
+        paymentMonths: paymentData.metadata?.payment_months || 1
       };
 
       setReceiptData(receipt);
       setShowReceipt(true);
       
-      // Refresh student list
+      // Refresh student list and payments
       await fetchStudents();
+      if (selectedStudent !== null) {
+        await fetchStudentPayments(student.id);
+      }
     } catch (err: any) {
       console.error('Error processing payment:', err);
       toast.error(err.message || 'Failed to process payment. Please try again.');
+    }
+  };
+
+  const handleEditPayment = (payment: any) => {
+    setSelectedPayment(payment);
+    setShowEditPayment(true);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm('Are you sure you want to delete this payment? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const { error } = await supabase
+        .from('fee_payments')
+        .delete()
+        .eq('id', paymentId);
+        
+      if (error) throw error;
+      
+      toast.success('Payment deleted successfully');
+      
+      // Refresh student list and payments
+      await fetchStudents();
+      if (selectedStudent !== null) {
+        await fetchStudentPayments(students[selectedStudent].id);
+      }
+    } catch (err: any) {
+      console.error('Error deleting payment:', err);
+      toast.error(err.message || 'Failed to delete payment');
+    }
+  };
+
+  const handleViewReceipt = async (paymentId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('fee_payments')
+        .select(`
+          *,
+          student:student_id(
+            id,
+            student_name,
+            admission_number,
+            class:class_id(name),
+            section
+          ),
+          payment_allocation(*),
+          created_by_user:created_by(name)
+        `)
+        .eq('id', paymentId)
+        .single();
+
+      if (error) throw error;
+
+      // Format receipt data
+      const receipt = {
+        receiptNumber: data.receipt_number,
+        date: new Date(data.payment_date).toLocaleDateString('en-IN'),
+        student: {
+          name: data.student.student_name,
+          admissionNumber: data.student.admission_number,
+          class: data.student.class?.name?.split('-')[0] || '',
+          section: data.student.section || data.student.class?.name?.split('-')[1] || '',
+        },
+        busAmount: data.payment_allocation?.[0]?.bus_fee_amount || 0,
+        schoolAmount: data.payment_allocation?.[0]?.school_fee_amount || 0,
+        total: data.amount_paid,
+        paymentMethod: data.payment_method,
+        transactionId: data.transaction_id,
+        collectedBy: data.created_by_user?.name || 'System',
+        splitType: data.metadata?.split_type || 'standard',
+        paymentPeriod: data.metadata?.payment_period || 'current',
+        paymentMonths: data.metadata?.payment_months || 1
+      };
+
+      setReceiptData(receipt);
+      setShowReceipt(true);
+    } catch (err: any) {
+      console.error('Error fetching receipt:', err);
+      toast.error(err.message || 'Failed to load receipt');
     }
   };
 
@@ -443,6 +567,63 @@ const FeeCollection = () => {
                 registrationType={students[selectedStudent].registrationType}
                 academicYearId={currentAcademicYearId || undefined}
               />
+
+              {/* Student Payment History */}
+              {studentPayments.length > 0 && (
+                <div className="mt-8 pt-6 border-t">
+                  <h3 className="text-lg font-medium mb-4">Payment History</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="px-4 py-2 text-left">Receipt No.</th>
+                          <th className="px-4 py-2 text-left">Date</th>
+                          <th className="px-4 py-2 text-right">Amount</th>
+                          <th className="px-4 py-2 text-left">Method</th>
+                          <th className="px-4 py-2 text-left">Split Type</th>
+                          <th className="px-4 py-2 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentPayments.map((payment) => (
+                          <tr key={payment.id} className="border-b hover:bg-muted/50">
+                            <td className="px-4 py-2 font-medium">{payment.receipt_number}</td>
+                            <td className="px-4 py-2">{new Date(payment.payment_date).toLocaleDateString()}</td>
+                            <td className="px-4 py-2 text-right">₹{parseFloat(payment.amount_paid).toLocaleString('en-IN')}</td>
+                            <td className="px-4 py-2 capitalize">{payment.payment_method}</td>
+                            <td className="px-4 py-2 capitalize">{payment.metadata?.split_type || 'standard'}</td>
+                            <td className="px-4 py-2 text-right">
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => handleViewReceipt(payment.id)}
+                                  className="p-1 hover:bg-muted rounded-md text-primary"
+                                  title="View Receipt"
+                                >
+                                  <FileText className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleEditPayment(payment)}
+                                  className="p-1 hover:bg-muted rounded-md"
+                                  title="Edit Payment"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeletePayment(payment.id)}
+                                  className="p-1 hover:bg-muted rounded-md text-error"
+                                  title="Delete Payment"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="p-8 text-center">
@@ -473,6 +654,24 @@ const FeeCollection = () => {
       {showDailyCollection && (
         <DailyCollectionReport
           onClose={() => setShowDailyCollection(false)}
+        />
+      )}
+
+      {/* Edit Payment Modal */}
+      {showEditPayment && selectedPayment && (
+        <EditPaymentModal
+          payment={selectedPayment}
+          onClose={() => {
+            setShowEditPayment(false);
+            setSelectedPayment(null);
+          }}
+          onUpdate={() => {
+            // Refresh student list and payments
+            fetchStudents();
+            if (selectedStudent !== null) {
+              fetchStudentPayments(students[selectedStudent].id);
+            }
+          }}
         />
       )}
     </div>
