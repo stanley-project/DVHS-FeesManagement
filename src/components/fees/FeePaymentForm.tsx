@@ -22,12 +22,13 @@ interface FeeStatus {
   paid_school_fees: number;
   pending_bus_fees: number;
   pending_school_fees: number;
+  total_pending: number;
 }
 
 const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, academicYearId }: FeePaymentFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [submitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(academicYearId || null);
@@ -223,7 +224,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         });
       }
 
-      // Calculate outstanding amount
+      // Calculate pending amounts
       const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
       const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
       const totalPending = pendingBusFees + pendingSchoolFees;
@@ -244,7 +245,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         total_paid: paidBusFees + paidSchoolFees,
         pending_bus_fees: pendingBusFees,
         pending_school_fees: pendingSchoolFees,
-        total_pending: totalPending
+        total_pending: totalPending,
+        outstanding: totalPending
       });
 
     } catch (error: any) {
@@ -359,7 +361,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           throw new Error('Payment created but failed to retrieve details');
         }
 
-        onSubmit(payment);
+        await onSubmit(payment);
         return;
       } catch (rpcError) {
         console.error('RPC approach failed:', rpcError);
@@ -377,7 +379,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           receipt_number: receiptNumber,
           notes: formData.notes,
           created_by: user.id,
-          academic_year_id: currentAcademicYearId
+          academic_year_id: currentAcademicYearId,
+          metadata: { split_equally: splitPaymentEqually }
         })
         .select(`
           id,
@@ -415,7 +418,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         payment_allocation: allocations || []
       };
 
-      onSubmit(completePayment);
+      await onSubmit(completePayment);
 
     } catch (error) {
       console.error('Error processing payment:', error);
@@ -525,7 +528,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
               required
               min="1"
               step="0.01"
-              disabled={submitting}
+              disabled={isSubmitting}
             />
           </div>
           {feeStatus && feeStatus.total_pending > 0 && (
@@ -536,7 +539,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                 ...formData, 
                 amount_paid: feeStatus.total_pending.toString() 
               })}
-              disabled={submitting}
+              disabled={isSubmitting}
             >
               Pay full pending amount (₹{feeStatus.total_pending.toLocaleString('en-IN')})
             </button>
@@ -554,7 +557,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             value={formData.payment_date}
             onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
             required
-            disabled={submitting}
+            disabled={isSubmitting}
           />
         </div>
         
@@ -568,7 +571,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             value={formData.payment_method}
             onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as 'cash' | 'online' })}
             required
-            disabled={submitting}
+            disabled={isSubmitting}
           >
             <option value="cash">Cash</option>
             <option value="online">Online Transfer</option>
@@ -586,7 +589,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             placeholder="Any additional information about this payment"
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            disabled={submitting}
+            disabled={isSubmitting}
           />
         </div>
 
@@ -598,18 +601,18 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
               className="h-4 w-4 rounded border-input"
               checked={splitPaymentEqually}
               onChange={(e) => setSplitPaymentEqually(e.target.checked)}
-              disabled={submitting}
+              disabled={isSubmitting}
             />
             <label htmlFor="split_equally" className="text-sm font-medium">
               Split payment equally between bus and school fees
             </label>
           </div>
-          {splitPaymentEqually && (
+          {splitPaymentEqually && formData.amount_paid && (
             <div className="mt-2 text-sm text-muted-foreground">
               <p>
                 The payment will be divided equally: 
-                ₹{formData.amount_paid ? (parseFloat(formData.amount_paid) / 2).toFixed(2) : '0.00'} for bus fees and 
-                ₹{formData.amount_paid ? (parseFloat(formData.amount_paid) / 2).toFixed(2) : '0.00'} for school fees.
+                ₹{(parseFloat(formData.amount_paid) / 2).toFixed(2)} for bus fees and 
+                ₹{(parseFloat(formData.amount_paid) / 2).toFixed(2)} for school fees.
               </p>
             </div>
           )}
@@ -621,16 +624,16 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           type="button"
           className="btn btn-outline btn-md"
           onClick={onCancel}
-          disabled={submitting}
+          disabled={isSubmitting}
         >
           Cancel
         </button>
         <button
           type="submit"
           className="btn btn-primary btn-md"
-          disabled={submitting}
+          disabled={isSubmitting}
         >
-          {submitting ? (
+          {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing...

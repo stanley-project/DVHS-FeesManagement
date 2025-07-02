@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Download, Filter, X, Loader2, ArrowUpDown } from 'lucide-react';
+import { Download, Filter, X, Loader2, ArrowUpDown, Edit, Trash2 } from 'lucide-react';
 import { useFeePayments } from '../../hooks/useFeePayments';
 import * as XLSX from 'xlsx';
+import { toast } from 'react-hot-toast';
+import EditPaymentModal from './EditPaymentModal';
+import { FeePayment } from '../../types/fees';
 
 interface DailyCollectionReportProps {
   onClose: () => void;
@@ -11,12 +14,17 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('all');
   const [selectedCollector, setSelectedCollector] = useState('all');
+  const [editingPayment, setEditingPayment] = useState<FeePayment | null>(null);
+  const [showConfirmDelete, setShowConfirmDelete] = useState<string | null>(null);
 
   const { 
     payments, 
     loading, 
     error, 
-    summary 
+    summary,
+    updatePayment,
+    deletePayment,
+    fetchPayments
   } = useFeePayments({
     startDate: selectedDate,
     endDate: selectedDate,
@@ -71,6 +79,35 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
       XLSX.writeFile(wb, fileName);
     } catch (error) {
       console.error('Export error:', error);
+      toast.error('Failed to export data');
+    }
+  };
+
+  const handleEditPayment = (payment: FeePayment) => {
+    setEditingPayment(payment);
+  };
+
+  const handleUpdatePayment = async (paymentId: string, data: any) => {
+    try {
+      await updatePayment(paymentId, data);
+      toast.success('Payment updated successfully');
+      fetchPayments();
+    } catch (error) {
+      console.error('Error updating payment:', error);
+      toast.error('Failed to update payment');
+      throw error;
+    }
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    try {
+      await deletePayment(paymentId);
+      toast.success('Payment deleted successfully');
+      setShowConfirmDelete(null);
+      fetchPayments();
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      toast.error('Failed to delete payment');
     }
   };
 
@@ -187,6 +224,7 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
                     </th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Payment Method</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Time</th>
+                    <th className="px-4 py-3 text-center font-medium text-muted-foreground">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -203,6 +241,24 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
                           : 'N/A'
                         }
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center gap-2">
+                          <button
+                            onClick={() => handleEditPayment(payment)}
+                            className="p-1 hover:bg-muted rounded-md text-primary"
+                            title="Edit Payment"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => setShowConfirmDelete(payment.id)}
+                            className="p-1 hover:bg-muted rounded-md text-error"
+                            title="Delete Payment"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -210,7 +266,7 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
                   <tr className="border-t bg-muted/50">
                     <td className="px-4 py-3 font-medium" colSpan={3}>Total</td>
                     <td className="px-4 py-3 text-right font-medium">₹{summary.totalAmount.toLocaleString('en-IN')}</td>
-                    <td className="px-4 py-3" colSpan={2}></td>
+                    <td className="px-4 py-3" colSpan={3}></td>
                   </tr>
                 </tfoot>
               </table>
@@ -218,6 +274,39 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
           )}
         </div>
       </div>
+
+      {/* Edit Payment Modal */}
+      {editingPayment && (
+        <EditPaymentModal
+          payment={editingPayment}
+          onClose={() => setEditingPayment(null)}
+          onUpdate={handleUpdatePayment}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showConfirmDelete && (
+        <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-[60] p-4">
+          <div className="bg-card rounded-lg shadow-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
+            <p className="mb-6">Are you sure you want to delete this payment? This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setShowConfirmDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-error btn-sm"
+                onClick={() => handleDeletePayment(showConfirmDelete)}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -63,9 +63,24 @@ export interface FeePayment {
   notes?: string;
   created_by: string;
   academic_year_id: string;
+  metadata?: {
+    split_equally?: boolean;
+    [key: string]: any;
+  };
   created_at?: string;
   updated_at?: string;
   allocation?: PaymentAllocation;
+  student?: {
+    id: string;
+    student_name: string;
+    admission_number: string;
+    class?: {
+      id: string;
+      name: string;
+    };
+    section?: string;
+  };
+  payment_allocation?: PaymentAllocation[];
 }
 
 export interface FeeStructureHistory {

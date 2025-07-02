@@ -170,6 +170,139 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     }
   };
 
+  const updatePayment = async (paymentId: string, paymentData: Partial<FeePayment>) => {
+    try {
+      setLoading(true);
+      
+      // Get the original payment to calculate summary adjustments
+      const { data: originalPayment, error: fetchError } = await supabase
+        .from('fee_payments')
+        .select(`
+          amount_paid,
+          payment_method,
+          payment_allocation(bus_fee_amount, school_fee_amount)
+        `)
+        .eq('id', paymentId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Update the payment
+      const { data, error } = await supabase
+        .from('fee_payments')
+        .update({
+          amount_paid: paymentData.amount_paid,
+          payment_date: paymentData.payment_date,
+          payment_method: paymentData.payment_method,
+          notes: paymentData.notes,
+          metadata: paymentData.metadata || {},
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', paymentId)
+        .select(`
+          *,
+          student:student_id(
+            id,
+            student_name,
+            admission_number,
+            class:class_id(name)
+          ),
+          payment_allocation(*)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      // Process payment to include allocation
+      const processedPayment = {
+        ...data,
+        allocation: data.payment_allocation?.[0] || null
+      };
+
+      // Update local state
+      setPayments(prev => prev.map(payment => 
+        payment.id === paymentId ? processedPayment : payment
+      ));
+
+      // Recalculate allocation if amount changed
+      if (paymentData.amount_paid && paymentData.amount_paid !== originalPayment.amount_paid) {
+        await recalculatePaymentAllocation(paymentId);
+      }
+
+      // Refresh payments to get updated allocations
+      await fetchPayments();
+
+      return processedPayment;
+    } catch (err) {
+      console.error('Error updating payment:', err);
+      throw err instanceof Error ? err : new Error('Failed to update payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deletePayment = async (paymentId: string) => {
+    try {
+      setLoading(true);
+      
+      // Get the payment details before deleting for summary adjustment
+      const { data: paymentToDelete, error: fetchError } = await supabase
+        .from('fee_payments')
+        .select(`
+          amount_paid,
+          payment_method,
+          payment_allocation(bus_fee_amount, school_fee_amount)
+        `)
+        .eq('id', paymentId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Delete the payment
+      const { error } = await supabase
+        .from('fee_payments')
+        .delete()
+        .eq('id', paymentId);
+
+      if (error) throw error;
+
+      // Update local state
+      setPayments(prev => prev.filter(payment => payment.id !== paymentId));
+      setTotalCount(prev => prev - 1);
+
+      // Update summary
+      if (paymentToDelete) {
+        const paymentAmount = parseFloat(paymentToDelete.amount_paid);
+        const busAmount = paymentToDelete.payment_allocation?.[0]?.bus_fee_amount 
+          ? parseFloat(paymentToDelete.payment_allocation[0].bus_fee_amount) 
+          : 0;
+        const schoolAmount = paymentToDelete.payment_allocation?.[0]?.school_fee_amount 
+          ? parseFloat(paymentToDelete.payment_allocation[0].school_fee_amount) 
+          : 0;
+          
+        setSummary(prev => ({
+          ...prev,
+          totalAmount: prev.totalAmount - paymentAmount,
+          cashAmount: paymentToDelete.payment_method === 'cash' 
+            ? prev.cashAmount - paymentAmount 
+            : prev.cashAmount,
+          onlineAmount: paymentToDelete.payment_method === 'online' 
+            ? prev.onlineAmount - paymentAmount 
+            : prev.onlineAmount,
+          busFeesAmount: prev.busFeesAmount - busAmount,
+          schoolFeesAmount: prev.schoolFeesAmount - schoolAmount
+        }));
+      }
+      
+      return true;
+    } catch (err) {
+      console.error('Error deleting payment:', err);
+      throw err instanceof Error ? err : new Error('Failed to delete payment');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getPaymentReceipt = async (paymentId: string) => {
     try {
       const { data, error } = await supabase
@@ -216,6 +349,29 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     }
   };
 
+  const recalculatePaymentAllocation = async (paymentId: string) => {
+    try {
+      setLoading(true);
+      
+      // Call the RPC function to recalculate a specific payment allocation
+      const { error } = await supabase.rpc('recalculate_payment_allocation', {
+        p_payment_id: paymentId
+      });
+      
+      if (error) throw error;
+      
+      // Refresh payments after recalculation
+      await fetchPayments();
+      
+      return { success: true };
+    } catch (err) {
+      console.error('Error recalculating payment allocation:', err);
+      throw err instanceof Error ? err : new Error('Failed to recalculate payment allocation');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Function to recalculate all payment allocations
   const recalculateAllAllocations = async () => {
     try {
@@ -250,7 +406,10 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     summary,
     fetchPayments,
     createPayment,
+    updatePayment,
+    deletePayment,
     getPaymentReceipt,
+    recalculatePaymentAllocation,
     recalculateAllAllocations
   };
 }
