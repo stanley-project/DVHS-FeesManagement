@@ -34,20 +34,31 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
   const handleExport = () => {
     try {
       // Prepare data for export
-      const exportData = payments.map(payment => ({
-        'Receipt Number': payment.receipt_number,
-        'Student Name': payment.student?.student_name || '',
-        'Admission Number': payment.student?.admission_number || '',
-        'Class': payment.student?.class?.name || '',
-        'Amount': parseFloat(payment.amount_paid).toLocaleString('en-IN'),
-        'Bus Fee': payment.allocation ? parseFloat(payment.allocation.bus_fee_amount).toLocaleString('en-IN') : '0',
-        'School Fee': payment.allocation ? parseFloat(payment.allocation.school_fee_amount).toLocaleString('en-IN') : '0',
-        'Payment Method': payment.payment_method,
-        'Transaction ID': payment.transaction_id || '',
-        'Payment Date': new Date(payment.payment_date).toLocaleDateString(),
-        'Time': new Date(payment.created_at || '').toLocaleTimeString(),
-        'Notes': payment.notes || ''
-      }));
+      const exportData = payments.map(payment => {
+        // Get allocation data
+        const busAmount = payment.manual_payment_allocation?.[0]?.bus_fee_amount || 
+                         payment.payment_allocation?.[0]?.bus_fee_amount || 
+                         payment.metadata?.bus_fee_amount || 0;
+                         
+        const schoolAmount = payment.manual_payment_allocation?.[0]?.school_fee_amount || 
+                            payment.payment_allocation?.[0]?.school_fee_amount || 
+                            payment.metadata?.school_fee_amount || 0;
+        
+        return {
+          'Receipt Number': payment.receipt_number,
+          'Student Name': payment.student?.student_name || '',
+          'Admission Number': payment.student?.admission_number || '',
+          'Class': payment.student?.class?.name || '',
+          'Amount': parseFloat(payment.amount_paid).toLocaleString('en-IN'),
+          'Bus Fee': parseFloat(busAmount).toLocaleString('en-IN'),
+          'School Fee': parseFloat(schoolAmount).toLocaleString('en-IN'),
+          'Payment Method': payment.payment_method,
+          'Transaction ID': payment.transaction_id || '',
+          'Payment Date': new Date(payment.payment_date).toLocaleDateString(),
+          'Time': new Date(payment.created_at || '').toLocaleTimeString(),
+          'Notes': payment.notes || ''
+        };
+      });
 
       // Add summary row
       exportData.push({
@@ -87,15 +98,13 @@ const DailyCollectionReport = ({ onClose }: DailyCollectionReportProps) => {
     setEditingPayment(payment);
   };
 
-  const handleUpdatePayment = async (paymentId: string, data: any) => {
+  const handleUpdatePayment = async () => {
     try {
-      await updatePayment(paymentId, data);
       toast.success('Payment updated successfully');
       fetchPayments();
     } catch (error) {
       console.error('Error updating payment:', error);
       toast.error('Failed to update payment');
-      throw error;
     }
   };
 

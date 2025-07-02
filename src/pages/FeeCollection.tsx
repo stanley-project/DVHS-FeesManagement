@@ -88,16 +88,6 @@ const FeeCollection = () => {
     }
   };
 
-  // Helper function to calculate months between two dates (inclusive of start month)
-  const calculateMonthsBetween = (startDate: Date, endDate: Date): number => {
-    return (
-      (endDate.getFullYear() - startDate.getFullYear()) * 12 +
-      (endDate.getMonth() - startDate.getMonth()) +
-      (endDate.getDate() >= startDate.getDate() ? 0 : -1) +
-      1 // Add 1 to include the start month
-    );
-  };
-
   const fetchStudents = async () => {
     try {
       setError(null);
@@ -142,164 +132,64 @@ const FeeCollection = () => {
         return;
       }
 
-      // Get fee payments for all students
-      const { data: payments, error: paymentsError } = await supabase
-        .from('fee_payments')
-        .select(`
-          id,
-          amount_paid,
-          payment_date,
-          student_id,
-          payment_allocation (
-            bus_fee_amount,
-            school_fee_amount
-          )
-        `)
-        .eq('academic_year_id', currentAcademicYearId);
-
-      if (paymentsError) throw paymentsError;
-
-      // Get academic year start date
-      const { data: academicYearData, error: academicYearError } = await supabase
-        .from('academic_years')
-        .select('start_date')
-        .eq('id', currentAcademicYearId)
-        .single();
-
-      if (academicYearError) throw academicYearError;
-        
-      const academicYearStartDate = new Date(academicYearData.start_date);
-      const currentDate = new Date();
-      
-      // Calculate months passed for school fees
-      const monthsPassedSchool = calculateMonthsBetween(academicYearStartDate, currentDate);
-
-      // Get fee structure for current academic year
-      const { data: feeStructure, error: feeError } = await supabase
-        .from('fee_structure')
-        .select(`
-          class_id,
-          amount,
-          is_recurring_monthly,
-          fee_type:fee_type_id(category)
-        `)
-        .eq('academic_year_id', currentAcademicYearId);
-
-      if (feeError) throw feeError;
-
-      // Get bus fees
-      const { data: busFees, error: busError } = await supabase
-        .from('bus_fee_structure')
-        .select(`
-          village_id,
-          fee_amount
-        `)
-        .eq('academic_year_id', currentAcademicYearId)
-        .eq('is_active', true);
-
-      if (busError) throw busError;
-
-      // Process students data
-      const processedStudents = studentsData.map(student => {
-        // Calculate total fees
-        let totalSchoolFees = 0;
-        let totalBusFees = 0;
-        
-        // Add school fees - Use student.class_id directly
-        const classFees = feeStructure?.filter(fee => 
-          fee.class_id === student.class_id && 
-          fee.fee_type?.category === 'school'
-        ) || [];
-        
-        classFees.forEach(fee => {
-          const feeAmount = parseFloat(fee.amount);
-          if (fee.is_recurring_monthly) {
-            // Monthly fee
-            totalSchoolFees += feeAmount * monthsPassedSchool;
-          } else {
-            // One-time fee
-            totalSchoolFees += feeAmount;
-          }
-        });
-        
-        // Add bus fees if applicable
-        if (student.has_school_bus && student.village_id) {
-          const villageBusFee = busFees?.find(fee => fee.village_id === student.village_id);
-          if (villageBusFee) {
-            // Use bus_start_date if available, otherwise use academic year start date
-            const busStartDate = student.bus_start_date 
-              ? new Date(student.bus_start_date) 
-              : academicYearStartDate;
-              
-            // Calculate months passed for bus fees
-            const monthsPassedBus = calculateMonthsBetween(busStartDate, currentDate);
-            
-            const monthlyBusFee = parseFloat(villageBusFee.fee_amount);
-            totalBusFees = monthlyBusFee * monthsPassedBus;
-          }
-        }
-        
-        const totalFees = totalSchoolFees + totalBusFees;
-        
-        // Calculate paid amount
-        const studentPayments = payments?.filter(payment => payment.student_id === student.id) || [];
-        let paidBusFees = 0;
-        let paidSchoolFees = 0;
-        
-        studentPayments.forEach(payment => {
-          if (payment.payment_allocation && payment.payment_allocation.length > 0) {
-            // Use allocation if available
-            const allocation = payment.payment_allocation[0];
-            paidBusFees += parseFloat(allocation.bus_fee_amount || 0);
-            paidSchoolFees += parseFloat(allocation.school_fee_amount || 0);
-          } else {
-            // Fallback to total payment amount
-            paidSchoolFees += parseFloat(payment.amount_paid || 0);
-          }
-        });
-        
-        const totalPaid = paidBusFees + paidSchoolFees;
-        
-        // Calculate pending amount
-        const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
-        const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
-        const pendingAmount = pendingBusFees + pendingSchoolFees;
-        
-        // Determine payment status
-        let status = 'pending';
-        if (totalPaid >= totalFees) {
-          status = 'paid';
-        } else if (totalPaid > 0) {
-          status = 'partial';
-        }
-        
-        // Get last payment date
-        let lastPaymentDate = null;
-        if (studentPayments.length > 0) {
-          const sortedPayments = [...studentPayments].sort((a, b) => 
-            new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()
+      // Get fee status for each student
+      const processedStudents = await Promise.all(studentsData.map(async (student) => {
+        try {
+          // Get student fee status
+          const { data: feeStatus, error: feeError } = await supabase.rpc(
+            'get_student_fee_status',
+            { 
+              p_student_id: student.id,
+              p_academic_year_id: currentAcademicYearId
+            }
           );
-          lastPaymentDate = sortedPayments[0].payment_date;
-        }
 
-        return {
-          id: student.id,
-          name: student.student_name,
-          admissionNumber: student.admission_number,
-          class: student.class?.name || '',
-          class_id: student.class_id,
-          status,
-          pending: `₹${pendingAmount.toLocaleString('en-IN')}`,
-          pendingAmount, // Raw number for sorting
-          totalFees,
-          totalPaid,
-          lastPaymentDate,
-          registrationType: student.registration_type,
-          has_school_bus: student.has_school_bus,
-          village_id: student.village_id,
-          bus_start_date: student.bus_start_date
-        };
-      });
+          if (feeError) throw feeError;
+
+          // Determine payment status
+          let status = 'pending';
+          if (feeStatus.total_pending <= 0) {
+            status = 'paid';
+          } else if (feeStatus.total_paid > 0) {
+            status = 'partial';
+          }
+
+          return {
+            id: student.id,
+            name: student.student_name,
+            admissionNumber: student.admission_number,
+            class: student.class?.name || '',
+            class_id: student.class_id,
+            status,
+            pending: `₹${feeStatus.total_pending.toLocaleString('en-IN')}`,
+            pendingAmount: feeStatus.total_pending, // Raw number for sorting
+            totalFees: feeStatus.total_fees,
+            totalPaid: feeStatus.total_paid,
+            registrationType: student.registration_type,
+            has_school_bus: student.has_school_bus,
+            village_id: student.village_id,
+            bus_start_date: student.bus_start_date
+          };
+        } catch (err) {
+          console.error(`Error processing student ${student.id}:`, err);
+          return {
+            id: student.id,
+            name: student.student_name,
+            admissionNumber: student.admission_number,
+            class: student.class?.name || '',
+            class_id: student.class_id,
+            status: 'error',
+            pending: 'Error',
+            pendingAmount: 0,
+            totalFees: 0,
+            totalPaid: 0,
+            registrationType: student.registration_type,
+            has_school_bus: student.has_school_bus,
+            village_id: student.village_id,
+            bus_start_date: student.bus_start_date
+          };
+        }
+      }));
 
       // Sort by pending amount (highest first)
       processedStudents.sort((a, b) => b.pendingAmount - a.pendingAmount);
@@ -321,6 +211,7 @@ const FeeCollection = () => {
         .from('fee_payments')
         .select(`
           *,
+          manual_payment_allocation(*),
           payment_allocation(*),
           created_by_user:created_by(name)
         `)
@@ -350,6 +241,10 @@ const FeeCollection = () => {
       // Show success message
       toast.success('Payment recorded successfully');
       
+      // Get allocation data
+      const busAmount = paymentData.manual_payment_allocation?.[0]?.bus_fee_amount || 0;
+      const schoolAmount = paymentData.manual_payment_allocation?.[0]?.school_fee_amount || 0;
+      
       // Create receipt data from the payment data returned by the form
       const receipt = {
         receiptNumber: paymentData.receipt_number,
@@ -360,15 +255,12 @@ const FeeCollection = () => {
           class: (student.class || '').split('-')[0] || '',
           section: (student.class || '').split('-')[1] || '',
         },
-        busAmount: paymentData.payment_allocation?.[0]?.bus_fee_amount || 0,
-        schoolAmount: paymentData.payment_allocation?.[0]?.school_fee_amount || 0,
+        busAmount: busAmount,
+        schoolAmount: schoolAmount,
         total: paymentData.amount_paid,
         paymentMethod: paymentData.payment_method,
         transactionId: paymentData.transaction_id,
-        collectedBy: user.name,
-        splitType: paymentData.metadata?.split_type || 'standard',
-        paymentPeriod: paymentData.metadata?.payment_period || 'current',
-        paymentMonths: paymentData.metadata?.payment_months || 1
+        collectedBy: user.name
       };
 
       setReceiptData(receipt);
@@ -429,6 +321,7 @@ const FeeCollection = () => {
             class:class_id(name),
             section
           ),
+          manual_payment_allocation(*),
           payment_allocation(*),
           created_by_user:created_by(name)
         `)
@@ -436,6 +329,15 @@ const FeeCollection = () => {
         .single();
 
       if (error) throw error;
+
+      // Get allocation data
+      const busAmount = data.manual_payment_allocation?.[0]?.bus_fee_amount || 
+                       data.payment_allocation?.[0]?.bus_fee_amount || 
+                       data.metadata?.bus_fee_amount || 0;
+                       
+      const schoolAmount = data.manual_payment_allocation?.[0]?.school_fee_amount || 
+                          data.payment_allocation?.[0]?.school_fee_amount || 
+                          data.metadata?.school_fee_amount || 0;
 
       // Format receipt data with defensive checks
       const className = data.student?.class?.name || '';
@@ -448,15 +350,12 @@ const FeeCollection = () => {
           class: className.split('-')[0] || '',
           section: data.student?.section || className.split('-')[1] || '',
         },
-        busAmount: data.payment_allocation?.[0]?.bus_fee_amount || 0,
-        schoolAmount: data.payment_allocation?.[0]?.school_fee_amount || 0,
+        busAmount: busAmount,
+        schoolAmount: schoolAmount,
         total: data.amount_paid,
         paymentMethod: data.payment_method,
         transactionId: data.transaction_id,
-        collectedBy: data.created_by_user?.name || 'System',
-        splitType: data.metadata?.split_type || 'standard',
-        paymentPeriod: data.metadata?.payment_period || 'current',
-        paymentMonths: data.metadata?.payment_months || 1
+        collectedBy: data.created_by_user?.name || 'System'
       };
 
       setReceiptData(receipt);
@@ -543,7 +442,7 @@ const FeeCollection = () => {
             <h2 className="text-xl font-semibold">Fee Collection Details</h2>
           </div>
           
-          {selectedStudent !== null ? (
+          {selectedStudent !== null && students[selectedStudent] ? (
             <div className="p-4">
               <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b">
                 <div>
@@ -581,45 +480,54 @@ const FeeCollection = () => {
                           <th className="px-4 py-2 text-left">Date</th>
                           <th className="px-4 py-2 text-right">Amount</th>
                           <th className="px-4 py-2 text-left">Method</th>
-                          <th className="px-4 py-2 text-left">Split Type</th>
                           <th className="px-4 py-2 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {studentPayments.map((payment) => (
-                          <tr key={payment.id} className="border-b hover:bg-muted/50">
-                            <td className="px-4 py-2 font-medium">{payment.receipt_number}</td>
-                            <td className="px-4 py-2">{new Date(payment.payment_date).toLocaleDateString()}</td>
-                            <td className="px-4 py-2 text-right">₹{parseFloat(payment.amount_paid).toLocaleString('en-IN')}</td>
-                            <td className="px-4 py-2 capitalize">{payment.payment_method}</td>
-                            <td className="px-4 py-2 capitalize">{payment.metadata?.split_type || 'standard'}</td>
-                            <td className="px-4 py-2 text-right">
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  onClick={() => handleViewReceipt(payment.id)}
-                                  className="p-1 hover:bg-muted rounded-md text-primary"
-                                  title="View Receipt"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleEditPayment(payment)}
-                                  className="p-1 hover:bg-muted rounded-md"
-                                  title="Edit Payment"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeletePayment(payment.id)}
-                                  className="p-1 hover:bg-muted rounded-md text-error"
-                                  title="Delete Payment"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                        {studentPayments.map((payment) => {
+                          // Get allocation data
+                          const busAmount = payment.manual_payment_allocation?.[0]?.bus_fee_amount || 
+                                          payment.payment_allocation?.[0]?.bus_fee_amount || 
+                                          payment.metadata?.bus_fee_amount || 0;
+                                          
+                          const schoolAmount = payment.manual_payment_allocation?.[0]?.school_fee_amount || 
+                                              payment.payment_allocation?.[0]?.school_fee_amount || 
+                                              payment.metadata?.school_fee_amount || 0;
+                          
+                          return (
+                            <tr key={payment.id} className="border-b hover:bg-muted/50">
+                              <td className="px-4 py-2 font-medium">{payment.receipt_number}</td>
+                              <td className="px-4 py-2">{new Date(payment.payment_date).toLocaleDateString()}</td>
+                              <td className="px-4 py-2 text-right">₹{parseFloat(payment.amount_paid).toLocaleString('en-IN')}</td>
+                              <td className="px-4 py-2 capitalize">{payment.payment_method}</td>
+                              <td className="px-4 py-2 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => handleViewReceipt(payment.id)}
+                                    className="p-1 hover:bg-muted rounded-md text-primary"
+                                    title="View Receipt"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleEditPayment(payment)}
+                                    className="p-1 hover:bg-muted rounded-md"
+                                    title="Edit Payment"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePayment(payment.id)}
+                                    className="p-1 hover:bg-muted rounded-md text-error"
+                                    title="Delete Payment"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

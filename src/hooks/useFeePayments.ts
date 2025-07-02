@@ -39,6 +39,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
             admission_number,
             class:class_id(name)
           ),
+          manual_payment_allocation(*),
           payment_allocation(*)
         `, { count: 'exact' });
 
@@ -73,11 +74,25 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
 
       if (fetchError) throw fetchError;
 
-      // Process payments
-      const processedPayments = data?.map(payment => ({
-        ...payment,
-        allocation: payment.payment_allocation?.[0] || null
-      })) || [];
+      // Process payments to include allocation data
+      const processedPayments = data?.map(payment => {
+        // Get allocation data from manual_payment_allocation or payment_allocation or metadata
+        const busAmount = payment.manual_payment_allocation?.[0]?.bus_fee_amount || 
+                         payment.payment_allocation?.[0]?.bus_fee_amount || 
+                         payment.metadata?.bus_fee_amount || 0;
+                         
+        const schoolAmount = payment.manual_payment_allocation?.[0]?.school_fee_amount || 
+                            payment.payment_allocation?.[0]?.school_fee_amount || 
+                            payment.metadata?.school_fee_amount || 0;
+        
+        return {
+          ...payment,
+          allocation: {
+            bus_fee_amount: busAmount,
+            school_fee_amount: schoolAmount
+          }
+        };
+      }) || [];
 
       setPayments(processedPayments);
       setTotalCount(count || 0);
@@ -96,11 +111,17 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         let schoolFeesAmount = 0;
         
         data.forEach(payment => {
-          if (payment.payment_allocation && payment.payment_allocation.length > 0) {
-            const allocation = payment.payment_allocation[0];
-            busFeesAmount += parseFloat(allocation.bus_fee_amount || 0);
-            schoolFeesAmount += parseFloat(allocation.school_fee_amount || 0);
-          }
+          // Get allocation data from manual_payment_allocation or payment_allocation or metadata
+          const busAmount = payment.manual_payment_allocation?.[0]?.bus_fee_amount || 
+                           payment.payment_allocation?.[0]?.bus_fee_amount || 
+                           payment.metadata?.bus_fee_amount || 0;
+                           
+          const schoolAmount = payment.manual_payment_allocation?.[0]?.school_fee_amount || 
+                              payment.payment_allocation?.[0]?.school_fee_amount || 
+                              payment.metadata?.school_fee_amount || 0;
+          
+          busFeesAmount += parseFloat(busAmount);
+          schoolFeesAmount += parseFloat(schoolAmount);
         });
 
         setSummary({
@@ -126,44 +147,58 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     options.limit
   ]);
 
-  const createPayment = async (paymentData: Omit<FeePayment, 'id' | 'created_at' | 'updated_at'>) => {
+  const createPayment = async (paymentData: any) => {
     try {
-      const { data, error } = await supabase
-        .from('fee_payments')
-        .insert([paymentData])
-        .select(`
-          *,
-          payment_allocation(*)
-        `)
-        .single();
+      // Use the manual fee payment function
+      const { data, error } = await supabase.rpc(
+        'insert_manual_fee_payment',
+        {
+          p_student_id: paymentData.student_id,
+          p_amount_paid: parseFloat(paymentData.amount_paid),
+          p_payment_date: paymentData.payment_date,
+          p_payment_method: paymentData.payment_method,
+          p_receipt_number: paymentData.receipt_number,
+          p_notes: paymentData.notes,
+          p_created_by: paymentData.created_by,
+          p_academic_year_id: paymentData.academic_year_id,
+          p_bus_fee_amount: parseFloat(paymentData.bus_fee_amount) || 0,
+          p_school_fee_amount: parseFloat(paymentData.school_fee_amount) || 0
+        }
+      );
 
       if (error) throw error;
 
-      // Process payment to include allocation
-      const processedPayment = {
-        ...data,
-        allocation: data.payment_allocation?.[0] || null
-      };
+      // Fetch the created payment
+      const { data: payment, error: fetchError } = await supabase
+        .from('fee_payments')
+        .select(`
+          *,
+          manual_payment_allocation(*)
+        `)
+        .eq('id', data.payment_id)
+        .single();
+
+      if (fetchError) throw fetchError;
 
       // Update local state
-      setPayments(prev => [processedPayment, ...prev]);
+      setPayments(prev => [payment, ...prev]);
       setTotalCount(prev => prev + 1);
 
       // Update summary
       setSummary(prev => ({
         ...prev,
-        totalAmount: prev.totalAmount + parseFloat(data.amount_paid),
-        cashAmount: data.payment_method === 'cash' 
-          ? prev.cashAmount + parseFloat(data.amount_paid) 
+        totalAmount: prev.totalAmount + parseFloat(payment.amount_paid),
+        cashAmount: payment.payment_method === 'cash' 
+          ? prev.cashAmount + parseFloat(payment.amount_paid) 
           : prev.cashAmount,
-        onlineAmount: data.payment_method === 'online' 
-          ? prev.onlineAmount + parseFloat(data.amount_paid) 
+        onlineAmount: payment.payment_method === 'online' 
+          ? prev.onlineAmount + parseFloat(payment.amount_paid) 
           : prev.onlineAmount,
-        busFeesAmount: prev.busFeesAmount + parseFloat(data.payment_allocation?.[0]?.bus_fee_amount || 0),
-        schoolFeesAmount: prev.schoolFeesAmount + parseFloat(data.payment_allocation?.[0]?.school_fee_amount || 0)
+        busFeesAmount: prev.busFeesAmount + parseFloat(payment.manual_payment_allocation?.[0]?.bus_fee_amount || 0),
+        schoolFeesAmount: prev.schoolFeesAmount + parseFloat(payment.manual_payment_allocation?.[0]?.school_fee_amount || 0)
       }));
 
-      return processedPayment;
+      return payment;
     } catch (err) {
       console.error('Error creating payment:', err);
       throw err instanceof Error ? err : new Error('Failed to create payment');
@@ -172,24 +207,21 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
 
   const updatePayment = async (paymentId: string, updateData: any) => {
     try {
-      // Update the payment
-      const { error: updateError } = await supabase
-        .from('fee_payments')
-        .update(updateData)
-        .eq('id', paymentId);
-
-      if (updateError) throw updateError;
-
-      // Recalculate the payment allocation
-      const { error: recalcError } = await supabase.rpc(
-        'recalculate_payment_allocation',
-        { p_payment_id: paymentId }
+      // Use the manual fee payment update function
+      const { data, error } = await supabase.rpc(
+        'update_manual_fee_payment',
+        {
+          p_payment_id: paymentId,
+          p_amount_paid: parseFloat(updateData.amount_paid),
+          p_payment_date: updateData.payment_date,
+          p_payment_method: updateData.payment_method,
+          p_notes: updateData.notes,
+          p_bus_fee_amount: parseFloat(updateData.bus_fee_amount) || 0,
+          p_school_fee_amount: parseFloat(updateData.school_fee_amount) || 0
+        }
       );
 
-      if (recalcError) {
-        console.error('Error recalculating payment allocation:', recalcError);
-        // Continue even if recalculation fails
-      }
+      if (error) throw error;
 
       // Refresh payments to get updated data
       await fetchPayments();
@@ -251,6 +283,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
             class:class_id(name),
             section
           ),
+          manual_payment_allocation(*),
           payment_allocation(*),
           created_by_user:created_by(name)
         `)
@@ -258,6 +291,15 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         .single();
 
       if (error) throw error;
+
+      // Get allocation data
+      const busAmount = data.manual_payment_allocation?.[0]?.bus_fee_amount || 
+                       data.payment_allocation?.[0]?.bus_fee_amount || 
+                       data.metadata?.bus_fee_amount || 0;
+                       
+      const schoolAmount = data.manual_payment_allocation?.[0]?.school_fee_amount || 
+                          data.payment_allocation?.[0]?.school_fee_amount || 
+                          data.metadata?.school_fee_amount || 0;
 
       // Format receipt data with defensive checks
       const className = data.student?.class?.name || '';
@@ -270,21 +312,31 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
           class: className.split('-')[0] || '',
           section: data.student?.section || className.split('-')[1] || '',
         },
-        busAmount: data.payment_allocation?.[0]?.bus_fee_amount || 0,
-        schoolAmount: data.payment_allocation?.[0]?.school_fee_amount || 0,
+        busAmount: busAmount,
+        schoolAmount: schoolAmount,
         total: data.amount_paid,
         paymentMethod: data.payment_method,
         transactionId: data.transaction_id,
-        collectedBy: data.created_by_user?.name || 'System',
-        splitType: data.metadata?.split_type || 'standard',
-        paymentPeriod: data.metadata?.payment_period || 'current',
-        paymentMonths: data.metadata?.payment_months || 1
+        collectedBy: data.created_by_user?.name || 'System'
       };
 
       return receipt;
     } catch (err) {
       console.error('Error fetching payment receipt:', err);
       throw err instanceof Error ? err : new Error('Failed to fetch payment receipt');
+    }
+  };
+
+  // Function to recalculate all payment allocations (admin only)
+  const recalculateAllAllocations = async () => {
+    try {
+      const { error } = await supabase.rpc('recalculate_all_payment_allocations');
+      if (error) throw error;
+      await fetchPayments();
+      return true;
+    } catch (err) {
+      console.error('Error recalculating allocations:', err);
+      throw err instanceof Error ? err : new Error('Failed to recalculate allocations');
     }
   };
 
@@ -302,6 +354,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     createPayment,
     updatePayment,
     deletePayment,
-    getPaymentReceipt
+    getPaymentReceipt,
+    recalculateAllAllocations
   };
 }
