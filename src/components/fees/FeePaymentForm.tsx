@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface FeePaymentFormProps {
-  onSubmit: (data: any) => void;
+  onSubmit: (data: any) => Promise<void>;
   onCancel: () => void;
   studentId?: string;
   registrationType?: 'new' | 'continuing';
@@ -13,24 +13,25 @@ interface FeePaymentFormProps {
 }
 
 interface FeeStatus {
+  total_fees: number;
+  total_paid: number;
+  outstanding: number;
   total_bus_fees: number;
   total_school_fees: number;
-  total_fees: number;
   paid_bus_fees: number;
   paid_school_fees: number;
-  total_paid: number;
   pending_bus_fees: number;
   pending_school_fees: number;
-  total_pending: number;
 }
 
 const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, academicYearId }: FeePaymentFormProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(academicYearId || null);
+  const [splitPaymentEqually, setSplitPaymentEqually] = useState(false);
   const [formData, setFormData] = useState({
     amount_paid: '',
     payment_method: 'cash' as 'cash' | 'online',
@@ -63,7 +64,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           .eq('is_current', true)
           .maybeSingle();
 
-        if (yearError) throw new Error('Failed to fetch current academic year');
+        if (yearError) throw yearError;
 
         if (!currentAcademicYear) {
           // Try to get the latest academic year
@@ -222,9 +223,10 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         });
       }
 
-      // Calculate pending amounts
+      // Calculate outstanding amount
       const pendingBusFees = Math.max(0, totalBusFees - paidBusFees);
       const pendingSchoolFees = Math.max(0, totalSchoolFees - paidSchoolFees);
+      const totalPending = pendingBusFees + pendingSchoolFees;
 
       console.log('DEBUG - Payment calculation:', {
         paidBusFees,
@@ -242,7 +244,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         total_paid: paidBusFees + paidSchoolFees,
         pending_bus_fees: pendingBusFees,
         pending_school_fees: pendingSchoolFees,
-        total_pending: pendingBusFees + pendingSchoolFees
+        total_pending: totalPending
       });
 
     } catch (error: any) {
@@ -303,8 +305,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     }
 
     try {
-      setSubmitting(true);
-
+      setIsSubmitting(true);
+      
       // Generate receipt number
       const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -316,13 +318,14 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         receipt_number: receiptNumber,
         notes: formData.notes,
         created_by: user.id,
-        academic_year_id: currentAcademicYearId
+        academic_year_id: currentAcademicYearId,
+        split_equally: splitPaymentEqually
       });
 
       // Try to use the RPC function to create payment
       try {
         const { data: rpcResult, error: rpcError } = await supabase.rpc(
-          'insert_fee_payment_v2',
+          'insert_fee_payment_v3',
           {
             p_student_id: studentId,
             p_amount_paid: parseFloat(formData.amount_paid),
@@ -331,7 +334,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             p_receipt_number: receiptNumber,
             p_notes: formData.notes,
             p_created_by: user.id,
-            p_academic_year_id: currentAcademicYearId
+            p_academic_year_id: currentAcademicYearId,
+            p_split_equally: splitPaymentEqually
           }
         );
 
@@ -413,11 +417,11 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
       onSubmit(completePayment);
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error processing payment:', error);
-      setError(error.message || 'Failed to process payment. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to process payment. Please try again.');
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -584,6 +588,31 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
             disabled={submitting}
           />
+        </div>
+
+        <div className="md:col-span-2">
+          <div className="flex items-center gap-2">
+            <input
+              id="split_equally"
+              type="checkbox"
+              className="h-4 w-4 rounded border-input"
+              checked={splitPaymentEqually}
+              onChange={(e) => setSplitPaymentEqually(e.target.checked)}
+              disabled={submitting}
+            />
+            <label htmlFor="split_equally" className="text-sm font-medium">
+              Split payment equally between bus and school fees
+            </label>
+          </div>
+          {splitPaymentEqually && (
+            <div className="mt-2 text-sm text-muted-foreground">
+              <p>
+                The payment will be divided equally: 
+                ₹{formData.amount_paid ? (parseFloat(formData.amount_paid) / 2).toFixed(2) : '0.00'} for bus fees and 
+                ₹{formData.amount_paid ? (parseFloat(formData.amount_paid) / 2).toFixed(2) : '0.00'} for school fees.
+              </p>
+            </div>
+          )}
         </div>
       </div>
       
