@@ -87,6 +87,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       if (localSession?.user) {
         try {
+          // Test Supabase connection first
+          const { error: connectionError } = await supabase
+            .from('users')
+            .select('count')
+            .limit(1);
+
+          if (connectionError) {
+            console.error('AuthContext: Supabase connection failed:', connectionError);
+            throw new Error('Database connection failed');
+          }
+
           // Verify user is still active in database
           const { data: userData, error: dbError } = await supabase
             .from('users')
@@ -96,6 +107,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .single();
 
           if (dbError || !userData) {
+            console.error('AuthContext: User verification failed:', dbError);
             throw new Error('User session invalid');
           }
 
@@ -108,13 +120,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           console.log('AuthContext: Found valid session for user:', localSession.user.name);
           setUser(localSession.user);
           setIsAuthenticated(true);
-          
-          // Set user context for database queries
-          supabase.rest.headers = {
-            ...supabase.rest.headers,
-            'x-user-id': localSession.user.id,
-            'x-user-role': localSession.user.role
-          };
           
         } catch (error) {
           console.error('AuthContext: Session verification failed:', error);
@@ -139,6 +144,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       console.log('AuthContext: Verifying credentials...');
+
+      // Test connection first
+      const { error: connectionError } = await supabase
+        .from('users')
+        .select('count')
+        .limit(1);
+
+      if (connectionError) {
+        console.error('AuthContext: Database connection failed:', connectionError);
+        throw new Error('Unable to connect to database. Please check your internet connection.');
+      }
 
       // Verify the user credentials in your custom users table
       const { data: userData, error: dbError } = await supabase
@@ -173,13 +189,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(authenticatedUser);
       setIsAuthenticated(true);
       setPhoneNumber('');
-
-      // Set user context headers for database queries
-      supabase.rest.headers = {
-        ...supabase.rest.headers,
-        'x-user-id': authenticatedUser.id,
-        'x-user-role': authenticatedUser.role
-      };
 
       const redirectPath = getRedirectPath(authenticatedUser.role);
       navigate(redirectPath);
@@ -220,10 +229,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Clear session storage
       clearUserSession();
 
-      // Remove custom headers
-      const { 'x-user-id': _, 'x-user-role': __, ...restHeaders } = supabase.rest.headers;
-      supabase.rest.headers = restHeaders;
-
       console.log('AuthContext: Logout completed, navigating to login...');
       
       // Navigate to login page
@@ -245,6 +250,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!user) return;
 
     try {
+      // Test connection first
+      const { error: connectionError } = await supabase
+        .from('users')
+        .select('count')
+        .limit(1);
+
+      if (connectionError) {
+        console.error('AuthContext: Database connection failed during reset:', connectionError);
+        throw new Error('Database connection failed');
+      }
+
       const { data: userData, error } = await supabase
         .from('users')
         .select('*')
@@ -253,6 +269,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .single();
 
       if (error || !userData) {
+        console.error('AuthContext: User verification failed during reset:', error);
         throw new Error('User session invalid');
       }
 
@@ -269,13 +286,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       saveUserSession(authenticatedUser);
       setUser(authenticatedUser);
       setIsAuthenticated(true);
-      
-      // Update headers
-      supabase.rest.headers = {
-        ...supabase.rest.headers,
-        'x-user-id': authenticatedUser.id,
-        'x-user-role': authenticatedUser.role
-      };
       
     } catch (error) {
       console.error('AuthContext: Session reset failed:', error);
