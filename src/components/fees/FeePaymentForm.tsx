@@ -31,6 +31,22 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     school_fee_amount: 0,
   });
 
+  // Reset form when student changes
+  useEffect(() => {
+    if (studentId) {
+      setFormData({
+        student_id: studentId,
+        amount_paid: 0,
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: 'cash',
+        notes: '',
+        receipt_number: `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        bus_fee_amount: 0,
+        school_fee_amount: 0,
+      });
+    }
+  }, [studentId]);
+
   // Fetch fee status
   const { data: feeStatus, isLoading: loadingFeeStatus } = useQuery<FeeStatus>({
     queryKey: ['feeStatus', studentId, academicYearId],
