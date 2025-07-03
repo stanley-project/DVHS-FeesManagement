@@ -64,6 +64,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       );
 
       if (error) throw error;
+      console.log('Fee status data:', data);
       return data;
     },
     enabled: !!studentId && !!academicYearId,
