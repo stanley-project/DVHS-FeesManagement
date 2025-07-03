@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase, handleApiError, isAuthError } from '../lib/supabase';
+import { supabase, isAuthError } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { toast } from 'react-hot-toast';
 
 export interface Student {
   id: string;
@@ -54,14 +53,12 @@ interface UseStudentsOptions {
 export function useStudents(options: UseStudentsOptions = {}) {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
   const { handleError } = useAuth();
   
   const fetchStudents = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
 
       let query = supabase
         .from('students')
@@ -119,8 +116,7 @@ export function useStudents(options: UseStudentsOptions = {}) {
       setTotalCount(count || 0);
     } catch (err) {
       console.error('Error fetching students:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch students');
-      handleApiError(err, fetchStudents);
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -186,7 +182,6 @@ export function useStudents(options: UseStudentsOptions = {}) {
       return data || [];
     } catch (err) {
       console.error('Error fetching all students for export:', err);
-      handleApiError(err, () => fetchAllStudents());
       throw err;
     }
   };
@@ -216,7 +211,6 @@ export function useStudents(options: UseStudentsOptions = {}) {
       return data;
     } catch (err) {
       console.error('Error adding student:', err);
-      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to add student');
     }
   };
@@ -255,7 +249,6 @@ export function useStudents(options: UseStudentsOptions = {}) {
       return updatedStudent;
     } catch (err) {
       console.error('Error updating student:', err);
-      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to update student');
     }
   };
@@ -279,7 +272,6 @@ export function useStudents(options: UseStudentsOptions = {}) {
       setTotalCount(prev => prev - 1);
     } catch (err) {
       console.error('Error deleting student:', err);
-      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to delete student');
     }
   };
@@ -298,7 +290,6 @@ export function useStudents(options: UseStudentsOptions = {}) {
       await updateStudent(id, updateData);
     } catch (err) {
       console.error('Error toggling student status:', err);
-      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to toggle student status');
     }
   };
@@ -319,7 +310,6 @@ export function useStudents(options: UseStudentsOptions = {}) {
   return {
     students,
     loading,
-    error,
     totalCount,
     addStudent,
     updateStudent,

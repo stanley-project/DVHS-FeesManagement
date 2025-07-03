@@ -30,7 +30,6 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
   const { 
     students, 
     loading, 
-    error, 
     totalCount, 
     deleteStudent, 
     toggleStudentStatus,
@@ -258,17 +257,6 @@ const StudentTable = ({ onAddStudent, onEditStudent, onViewStudent }: StudentTab
             <div className="flex items-center justify-center py-12">
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
               <span className="ml-2 text-muted-foreground">Loading students...</span>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <div className="text-error mb-4">{error}</div>
-              <button 
-                className="btn btn-outline btn-sm flex items-center gap-2 mx-auto"
-                onClick={handleRetry}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Retry
-              </button>
             </div>
           ) : students.length === 0 ? (
             <div className="text-center py-12">
