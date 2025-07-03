@@ -10,6 +10,7 @@ import { Student, PaymentHistoryItem, ReceiptData } from '../types/fee';
 import FeePaymentForm from '../components/fees/FeePaymentForm';
 import { StudentListSkeleton, FeePaymentFormSkeleton, PaymentHistorySkeleton } from '../components/Skeletons';
 import ErrorBoundary from '../components/ErrorBoundary';
+import { useCurrentAcademicYear, useAcademicYearRefresher } from '../hooks/useCurrentAcademicYear';
 
 // Lazy load modals for better performance
 const PaymentReceipt = lazy(() => import('../components/fees/PaymentReceipt'));
@@ -26,9 +27,18 @@ const FeeCollection = () => {
   const [showEditPayment, setShowEditPayment] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentHistoryItem | null>(null);
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null);
-  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const parentRef = useRef<HTMLDivElement>(null);
+  
+  // Use the academic year hook
+  const { 
+    data: currentAcademicYear, 
+    isLoading: loadingAcademicYear, 
+    error: academicYearError 
+  } = useCurrentAcademicYear();
+  
+  // Set up automatic refreshing
+  useAcademicYearRefresher();
   
   // Debounced search
   const debouncedSearch = useMemo(
@@ -44,48 +54,11 @@ const FeeCollection = () => {
     debouncedSearch(e.target.value);
   };
 
-  // Fetch current academic year
-  const { data: academicYear, isLoading: loadingAcademicYear } = useQuery({
-    queryKey: ['currentAcademicYear'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('academic_years')
-        .select('id')
-        .eq('is_current', true)
-        .maybeSingle();
-        
-      if (error) throw error;
-      
-      if (data) {
-        setCurrentAcademicYearId(data.id);
-        return data;
-      }
-      
-      // If no current year, try to get the latest one
-      const { data: latestYear, error: latestError } = await supabase
-        .from('academic_years')
-        .select('id')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-        
-      if (latestError) throw latestError;
-      
-      if (latestYear) {
-        setCurrentAcademicYearId(latestYear.id);
-        return latestYear;
-      }
-      
-      throw new Error('No academic year found');
-    },
-    retry: 1,
-  });
-
   // Fetch students with React Query
   const { data: students, isLoading: loadingStudents, error: studentsError } = useQuery({
-    queryKey: ['students', debouncedSearchQuery, currentAcademicYearId],
+    queryKey: ['students', debouncedSearchQuery, currentAcademicYear?.id],
     queryFn: async () => {
-      if (!currentAcademicYearId) return [];
+      if (!currentAcademicYear?.id) return [];
       
       try {
         // Get students with their fee status
@@ -126,7 +99,7 @@ const FeeCollection = () => {
               'get_student_fee_status',
               { 
                 p_student_id: student.id,
-                p_academic_year_id: currentAcademicYearId
+                p_academic_year_id: currentAcademicYear.id
               }
             );
 
@@ -186,7 +159,7 @@ const FeeCollection = () => {
         throw err;
       }
     },
-    enabled: !!currentAcademicYearId,
+    enabled: !!currentAcademicYear?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -411,7 +384,7 @@ const FeeCollection = () => {
                 <div className="text-center py-4 text-muted-foreground">
                   Loading academic year...
                 </div>
-              ) : !currentAcademicYearId ? (
+              ) : academicYearError ? (
                 <div className="text-center py-4 text-error">
                   No active academic year found. Please contact the administrator.
                 </div>
@@ -517,7 +490,7 @@ const FeeCollection = () => {
                   onCancel={() => setSelectedStudentId(null)}
                   studentId={selectedStudent.id}
                   registrationType={selectedStudent.registrationType}
-                  academicYearId={currentAcademicYearId || undefined}
+                  academicYearId={currentAcademicYear?.id}
                 />
 
                 {/* Student Payment History */}
