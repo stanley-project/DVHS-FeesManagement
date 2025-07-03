@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import StudentTable from '../components/students/StudentTable';
@@ -9,6 +9,9 @@ import StudentDataImport from '../components/students/StudentDataImport';
 import StudentNewDataImport from '../components/students/StudentNewDataImport';
 import RegistrationTypeSelector from '../components/students/RegistrationTypeSelector';
 import { useStudents, Student } from '../hooks/useStudents';
+import { handleApiError, isAuthError } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const StudentRegistration = () => {
   const [showForm, setShowForm] = useState(false);
@@ -18,14 +21,20 @@ const StudentRegistration = () => {
   const [showNewImport, setShowNewImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [registrationType, setRegistrationType] = useState<'new' | 'rejoining' | 'continuing'>('new');
+  const { handleError } = useAuth();
 
-  const { addStudent, updateStudent, refreshStudents } = useStudents();
+  const { 
+    addStudent, 
+    updateStudent, 
+    refreshStudents,
+    loading: studentsLoading
+  } = useStudents();
 
-  // Event listeners for import buttons in dropdown
+  // Event listeners for import buttons in dropdown - use useCallback to prevent recreation on every render
+  const handleImportNewStudents = useCallback(() => setShowNewImport(true), []);
+  const handleImportContinuingStudents = useCallback(() => setShowImport(true), []);
+  
   useEffect(() => {
-    const handleImportNewStudents = () => setShowNewImport(true);
-    const handleImportContinuingStudents = () => setShowImport(true);
-    
     window.addEventListener('import-new-students', handleImportNewStudents);
     window.addEventListener('import-continuing-students', handleImportContinuingStudents);
     
@@ -33,7 +42,7 @@ const StudentRegistration = () => {
       window.removeEventListener('import-new-students', handleImportNewStudents);
       window.removeEventListener('import-continuing-students', handleImportContinuingStudents);
     };
-  }, []);
+  }, [handleImportNewStudents, handleImportContinuingStudents]);
 
   const handleSubmit = async (data: any) => {
     try {
@@ -49,7 +58,13 @@ const StudentRegistration = () => {
       setSelectedStudent(null);
     } catch (error) {
       console.error('Error saving student:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save student');
+      
+      if (isAuthError(error)) {
+        handleError(error);
+        return;
+      }
+      
+      handleApiError(error);
     }
   };
 
@@ -57,6 +72,7 @@ const StudentRegistration = () => {
     setSelectedStudent(student);
     setRegistrationType('rejoining');
     setShowForm(true);
+    setShowSearch(false);
   };
 
   const handleAddStudent = () => {
@@ -97,6 +113,9 @@ const StudentRegistration = () => {
     toast.success('Student data import completed successfully');
   };
 
+  // Prevent rendering multiple modals simultaneously
+  const isModalOpen = showForm || showSearch || showDetails || showImport || showNewImport;
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between">
@@ -106,6 +125,7 @@ const StudentRegistration = () => {
             <button
               className="btn btn-outline btn-md"
               onClick={() => setShowSearch(true)}
+              disabled={isModalOpen && !showSearch}
             >
               <Search className="h-4 w-4 mr-2" />
               Search Previous Students
@@ -114,33 +134,39 @@ const StudentRegistration = () => {
         )}
       </div>
 
-      {showForm ? (
-        <div className="bg-card rounded-lg shadow p-6">
-          <RegistrationTypeSelector
-            value={registrationType}
-            onChange={setRegistrationType}
-            onSearch={() => {
-              setShowForm(false);
-              setShowSearch(true);
-            }}
-          />
-          
-          <div className="mt-6">
-            <StudentForm
-              onSubmit={handleSubmit}
-              onCancel={handleCloseForm}
-              initialData={selectedStudent}
-              registrationType={registrationType}
+      <ErrorBoundary onError={(error) => {
+        console.error('Student Registration error:', error);
+        handleApiError(error, refreshStudents);
+        return true;
+      }}>
+        {showForm ? (
+          <div className="bg-card rounded-lg shadow p-6">
+            <RegistrationTypeSelector
+              value={registrationType}
+              onChange={setRegistrationType}
+              onSearch={() => {
+                setShowForm(false);
+                setShowSearch(true);
+              }}
             />
+            
+            <div className="mt-6">
+              <StudentForm
+                onSubmit={handleSubmit}
+                onCancel={handleCloseForm}
+                initialData={selectedStudent}
+                registrationType={registrationType}
+              />
+            </div>
           </div>
-        </div>
-      ) : (
-        <StudentTable
-          onAddStudent={handleAddStudent}
-          onEditStudent={handleEditStudent}
-          onViewStudent={handleViewStudent}
-        />
-      )}
+        ) : (
+          <StudentTable
+            onAddStudent={handleAddStudent}
+            onEditStudent={handleEditStudent}
+            onViewStudent={handleViewStudent}
+          />
+        )}
+      </ErrorBoundary>
 
       {showSearch && (
         <StudentSearch
