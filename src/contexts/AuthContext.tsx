@@ -1,7 +1,8 @@
-import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { toast } from 'react-hot-toast';
+import { debounce } from 'lodash';
 
 // --- Type Definitions ---
 type UserRole = 'administrator' | 'accountant' | 'teacher';
@@ -78,6 +79,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [lastSessionReset, setLastSessionReset] = useState<number>(0);
+  const [lastNetworkError, setLastNetworkError] = useState<number>(0);
   const navigate = useNavigate();
 
   // Enhanced network error detection
@@ -227,7 +230,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     );
   };
 
-  const handleError = (error: any) => {
+  // Debounced network error handler to prevent multiple toasts
+  const handleNetworkError = useCallback(
+    debounce((error: any) => {
+      const now = Date.now();
+      // Only show network error toast once every 10 seconds
+      if (now - lastNetworkError > 10000) {
+        setLastNetworkError(now);
+        console.log('AuthContext: Network or resource error detected');
+        toast.error('Network connection issue. Please check your internet connection and try again.');
+      }
+    }, 500),
+    [lastNetworkError]
+  );
+
+  const handleError = useCallback((error: any) => {
     console.error('AuthContext: Error handler called:', error);
     
     if (isAuthError(error)) {
@@ -235,13 +252,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       toast.error('Your session has expired. Please log in again.');
       logout();
     } else if (isNetworkOrResourceError(error)) {
-      console.log('AuthContext: Network or resource error detected');
-      toast.error('Network connection issue. Please check your internet connection and try again.');
+      handleNetworkError(error);
     } else {
       console.log('AuthContext: General error detected');
       toast.error('An unexpected error occurred. Please try again.');
     }
-  };
+  }, []);
 
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
@@ -368,11 +384,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const resetSession = async (): Promise<void> => {
+  const resetSession = useCallback(async (): Promise<void> => {
     if (!user) return;
 
     try {
+      const now = Date.now();
+      
+      // Throttle session resets to once every 5 minutes
+      if (now - lastSessionReset < 5 * 60 * 1000) {
+        console.log('AuthContext: Session reset throttled - last reset was less than 5 minutes ago');
+        return;
+      }
+      
       console.log('AuthContext: Starting session reset...');
+      setLastSessionReset(now);
       
       // Test connection first with enhanced error handling
       const { error: connectionError } = await supabase
@@ -385,7 +410,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         if (isNetworkOrResourceError(connectionError)) {
           console.warn('AuthContext: Network error during session reset - keeping session active');
-          toast.error('Network connection issue. Session refresh delayed.');
+          // Don't show toast for network errors during routine session reset
           return; // Don't reset session for network errors
         }
         
@@ -405,7 +430,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         
         if (isNetworkOrResourceError(error)) {
           console.warn('AuthContext: Network error during user verification - keeping session active');
-          toast.error('Network connection issue. Session refresh delayed.');
+          // Don't show toast for network errors during routine session reset
           return; // Don't reset session for network errors
         }
         
@@ -443,10 +468,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       } else {
         // For network errors, show a warning but don't logout
         console.log('AuthContext: Network error during reset - keeping session active');
-        toast.error('Network connection issue. Some features may be limited.');
+        // Don't show toast for network errors during routine session reset
       }
     }
-  };
+  }, [user, lastSessionReset, logout]);
+
+  // Set up a periodic session refresh (every 15 minutes)
+  useEffect(() => {
+    if (!user) return;
+    
+    const intervalId = setInterval(() => {
+      console.log('AuthContext: Running scheduled session refresh');
+      resetSession();
+    }, 15 * 60 * 1000); // 15 minutes
+    
+    return () => clearInterval(intervalId);
+  }, [user, resetSession]);
 
   const getRedirectPath = (role: UserRole): string => {
     switch (role) {

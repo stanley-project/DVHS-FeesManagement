@@ -96,8 +96,22 @@ export const isAuthError = (error: any): boolean => {
   );
 };
 
+// Debounce toast errors to prevent multiple toasts for the same error
+const errorToasts = new Map<string, number>();
+
 export const handleApiError = (error: any, retryFn?: () => void) => {
   console.error('API Error:', error);
+  
+  const errorMessage = error?.message || error?.toString() || 'An unexpected error occurred';
+  const now = Date.now();
+  const lastShown = errorToasts.get(errorMessage) || 0;
+  
+  // Only show the same error toast once every 5 seconds
+  if (now - lastShown < 5000) {
+    return;
+  }
+  
+  errorToasts.set(errorMessage, now);
   
   if (isAuthError(error)) {
     toast.error('Your session has expired. Please log in again.');
