@@ -32,18 +32,36 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 // Error handling utilities
 export const isNetworkOrResourceError = (error: any): boolean => {
   const errorMessage = error?.message || error?.toString() || '';
+  const errorName = error?.name || '';
   
   return (
+    // Network errors
+    errorMessage.includes('Failed to fetch') ||
+    errorMessage.includes('fetch') ||
+    errorName === 'TypeError' && errorMessage.includes('fetch') ||
     errorMessage.includes('net::ERR_') ||
     errorMessage.includes('NetworkError') ||
     errorMessage.includes('network error') ||
-    errorMessage.includes('Failed to fetch') ||
     errorMessage.includes('Network request failed') ||
     errorMessage.includes('ERR_INSUFFICIENT_RESOURCES') ||
     errorMessage.includes('timeout') ||
     errorMessage.includes('AbortError') ||
     errorMessage.includes('Database connection failed') ||
-    errorMessage.includes('database connection')
+    errorMessage.includes('database connection') ||
+    // Connection issues
+    errorMessage.includes('ERR_NETWORK') ||
+    errorMessage.includes('ERR_INTERNET_DISCONNECTED') ||
+    errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+    errorMessage.includes('ERR_CONNECTION_RESET') ||
+    errorMessage.includes('ERR_CONNECTION_TIMED_OUT') ||
+    // CORS and other fetch-related errors
+    errorMessage.includes('CORS') ||
+    errorMessage.includes('cors') ||
+    errorMessage.includes('Cross-Origin') ||
+    // Server unreachable
+    errorMessage.includes('Server not reachable') ||
+    errorMessage.includes('Unable to connect') ||
+    errorMessage.includes('Connection failed')
   );
 };
 

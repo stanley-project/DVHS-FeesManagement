@@ -80,6 +80,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const navigate = useNavigate();
 
+  // Enhanced network error detection
+  const isNetworkOrResourceError = (error: any): boolean => {
+    const errorMessage = error?.message || error?.toString() || '';
+    const errorName = error?.name || '';
+    
+    return (
+      // Network errors
+      errorMessage.includes('Failed to fetch') ||
+      errorMessage.includes('fetch') ||
+      errorName === 'TypeError' && errorMessage.includes('fetch') ||
+      errorMessage.includes('net::ERR_') ||
+      errorMessage.includes('NetworkError') ||
+      errorMessage.includes('network error') ||
+      errorMessage.includes('Network request failed') ||
+      errorMessage.includes('ERR_INSUFFICIENT_RESOURCES') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('AbortError') ||
+      errorMessage.includes('Database connection failed') ||
+      errorMessage.includes('database connection') ||
+      // Connection issues
+      errorMessage.includes('ERR_NETWORK') ||
+      errorMessage.includes('ERR_INTERNET_DISCONNECTED') ||
+      errorMessage.includes('ERR_CONNECTION_REFUSED') ||
+      errorMessage.includes('ERR_CONNECTION_RESET') ||
+      errorMessage.includes('ERR_CONNECTION_TIMED_OUT') ||
+      // CORS and other fetch-related errors
+      errorMessage.includes('CORS') ||
+      errorMessage.includes('cors') ||
+      errorMessage.includes('Cross-Origin') ||
+      // Server unreachable
+      errorMessage.includes('Server not reachable') ||
+      errorMessage.includes('Unable to connect') ||
+      errorMessage.includes('Connection failed')
+    );
+  };
+
   // Initialize auth state from localStorage
   useEffect(() => {
     const initializeAuth = async () => {
@@ -172,24 +208,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     initializeAuth();
   }, []);
-
-  const isNetworkOrResourceError = (error: any): boolean => {
-    const errorMessage = error?.message || error?.toString() || '';
-    
-    // Check for common network and resource error patterns
-    return (
-      errorMessage.includes('net::ERR_') ||
-      errorMessage.includes('NetworkError') ||
-      errorMessage.includes('network error') ||
-      errorMessage.includes('Failed to fetch') ||
-      errorMessage.includes('Network request failed') ||
-      errorMessage.includes('ERR_INSUFFICIENT_RESOURCES') ||
-      errorMessage.includes('timeout') ||
-      errorMessage.includes('AbortError') ||
-      errorMessage.includes('Database connection failed') ||
-      errorMessage.includes('database connection')
-    );
-  };
 
   const isAuthError = (error: any): boolean => {
     const errorMessage = error?.message || error?.toString() || '';
@@ -354,15 +372,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!user) return;
 
     try {
-      // Test connection first
+      console.log('AuthContext: Starting session reset...');
+      
+      // Test connection first with enhanced error handling
       const { error: connectionError } = await supabase
         .from('users')
         .select('count')
         .limit(1);
 
       if (connectionError) {
+        console.warn('AuthContext: Connection error during session reset:', connectionError);
+        
         if (isNetworkOrResourceError(connectionError)) {
-          console.warn('AuthContext: Network error during session reset:', connectionError);
+          console.warn('AuthContext: Network error during session reset - keeping session active');
           toast.error('Network connection issue. Session refresh delayed.');
           return; // Don't reset session for network errors
         }
@@ -379,8 +401,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .single();
 
       if (error) {
+        console.warn('AuthContext: Error during user verification in reset:', error);
+        
         if (isNetworkOrResourceError(error)) {
-          console.warn('AuthContext: Network error during user verification in reset:', error);
+          console.warn('AuthContext: Network error during user verification - keeping session active');
           toast.error('Network connection issue. Session refresh delayed.');
           return; // Don't reset session for network errors
         }
@@ -407,14 +431,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(authenticatedUser);
       setIsAuthenticated(true);
       
+      console.log('AuthContext: Session reset completed successfully');
+      
     } catch (error) {
       console.error('AuthContext: Session reset failed:', error);
       
       // Only logout for auth errors, not network errors
       if (!isNetworkOrResourceError(error)) {
+        console.log('AuthContext: Auth error during reset - logging out');
         await logout();
       } else {
         // For network errors, show a warning but don't logout
+        console.log('AuthContext: Network error during reset - keeping session active');
         toast.error('Network connection issue. Some features may be limited.');
       }
     }
