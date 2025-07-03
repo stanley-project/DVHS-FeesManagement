@@ -537,8 +537,11 @@ const StudentForm: React.FC<StudentFormProps> = ({
             type="checkbox"
             className="h-4 w-4 rounded border-input"
             {...register('has_school_bus')}
+            onChange={(e) => {
+              setValue('has_school_bus', e.target.checked, { shouldValidate: true });
+            }}
           />
-          <label htmlFor="has_school_bus" className="text-sm font-medium">
+          <label htmlFor="has_school_bus" className="text-sm font-medium text-white">
             Requires School Bus Service
           </label>
         </div>

@@ -155,3 +155,8 @@
 .bg-primary th {
   @apply text-white;
 }
+
+/* Fix for checkbox labels in dark backgrounds */
+.bg-primary label, .bg-card label {
+  @apply text-foreground;
+}
