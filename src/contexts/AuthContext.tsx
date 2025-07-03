@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { toast } from 'react-hot-toast';
 
 // --- Type Definitions ---
 type UserRole = 'administrator' | 'accountant' | 'teacher';
@@ -24,6 +25,7 @@ interface AuthContextType {
   login: (code: string) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   resetSession: () => Promise<void>;
+  handleError: (error: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -94,6 +96,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .limit(1);
 
           if (connectionError) {
+            // Check if this is a network or resource error
+            if (isNetworkOrResourceError(connectionError)) {
+              console.warn('AuthContext: Network or resource error during initialization:', connectionError);
+              toast.error('Network connection issue. Please check your internet connection.');
+              // Don't clear session for network errors
+              setUser(localSession.user);
+              setIsAuthenticated(true);
+              setAuthLoading(false);
+              return;
+            }
+            
             console.error('AuthContext: Supabase connection failed:', connectionError);
             throw new Error('Database connection failed');
           }
@@ -106,9 +119,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
             .eq('is_active', true)
             .single();
 
-          if (dbError || !userData) {
+          if (dbError) {
+            // Check if this is a network or resource error
+            if (isNetworkOrResourceError(dbError)) {
+              console.warn('AuthContext: Network or resource error during user verification:', dbError);
+              toast.error('Network connection issue. Please check your internet connection.');
+              // Don't clear session for network errors
+              setUser(localSession.user);
+              setIsAuthenticated(true);
+              setAuthLoading(false);
+              return;
+            }
+            
             console.error('AuthContext: User verification failed:', dbError);
             throw new Error('User session invalid');
+          }
+
+          if (!userData) {
+            throw new Error('User not found or inactive');
           }
 
           // Check if session is not expired (24 hours)
@@ -123,7 +151,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           
         } catch (error) {
           console.error('AuthContext: Session verification failed:', error);
-          clearUserSession();
+          
+          // Only clear session for auth errors, not network errors
+          if (!isNetworkOrResourceError(error)) {
+            clearUserSession();
+            toast.error('Your session has expired. Please log in again.');
+          } else {
+            // For network errors, keep the session but show a warning
+            setUser(localSession.user);
+            setIsAuthenticated(true);
+            toast.error('Network connection issue. Some features may be limited.');
+          }
         }
       } else {
         console.log('AuthContext: No saved user session found');
@@ -134,6 +172,58 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     initializeAuth();
   }, []);
+
+  const isNetworkOrResourceError = (error: any): boolean => {
+    const errorMessage = error?.message || error?.toString() || '';
+    
+    // Check for common network and resource error patterns
+    return (
+      errorMessage.includes('net::ERR_') ||
+      errorMessage.includes('NetworkError') ||
+      errorMessage.includes('network error') ||
+      errorMessage.includes('Failed to fetch') ||
+      errorMessage.includes('Network request failed') ||
+      errorMessage.includes('ERR_INSUFFICIENT_RESOURCES') ||
+      errorMessage.includes('timeout') ||
+      errorMessage.includes('AbortError') ||
+      errorMessage.includes('Database connection failed') ||
+      errorMessage.includes('database connection')
+    );
+  };
+
+  const isAuthError = (error: any): boolean => {
+    const errorMessage = error?.message || error?.toString() || '';
+    const errorCode = error?.code;
+    
+    // Check for common auth error patterns
+    return (
+      errorCode === 401 ||
+      errorCode === 403 ||
+      errorMessage.includes('invalid token') ||
+      errorMessage.includes('session invalid') ||
+      errorMessage.includes('not authenticated') ||
+      errorMessage.includes('auth/') ||
+      errorMessage.includes('User session invalid') ||
+      errorMessage.includes('Session expired') ||
+      errorMessage.includes('User not found or inactive')
+    );
+  };
+
+  const handleError = (error: any) => {
+    console.error('AuthContext: Error handler called:', error);
+    
+    if (isAuthError(error)) {
+      console.log('AuthContext: Auth error detected, logging out user');
+      toast.error('Your session has expired. Please log in again.');
+      logout();
+    } else if (isNetworkOrResourceError(error)) {
+      console.log('AuthContext: Network or resource error detected');
+      toast.error('Network connection issue. Please check your internet connection and try again.');
+    } else {
+      console.log('AuthContext: General error detected');
+      toast.error('An unexpected error occurred. Please try again.');
+    }
+  };
 
   const login = async (code: string): Promise<{ success: boolean; message: string }> => {
     setAuthLoading(true);
@@ -152,8 +242,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .limit(1);
 
       if (connectionError) {
+        if (isNetworkOrResourceError(connectionError)) {
+          console.error('AuthContext: Network connection failed:', connectionError);
+          throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+        }
+        
         console.error('AuthContext: Database connection failed:', connectionError);
-        throw new Error('Unable to connect to database. Please check your internet connection.');
+        throw new Error('Unable to connect to database. Please try again later.');
       }
 
       // Verify the user credentials in your custom users table
@@ -165,8 +260,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .eq('is_active', true)
         .single();
 
-      if (dbError || !userData) {
+      if (dbError) {
+        if (isNetworkOrResourceError(dbError)) {
+          console.error('AuthContext: Network error during login:', dbError);
+          throw new Error('Network connection issue. Please check your internet connection and try again.');
+        }
+        
         console.error('AuthContext: Invalid credentials:', dbError);
+        throw new Error('Invalid phone number or login code');
+      }
+
+      if (!userData) {
         throw new Error('Invalid phone number or login code');
       }
 
@@ -257,6 +361,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .limit(1);
 
       if (connectionError) {
+        if (isNetworkOrResourceError(connectionError)) {
+          console.warn('AuthContext: Network error during session reset:', connectionError);
+          toast.error('Network connection issue. Session refresh delayed.');
+          return; // Don't reset session for network errors
+        }
+        
         console.error('AuthContext: Database connection failed during reset:', connectionError);
         throw new Error('Database connection failed');
       }
@@ -268,9 +378,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         .eq('is_active', true)
         .single();
 
-      if (error || !userData) {
+      if (error) {
+        if (isNetworkOrResourceError(error)) {
+          console.warn('AuthContext: Network error during user verification in reset:', error);
+          toast.error('Network connection issue. Session refresh delayed.');
+          return; // Don't reset session for network errors
+        }
+        
         console.error('AuthContext: User verification failed during reset:', error);
         throw new Error('User session invalid');
+      }
+
+      if (!userData) {
+        throw new Error('User not found or inactive');
       }
 
       const authenticatedUser: AuthenticatedUser = {
@@ -289,7 +409,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
     } catch (error) {
       console.error('AuthContext: Session reset failed:', error);
-      await logout();
+      
+      // Only logout for auth errors, not network errors
+      if (!isNetworkOrResourceError(error)) {
+        await logout();
+      } else {
+        // For network errors, show a warning but don't logout
+        toast.error('Network connection issue. Some features may be limited.');
+      }
     }
   };
 
@@ -315,6 +442,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     login,
     logout,
     resetSession,
+    handleError
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

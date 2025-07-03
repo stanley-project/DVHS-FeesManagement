@@ -1,8 +1,9 @@
 // src/components/layout/TopBar.tsx
 import { useState, useEffect } from 'react';
-import { Menu, Bell, User, LogOut, Home } from 'lucide-react';
+import { Menu, Bell, User, LogOut, Home, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
 import GlobalSearch from './GlobalSearch';
 import NotificationCenter from './NotificationCenter';
 
@@ -19,6 +20,7 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
   // Logout specific state and handler
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleLogout = async () => {
     // Prevent multiple logout attempts
@@ -54,6 +56,21 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
       }
     } finally {
       setIsLoggingOut(false);
+    }
+  };
+
+  const handleRefreshSession = async () => {
+    if (isRefreshing) return;
+    
+    try {
+      setIsRefreshing(true);
+      await resetSession();
+      toast.success('Session refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+      toast.error('Failed to refresh session');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -158,6 +175,25 @@ const TopBar: React.FC<TopBarProps> = ({ toggleSidebar }) => {
                 )}
                 
                 <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={handleRefreshSession}
+                    disabled={isRefreshing}
+                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-left hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-opacity duration-200"
+                  >
+                    {isRefreshing ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Refreshing session...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        <span>Refresh Session</span>
+                      </>
+                    )}
+                  </button>
+                  
                   <button
                     type="button"
                     onClick={handleLogout}

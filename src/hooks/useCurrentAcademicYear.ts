@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../lib/supabase';
+import { supabase, handleApiError, isAuthError } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 
 export interface AcademicYear {
   id: string;
@@ -12,6 +13,8 @@ export interface AcademicYear {
 }
 
 export function useCurrentAcademicYear() {
+  const { handleError } = useAuth();
+  
   return useQuery<AcademicYear>({
     queryKey: ['currentAcademicYear'],
     queryFn: async () => {
@@ -23,7 +26,18 @@ export function useCurrentAcademicYear() {
         .maybeSingle();
       
       if (currentYearError) {
+        if (isAuthError(currentYearError)) {
+          handleError(currentYearError);
+          throw currentYearError;
+        }
+        
+        if (isNetworkOrResourceError(currentYearError)) {
+          console.warn('Network or resource error fetching current academic year:', currentYearError);
+          throw new Error('Network connection issue. Please try again.');
+        }
+        
         console.error('Error fetching current academic year:', currentYearError);
+        throw currentYearError;
       }
       
       // If we found a current year, return it
@@ -42,6 +56,16 @@ export function useCurrentAcademicYear() {
         .maybeSingle();
       
       if (latestYearError) {
+        if (isAuthError(latestYearError)) {
+          handleError(latestYearError);
+          throw latestYearError;
+        }
+        
+        if (isNetworkOrResourceError(latestYearError)) {
+          console.warn('Network or resource error fetching latest academic year:', latestYearError);
+          throw new Error('Network connection issue. Please try again.');
+        }
+        
         console.error('Error fetching latest academic year:', latestYearError);
         throw new Error('Failed to fetch academic year');
       }
@@ -54,9 +78,31 @@ export function useCurrentAcademicYear() {
       return latestYear;
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
-    retry: 3,
+    retry: (failureCount, error) => {
+      // Don't retry on auth errors, but retry up to 3 times for other errors
+      if (isAuthError(error)) return false;
+      return failureCount < 3;
+    },
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
+}
+
+// Helper function to check if an error is a network or resource error
+function isNetworkOrResourceError(error: any): boolean {
+  const errorMessage = error?.message || error?.toString() || '';
+  
+  return (
+    errorMessage.includes('net::ERR_') ||
+    errorMessage.includes('NetworkError') ||
+    errorMessage.includes('network error') ||
+    errorMessage.includes('Failed to fetch') ||
+    errorMessage.includes('Network request failed') ||
+    errorMessage.includes('ERR_INSUFFICIENT_RESOURCES') ||
+    errorMessage.includes('timeout') ||
+    errorMessage.includes('AbortError') ||
+    errorMessage.includes('Database connection failed') ||
+    errorMessage.includes('database connection')
+  );
 }
 
 export function useAcademicYearRefresher() {

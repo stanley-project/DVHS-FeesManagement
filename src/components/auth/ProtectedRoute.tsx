@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { UserRole } from '../../types/user';
+import ErrorBoundary from '../ErrorBoundary';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -12,7 +13,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   allowedRoles 
 }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, handleError } = useAuth();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" />;
@@ -22,7 +23,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/" />;
   }
 
-  return <>{children}</>;
+  return (
+    <ErrorBoundary onError={(error) => {
+      console.error('ProtectedRoute error:', error);
+      handleError(error);
+      return true;
+    }}>
+      {children}
+    </ErrorBoundary>
+  );
 };
 
 export default ProtectedRoute;

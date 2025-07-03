@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase, handleApiError, isAuthError } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
 export interface Student {
   id: string;
@@ -54,8 +56,9 @@ export function useStudents(options: UseStudentsOptions = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState(0);
-
-  const fetchStudents = async () => {
+  const { handleError } = useAuth();
+  
+  const fetchStudents = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -104,17 +107,34 @@ export function useStudents(options: UseStudentsOptions = {}) {
 
       const { data, error: fetchError, count } = await query;
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        if (isAuthError(fetchError)) {
+          handleError(fetchError);
+          return;
+        }
+        throw fetchError;
+      }
 
       setStudents(data || []);
       setTotalCount(count || 0);
     } catch (err) {
       console.error('Error fetching students:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch students');
+      handleApiError(err, fetchStudents);
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    options.search, 
+    options.classFilter, 
+    options.sectionFilter, 
+    options.statusFilter, 
+    options.page,
+    options.sortField,
+    options.sortDirection,
+    options.limit,
+    handleError
+  ]);
 
   // Function to fetch all students for export (no pagination)
   const fetchAllStudents = async (): Promise<Student[]> => {
@@ -156,10 +176,17 @@ export function useStudents(options: UseStudentsOptions = {}) {
 
       const { data, error: fetchError } = await query;
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        if (isAuthError(fetchError)) {
+          handleError(fetchError);
+          return [];
+        }
+        throw fetchError;
+      }
       return data || [];
     } catch (err) {
       console.error('Error fetching all students for export:', err);
+      handleApiError(err, () => fetchAllStudents());
       throw err;
     }
   };
@@ -176,13 +203,20 @@ export function useStudents(options: UseStudentsOptions = {}) {
         `)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return null;
+        }
+        throw error;
+      }
 
       setStudents(prev => [data, ...prev]);
       setTotalCount(prev => prev + 1);
       return data;
     } catch (err) {
       console.error('Error adding student:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to add student');
     }
   };
@@ -199,7 +233,13 @@ export function useStudents(options: UseStudentsOptions = {}) {
           village:village_id(id, name)
         `);
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return null;
+        }
+        throw error;
+      }
 
       // If RLS prevents returning the updated row, refresh the student list
       if (!data || data.length === 0) {
@@ -215,6 +255,7 @@ export function useStudents(options: UseStudentsOptions = {}) {
       return updatedStudent;
     } catch (err) {
       console.error('Error updating student:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to update student');
     }
   };
@@ -226,12 +267,19 @@ export function useStudents(options: UseStudentsOptions = {}) {
         .delete()
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return;
+        }
+        throw error;
+      }
 
       setStudents(prev => prev.filter(student => student.id !== id));
       setTotalCount(prev => prev - 1);
     } catch (err) {
       console.error('Error deleting student:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to delete student');
     }
   };
@@ -250,6 +298,7 @@ export function useStudents(options: UseStudentsOptions = {}) {
       await updateStudent(id, updateData);
     } catch (err) {
       console.error('Error toggling student status:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to toggle student status');
     }
   };
@@ -263,7 +312,8 @@ export function useStudents(options: UseStudentsOptions = {}) {
     options.statusFilter, 
     options.page,
     options.sortField,
-    options.sortDirection
+    options.sortDirection,
+    fetchStudents
   ]);
 
   return {

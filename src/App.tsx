@@ -16,6 +16,8 @@ import VillageManagement from './pages/VillageManagement';
 import AcademicYearManagement from './pages/AcademicYearManagement';
 import StudentFeeStatus from './pages/StudentFeeStatus';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
+import { isNetworkOrResourceError, isDatabaseError, isAuthError } from './lib/supabase';
 
 function App() {
   const { user, isAuthenticated, authLoading } = useAuth();
@@ -50,110 +52,122 @@ function App() {
         }}
       />
 
-      <Routes>
-        {/* Public Routes: Accessible to all, but redirect if authenticated */}
-        <Route 
-          path="/login" 
-          element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} 
-        />
-
-        {/* Protected Routes: Only accessible if isAuthenticated is true */}
-        <Route
-          path="/"
-          element={
-            <ProtectedRoute>
-              <DashboardLayout />
-            </ProtectedRoute>
-          }
-        >
-          {/* Default route for authenticated users, redirects based on user role */}
-          <Route
-            index
-            element={
-              user?.role === 'administrator' ? (
-                <AdminDashboard />
-              ) : user?.role === 'accountant' ? (
-                <AccountantDashboard />
-              ) : user?.role === 'teacher' ? (
-                <TeacherDashboard />
-              ) : (
-                <Navigate to="/login" replace />
-              )
-            }
+      <ErrorBoundary onError={(error) => {
+        console.error('App-level error caught:', error);
+        
+        // Only handle auth errors at the app level
+        if (isAuthError(error)) {
+          return true; // Let the ErrorBoundary know we've handled it
+        }
+        
+        // For network or database errors, we'll let the component-level error boundaries handle them
+        return false;
+      }}>
+        <Routes>
+          {/* Public Routes: Accessible to all, but redirect if authenticated */}
+          <Route 
+            path="/login" 
+            element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} 
           />
 
-          {/* Admin Routes */}
+          {/* Protected Routes: Only accessible if isAuthenticated is true */}
           <Route
-            path="student-registration"
+            path="/"
             element={
-              <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
-                <StudentRegistration />
+              <ProtectedRoute>
+                <DashboardLayout />
               </ProtectedRoute>
             }
-          />
-          <Route
-            path="fee-structure"
-            element={
-              <ProtectedRoute allowedRoles={['administrator']}>
-                <FeeStructure />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="fee-collection"
-            element={
-              <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
-                <FeeCollection />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="reports"
-            element={
-              <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
-                <Reports />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="user-management"
-            element={
-              <ProtectedRoute allowedRoles={['administrator']}>
-                <UserManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="village-management"
-            element={
-              <ProtectedRoute allowedRoles={['administrator']}>
-                <VillageManagement />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="academic-year-management"
-            element={
-              <ProtectedRoute allowedRoles={['administrator']}>
-                <AcademicYearManagement />
-              </ProtectedRoute>
-            }
-          />
+          >
+            {/* Default route for authenticated users, redirects based on user role */}
+            <Route
+              index
+              element={
+                user?.role === 'administrator' ? (
+                  <AdminDashboard />
+                ) : user?.role === 'accountant' ? (
+                  <AccountantDashboard />
+                ) : user?.role === 'teacher' ? (
+                  <TeacherDashboard />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
+              }
+            />
 
-          {/* Teacher Routes */}
-          <Route
-            path="student-fee-status"
-            element={
-              <ProtectedRoute allowedRoles={['teacher']}>
-                <StudentFeeStatus />
-              </ProtectedRoute>
-            }
-          />
-        </Route>
+            {/* Admin Routes */}
+            <Route
+              path="student-registration"
+              element={
+                <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
+                  <StudentRegistration />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="fee-structure"
+              element={
+                <ProtectedRoute allowedRoles={['administrator']}>
+                  <FeeStructure />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="fee-collection"
+              element={
+                <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
+                  <FeeCollection />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="reports"
+              element={
+                <ProtectedRoute allowedRoles={['administrator', 'accountant']}>
+                  <Reports />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="user-management"
+              element={
+                <ProtectedRoute allowedRoles={['administrator']}>
+                  <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="village-management"
+              element={
+                <ProtectedRoute allowedRoles={['administrator']}>
+                  <VillageManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="academic-year-management"
+              element={
+                <ProtectedRoute allowedRoles={['administrator']}>
+                  <AcademicYearManagement />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* 404 Page: Catch-all for undefined routes */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+            {/* Teacher Routes */}
+            <Route
+              path="student-fee-status"
+              element={
+                <ProtectedRoute allowedRoles={['teacher']}>
+                  <StudentFeeStatus />
+                </ProtectedRoute>
+              }
+            />
+          </Route>
+
+          {/* 404 Page: Catch-all for undefined routes */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </ErrorBoundary>
     </>
   );
 }

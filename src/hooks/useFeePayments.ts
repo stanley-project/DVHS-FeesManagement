@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, handleApiError, isAuthError } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { FeePayment } from '../types/fees';
+import { toast } from 'react-hot-toast';
 
 interface UseFeePaymentsOptions {
   studentId?: string;
@@ -23,6 +25,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     busFeesAmount: 0,
     schoolFeesAmount: 0
   });
+  const { handleError } = useAuth();
 
   const fetchPayments = useCallback(async () => {
     try {
@@ -72,7 +75,13 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
 
       const { data, error: fetchError, count } = await query;
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        if (isAuthError(fetchError)) {
+          handleError(fetchError);
+          return;
+        }
+        throw fetchError;
+      }
 
       // Process payments to include allocation data
       const processedPayments = data?.map(payment => {
@@ -135,6 +144,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     } catch (err) {
       console.error('Error fetching payments:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch payments'));
+      handleApiError(err, fetchPayments);
     } finally {
       setLoading(false);
     }
@@ -144,7 +154,8 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
     options.endDate,
     options.paymentMethod,
     options.page,
-    options.limit
+    options.limit,
+    handleError
   ]);
 
   const createPayment = async (paymentData: any) => {
@@ -166,7 +177,13 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         }
       );
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return null;
+        }
+        throw error;
+      }
 
       // Fetch the created payment
       const { data: payment, error: fetchError } = await supabase
@@ -178,7 +195,13 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         .eq('id', data.payment_id)
         .single();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        if (isAuthError(fetchError)) {
+          handleError(fetchError);
+          return null;
+        }
+        throw fetchError;
+      }
 
       // Update local state
       setPayments(prev => [payment, ...prev]);
@@ -201,6 +224,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
       return payment;
     } catch (err) {
       console.error('Error creating payment:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to create payment');
     }
   };
@@ -221,7 +245,13 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         }
       );
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return false;
+        }
+        throw error;
+      }
 
       // Refresh payments to get updated data
       await fetchPayments();
@@ -229,6 +259,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
       return true;
     } catch (err) {
       console.error('Error updating payment:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to update payment');
     }
   };
@@ -240,7 +271,13 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         .delete()
         .eq('id', paymentId);
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return false;
+        }
+        throw error;
+      }
 
       // Update local state
       const deletedPayment = payments.find(p => p.id === paymentId);
@@ -266,6 +303,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
       return true;
     } catch (err) {
       console.error('Error deleting payment:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to delete payment');
     }
   };
@@ -290,7 +328,13 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
         .eq('id', paymentId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return null;
+        }
+        throw error;
+      }
 
       // Get allocation data
       const busAmount = data.manual_payment_allocation?.[0]?.bus_fee_amount || 
@@ -323,6 +367,7 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
       return receipt;
     } catch (err) {
       console.error('Error fetching payment receipt:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to fetch payment receipt');
     }
   };
@@ -331,11 +376,18 @@ export function useFeePayments(options: UseFeePaymentsOptions = {}) {
   const recalculateAllAllocations = async () => {
     try {
       const { error } = await supabase.rpc('recalculate_all_payment_allocations');
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return false;
+        }
+        throw error;
+      }
       await fetchPayments();
       return true;
     } catch (err) {
       console.error('Error recalculating allocations:', err);
+      handleApiError(err);
       throw err instanceof Error ? err : new Error('Failed to recalculate allocations');
     }
   };

@@ -1,20 +1,24 @@
 // src/pages/auth/LoginPage.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext'; // Ensure this path is correct
-import { School, Eye, EyeOff } from 'lucide-react';
+import { School, Eye, EyeOff, RefreshCw, AlertCircle } from 'lucide-react';
+import { isNetworkOrResourceError } from '../../lib/supabase';
 
 const LoginPage = () => {
   const [loginCode, setLoginCode] = useState('');
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [networkError, setNetworkError] = useState(false);
   const { login, phoneNumber, setPhoneNumber } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNetworkError(false);
     setIsLoading(true);
 
     // Basic validation for phone number
@@ -31,16 +35,33 @@ const LoginPage = () => {
       return;
     }
 
-    // Try to login with loginCode (phone number is already in context)
-    const result = await login(loginCode);
-    
-    if (result.success) {
-      navigate('/');
-    } else {
-      setError(result.message);
+    try {
+      // Try to login with loginCode (phone number is already in context)
+      const result = await login(loginCode);
+      
+      if (result.success) {
+        navigate('/');
+      } else {
+        setError(result.message);
+        
+        // Check if the error is a network error
+        if (isNetworkOrResourceError(new Error(result.message))) {
+          setNetworkError(true);
+          setRetryCount(prev => prev + 1);
+        }
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      setError(error.message || 'An unexpected error occurred');
+      
+      // Check if the error is a network error
+      if (isNetworkOrResourceError(error)) {
+        setNetworkError(true);
+        setRetryCount(prev => prev + 1);
+      }
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
@@ -59,7 +80,27 @@ const LoginPage = () => {
 
           {error && (
             <div className="mb-4 p-3 bg-error/10 border border-error/30 rounded text-error text-sm">
-              {error}
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p>{error}</p>
+                  {networkError && (
+                    <p className="mt-1 text-xs">
+                      Please check your internet connection and try again.
+                    </p>
+                  )}
+                </div>
+              </div>
+              
+              {networkError && retryCount < 3 && (
+                <button 
+                  onClick={handleSubmit}
+                  className="mt-2 text-sm flex items-center gap-1 text-primary hover:underline"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Retry login
+                </button>
+              )}
             </div>
           )}
 
@@ -124,7 +165,14 @@ const LoginPage = () => {
               disabled={isLoading}
               className="btn btn-primary btn-lg w-full"
             >
-              {isLoading ? 'Authenticating...' : 'Login'}
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Authenticating...
+                </div>
+              ) : (
+                'Login'
+              )}
             </button>
           </form>
           

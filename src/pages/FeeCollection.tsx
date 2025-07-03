@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import debounce from 'lodash/debounce';
 import { toast } from 'react-hot-toast';
-import { supabase } from '../lib/supabase';
+import { supabase, handleApiError, isAuthError } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Student, PaymentHistoryItem, ReceiptData } from '../types/fee';
 import FeePaymentForm from '../components/fees/FeePaymentForm';
@@ -18,7 +18,7 @@ const DailyCollectionReport = lazy(() => import('../components/fees/DailyCollect
 const EditPaymentModal = lazy(() => import('../components/fees/EditPaymentModal'));
 
 const FeeCollection = () => {
-  const { user } = useAuth();
+  const { user, handleError } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -55,7 +55,7 @@ const FeeCollection = () => {
   };
 
   // Fetch students with React Query
-  const { data: students, isLoading: loadingStudents, error: studentsError } = useQuery({
+  const { data: students, isLoading: loadingStudents, error: studentsError, refetch: refetchStudents } = useQuery({
     queryKey: ['students', debouncedSearchQuery, currentAcademicYear?.id],
     queryFn: async () => {
       if (!currentAcademicYear?.id) return [];
@@ -85,7 +85,13 @@ const FeeCollection = () => {
 
         const { data: studentsData, error: studentsError } = await query;
 
-        if (studentsError) throw studentsError;
+        if (studentsError) {
+          if (isAuthError(studentsError)) {
+            handleError(studentsError);
+            return [];
+          }
+          throw studentsError;
+        }
 
         if (!studentsData || studentsData.length === 0) {
           return [];
@@ -103,7 +109,13 @@ const FeeCollection = () => {
               }
             );
 
-            if (feeError) throw feeError;
+            if (feeError) {
+              if (isAuthError(feeError)) {
+                handleError(feeError);
+                return null;
+              }
+              throw feeError;
+            }
 
             // Determine payment status
             let status: 'paid' | 'partial' | 'pending' = 'pending';
@@ -131,6 +143,8 @@ const FeeCollection = () => {
             } as Student;
           } catch (err) {
             console.error(`Error processing student ${student.id}:`, err);
+            
+            // Don't throw here, just return a placeholder with error status
             return {
               id: student.id,
               name: student.student_name,
@@ -150,42 +164,68 @@ const FeeCollection = () => {
           }
         }));
 
-        // Sort by pending amount (highest first)
-        processedStudents.sort((a, b) => b.pendingAmount - a.pendingAmount);
+        // Filter out null values (from auth errors)
+        const validStudents = processedStudents.filter(s => s !== null) as Student[];
 
-        return processedStudents;
+        // Sort by pending amount (highest first)
+        validStudents.sort((a, b) => b.pendingAmount - a.pendingAmount);
+
+        return validStudents;
       } catch (err) {
         console.error('Error fetching students:', err);
+        handleApiError(err, () => refetchStudents());
         throw err;
       }
     },
     enabled: !!currentAcademicYear?.id,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on auth errors, but retry up to 3 times for other errors
+      if (isAuthError(error)) return false;
+      return failureCount < 3;
+    }
   });
 
   // Fetch student payments
-  const { data: studentPayments, isLoading: loadingPayments } = useQuery({
+  const { data: studentPayments, isLoading: loadingPayments, refetch: refetchPayments } = useQuery({
     queryKey: ['payments', selectedStudentId],
     queryFn: async () => {
       if (!selectedStudentId) return [];
       
-      const { data, error } = await supabase
-        .from('fee_payments')
-        .select(`
-          *,
-          manual_payment_allocation(*),
-          payment_allocation(*),
-          created_by_user:created_by(name)
-        `)
-        .eq('student_id', selectedStudentId)
-        .order('payment_date', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('fee_payments')
+          .select(`
+            *,
+            manual_payment_allocation(*),
+            payment_allocation(*),
+            created_by_user:created_by(name)
+          `)
+          .eq('student_id', selectedStudentId)
+          .order('payment_date', { ascending: false });
+          
+        if (error) {
+          if (isAuthError(error)) {
+            handleError(error);
+            return [];
+          }
+          throw error;
+        }
         
-      if (error) throw error;
-      
-      return data as PaymentHistoryItem[];
+        return data as PaymentHistoryItem[];
+      } catch (err) {
+        console.error('Error fetching student payments:', err);
+        handleApiError(err, () => refetchPayments());
+        throw err;
+      }
     },
     enabled: !!selectedStudentId,
     staleTime: 1000 * 60 * 5, // 5 minutes
+    retry: (failureCount, error) => {
+      // Don't retry on auth errors, but retry up to 3 times for other errors
+      if (isAuthError(error)) return false;
+      return failureCount < 3;
+    }
   });
 
   // Virtual list setup
@@ -240,7 +280,7 @@ const FeeCollection = () => {
       queryClient.invalidateQueries({ queryKey: ['payments', selectedStudentId] });
     } catch (err: any) {
       console.error('Error processing payment:', err);
-      toast.error(err.message || 'Failed to process payment. Please try again.');
+      handleApiError(err);
     }
   };
 
@@ -260,7 +300,13 @@ const FeeCollection = () => {
         .delete()
         .eq('id', paymentId);
         
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return;
+        }
+        throw error;
+      }
       
       toast.success('Payment deleted successfully');
       
@@ -269,7 +315,7 @@ const FeeCollection = () => {
       queryClient.invalidateQueries({ queryKey: ['payments', selectedStudentId] });
     } catch (err: any) {
       console.error('Error deleting payment:', err);
-      toast.error(err.message || 'Failed to delete payment');
+      handleApiError(err);
     }
   };
 
@@ -293,7 +339,13 @@ const FeeCollection = () => {
         .eq('id', paymentId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (isAuthError(error)) {
+          handleError(error);
+          return;
+        }
+        throw error;
+      }
 
       // Get allocation data
       const busAmount = data.manual_payment_allocation?.[0]?.bus_fee_amount || 
@@ -327,7 +379,7 @@ const FeeCollection = () => {
       setShowReceipt(true);
     } catch (err: any) {
       console.error('Error fetching receipt:', err);
-      toast.error(err.message || 'Failed to load receipt');
+      handleApiError(err);
     }
   };
 
@@ -379,7 +431,7 @@ const FeeCollection = () => {
               </button>
             </div>
 
-            <ErrorBoundary>
+            <ErrorBoundary onError={(error) => handleApiError(error, () => refetchStudents())}>
               {loadingAcademicYear ? (
                 <div className="text-center py-4 text-muted-foreground">
                   Loading academic year...
@@ -393,6 +445,12 @@ const FeeCollection = () => {
               ) : studentsError ? (
                 <div className="text-center py-4 text-error">
                   Error loading students. Please try again.
+                  <button 
+                    onClick={() => refetchStudents()}
+                    className="block mx-auto mt-2 text-primary underline"
+                  >
+                    Retry
+                  </button>
                 </div>
               ) : students && students.length === 0 ? (
                 <div className="text-center py-4 text-muted-foreground">
@@ -466,7 +524,7 @@ const FeeCollection = () => {
             <h2 className="text-xl font-semibold">Fee Collection Details</h2>
           </div>
           
-          <ErrorBoundary>
+          <ErrorBoundary onError={(error) => handleApiError(error)}>
             {selectedStudentId && selectedStudent ? (
               <div className="p-4">
                 <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b">
