@@ -183,6 +183,7 @@ const FeePaymentForm = ({
     setFormData({ ...formData, [field]: value });
   };
 
+  // UPDATED LOGIC: Allocate to whole numbers, match closest possible pending, never adjust total
   const handleTotalAmountChange = (value: string) => {
     const totalAmount = Number(value) || 0;
 
@@ -191,39 +192,51 @@ const FeePaymentForm = ({
 
     setFormData((prev) => {
       if (hasBusFees) {
-        // If student has bus service, distribute between bus and school fees
-        // Get current fee amounts
-        const busAmount = Number(prev.bus_fee_amount ?? 0);
-        const schoolAmount = Number(prev.school_fee_amount ?? 0);
-        const currentTotal = busAmount + schoolAmount;
+        // Get pending amounts as integers
+        const pendingBus = Math.round(Number(feeStatus.pending_bus_fees) || 0);
+        const pendingSchool = Math.round(Number(feeStatus.pending_school_fees) || 0);
+        const totalPending = pendingBus + pendingSchool;
 
-        // If current total is zero, distribute evenly
-        if (currentTotal === 0) {
-          return {
-            ...prev,
-            amount_paid: totalAmount,
-            bus_fee_amount: totalAmount / 2,
-            school_fee_amount: totalAmount / 2,
-          };
+        let busFee = 0;
+        let schoolFee = 0;
+
+        // If no pending, just split evenly (whole numbers)
+        if (totalPending === 0) {
+          busFee = Math.floor(totalAmount / 2);
+          schoolFee = totalAmount - busFee;
+        } else {
+          // Allocate proportionally and round
+          busFee = Math.round((pendingBus / totalPending) * totalAmount);
+          schoolFee = totalAmount - busFee;
         }
 
-        // Otherwise, distribute proportionally
-        const busRatio = busAmount / currentTotal;
-        const newBusAmount = Math.round(totalAmount * busRatio * 100) / 100;
+        // Clamp: don't exceed pending
+        busFee = Math.min(busFee, pendingBus);
+        schoolFee = totalAmount - busFee;
+
+        // If after clamping, schoolFee exceeds pending, adjust busFee
+        if (schoolFee > pendingSchool) {
+          schoolFee = pendingSchool;
+          busFee = totalAmount - schoolFee;
+        }
+
+        // Ensure both are whole numbers, sum equals total
+        busFee = Math.round(busFee);
+        schoolFee = totalAmount - busFee;
 
         return {
           ...prev,
           amount_paid: totalAmount,
-          bus_fee_amount: newBusAmount,
-          school_fee_amount: totalAmount - newBusAmount,
+          bus_fee_amount: busFee,
+          school_fee_amount: schoolFee,
         };
       } else {
-        // If no bus service, allocate everything to school fees
+        // No bus service, all to school fees (whole number)
         return {
           ...prev,
           amount_paid: totalAmount,
           bus_fee_amount: 0,
-          school_fee_amount: totalAmount,
+          school_fee_amount: Math.round(totalAmount),
         };
       }
     });
