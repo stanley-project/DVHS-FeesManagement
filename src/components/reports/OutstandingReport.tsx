@@ -109,13 +109,15 @@ const OutstandingReport = ({ type, dateRange, selectedClass, selectedFeeType }: 
         let totalSchoolFees = 0;
         let totalBusFees = 0;
 
-        // Add school fees
-        const classFees = feeStructure?.filter(fee => 
-          fee.class_id === student.class.id && 
-          (selectedFeeType === 'all' || fee.fee_type.name === selectedFeeType)
-        ) || [];
-        
-        totalSchoolFees = classFees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
+        // Add school fees - safely check if class exists
+        if (student.class?.id) {
+          const classFees = feeStructure?.filter(fee => 
+            fee.class_id === student.class.id && 
+            (selectedFeeType === 'all' || fee.fee_type.name === selectedFeeType)
+          ) || [];
+          
+          totalSchoolFees = classFees.reduce((sum, fee) => sum + parseFloat(fee.amount), 0);
+        }
 
         // Add bus fees if applicable
         if (student.has_school_bus && student.village_id) {
@@ -160,7 +162,7 @@ const OutstandingReport = ({ type, dateRange, selectedClass, selectedFeeType }: 
           id: student.id,
           name: student.student_name,
           admissionNumber: student.admission_number,
-          class: student.class.name,
+          class: student.class?.name || 'No Class Assigned',
           totalFees,
           totalPaid,
           outstandingBusFees,
