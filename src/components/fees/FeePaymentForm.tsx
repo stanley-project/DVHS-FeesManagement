@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { Loader2, AlertTriangle, Info } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { FeeStatus, PaymentData } from '../../types/fee';
+import { FeePaymentFormSkeleton } from '../Skeletons';
 
 interface FeePaymentFormProps {
   onSubmit: (data: any) => void;
@@ -12,123 +15,177 @@ interface FeePaymentFormProps {
   academicYearId?: string;
 }
 
-interface FeeStatus {
-  total_bus_fees: number;
-  total_school_fees: number;
-  total_fees: number;
-  paid_bus_fees: number;
-  paid_school_fees: number;
-  total_paid: number;
-  pending_bus_fees: number;
-  pending_school_fees: number;
-  total_pending: number;
-  monthly_bus_fee: number;
-  monthly_school_fee: number;
-}
-
 const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, academicYearId }: FeePaymentFormProps) => {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const [feeStatus, setFeeStatus] = useState<FeeStatus | null>(null);
-  const [currentAcademicYearId, setCurrentAcademicYearId] = useState<string | null>(academicYearId || null);
   
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PaymentData>({
+    student_id: studentId || '',
+    amount_paid: 0,
     payment_date: new Date().toISOString().split('T')[0],
-    payment_method: 'cash' as 'cash' | 'online',
+    payment_method: 'cash',
     notes: '',
-    bus_fee_amount: '0',
-    school_fee_amount: '0',
-    total_amount: '0'
+    receipt_number: `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    bus_fee_amount: 0,
+    school_fee_amount: 0,
   });
 
-  useEffect(() => {
-    if (studentId) {
-      fetchFeeStatus();
-    }
-  }, [studentId]);
-
-  useEffect(() => {
-    if (academicYearId) {
-      setCurrentAcademicYearId(academicYearId);
-    }
-  }, [academicYearId]);
-
-  // Update total amount when individual fee amounts change
-  useEffect(() => {
-    const busAmount = parseFloat(formData.bus_fee_amount) || 0;
-    const schoolAmount = parseFloat(formData.school_fee_amount) || 0;
-    setFormData(prev => ({
-      ...prev,
-      total_amount: (busAmount + schoolAmount).toString()
-    }));
-  }, [formData.bus_fee_amount, formData.school_fee_amount]);
-
-  const fetchFeeStatus = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Get current academic year if not provided
-      if (!currentAcademicYearId) {
-        const { data: currentAcademicYear, error: yearError } = await supabase
-          .from('academic_years')
-          .select('id, start_date')
-          .eq('is_current', true)
-          .maybeSingle();
-
-        if (yearError) {
-          throw new Error('Failed to fetch current academic year');
-        }
-
-        if (!currentAcademicYear) {
-          // Try to get the latest academic year
-          const { data: latestYear, error: latestError } = await supabase
-            .from('academic_years')
-            .select('id, year_name')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (latestError || !latestYear) {
-            throw new Error('No academic year found');
-          }
-          
-          setCurrentAcademicYearId(latestYear.id);
-        } else {
-          // Set the current academic year ID
-          setCurrentAcademicYearId(currentAcademicYear.id);
-        }
+  // Fetch fee status
+  const { data: feeStatus, isLoading: loadingFeeStatus } = useQuery<FeeStatus>({
+    queryKey: ['feeStatus', studentId, academicYearId],
+    queryFn: async () => {
+      if (!studentId || !academicYearId) {
+        throw new Error('Student ID or Academic Year ID is missing');
       }
-
-      // Get student fee status
+      
       const { data, error } = await supabase.rpc(
         'get_student_fee_status',
         { 
           p_student_id: studentId,
-          p_academic_year_id: currentAcademicYearId
+          p_academic_year_id: academicYearId
         }
       );
 
       if (error) throw error;
-
-      setFeeStatus(data);
-      
+      return data;
+    },
+    enabled: !!studentId && !!academicYearId,
+    onSuccess: (data) => {
       // Pre-fill form with pending amounts
       setFormData(prev => ({
         ...prev,
-        bus_fee_amount: data.pending_bus_fees.toString(),
-        school_fee_amount: data.pending_school_fees.toString(),
-        total_amount: data.total_pending.toString()
+        student_id: studentId || '',
+        bus_fee_amount: data.pending_bus_fees,
+        school_fee_amount: data.pending_school_fees,
+        amount_paid: data.total_pending
       }));
-      
-    } catch (err: any) {
+    },
+    onError: (err) => {
       console.error('Error fetching fee status:', err);
-      setError(err.message || 'Failed to fetch fee status');
-    } finally {
-      setLoading(false);
+      setError(err instanceof Error ? err.message : 'Failed to fetch fee status');
     }
+  });
+
+  // Payment mutation
+  const paymentMutation = useMutation({
+    mutationFn: async (paymentData: PaymentData) => {
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Generate receipt number
+      const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Use the manual fee payment function
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        'insert_manual_fee_payment',
+        {
+          p_student_id: paymentData.student_id,
+          p_amount_paid: parseFloat(paymentData.amount_paid.toString()),
+          p_payment_date: paymentData.payment_date,
+          p_payment_method: paymentData.payment_method,
+          p_receipt_number: receiptNumber,
+          p_notes: paymentData.notes,
+          p_created_by: user.id,
+          p_academic_year_id: academicYearId,
+          p_bus_fee_amount: parseFloat(paymentData.bus_fee_amount.toString()) || 0,
+          p_school_fee_amount: parseFloat(paymentData.school_fee_amount.toString()) || 0
+        }
+      );
+
+      if (rpcError) {
+        console.error('RPC error:', rpcError);
+        throw new Error(rpcError.message);
+      }
+
+      // Fetch the created payment with its allocation
+      const { data: payment, error: fetchError } = await supabase
+        .from('fee_payments')
+        .select(`
+          *,
+          manual_payment_allocation (*)
+        `)
+        .eq('id', rpcResult.payment_id)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching created payment:', fetchError);
+        throw new Error('Payment created but failed to retrieve details');
+      }
+
+      return payment;
+    },
+    onSuccess: (data) => {
+      onSubmit(data);
+      
+      // Reset form
+      setFormData({
+        student_id: studentId || '',
+        amount_paid: 0,
+        payment_date: new Date().toISOString().split('T')[0],
+        payment_method: 'cash',
+        notes: '',
+        receipt_number: `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        bus_fee_amount: 0,
+        school_fee_amount: 0,
+      });
+      
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ['feeStatus', studentId, academicYearId] });
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      queryClient.invalidateQueries({ queryKey: ['payments', studentId] });
+    },
+    onError: (err) => {
+      console.error('Error processing payment:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process payment. Please try again.');
+    }
+  });
+
+  // Update total amount when individual fee amounts change
+  useEffect(() => {
+    const busAmount = parseFloat(formData.bus_fee_amount.toString()) || 0;
+    const schoolAmount = parseFloat(formData.school_fee_amount.toString()) || 0;
+    setFormData(prev => ({
+      ...prev,
+      amount_paid: busAmount + schoolAmount
+    }));
+  }, [formData.bus_fee_amount, formData.school_fee_amount]);
+
+  const handleFeeAmountChange = (field: 'bus_fee_amount' | 'school_fee_amount', value: string) => {
+    setFormData({ ...formData, [field]: value });
+  };
+
+  const handleTotalAmountChange = (value: string) => {
+    const totalAmount = parseFloat(value) || 0;
+    
+    setFormData(prev => {
+      // Get current fee amounts
+      const busAmount = parseFloat(prev.bus_fee_amount.toString()) || 0;
+      const schoolAmount = parseFloat(prev.school_fee_amount.toString()) || 0;
+      const currentTotal = busAmount + schoolAmount;
+      
+      // If current total is zero, distribute evenly
+      if (currentTotal === 0) {
+        return {
+          ...prev,
+          amount_paid: totalAmount,
+          bus_fee_amount: (totalAmount / 2),
+          school_fee_amount: (totalAmount / 2)
+        };
+      }
+      
+      // Otherwise, distribute proportionally
+      const busRatio = busAmount / currentTotal;
+      const newBusAmount = Math.round((totalAmount * busRatio) * 100) / 100;
+      
+      return {
+        ...prev,
+        amount_paid: totalAmount,
+        bus_fee_amount: newBusAmount,
+        school_fee_amount: (totalAmount - newBusAmount)
+      };
+    });
   };
 
   const validateForm = () => {
@@ -144,14 +201,14 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return false;
     }
 
-    if (!currentAcademicYearId) {
+    if (!academicYearId) {
       setError('Academic year information is missing');
       return false;
     }
 
-    const busAmount = parseFloat(formData.bus_fee_amount) || 0;
-    const schoolAmount = parseFloat(formData.school_fee_amount) || 0;
-    const totalAmount = parseFloat(formData.total_amount) || 0;
+    const busAmount = parseFloat(formData.bus_fee_amount.toString()) || 0;
+    const schoolAmount = parseFloat(formData.school_fee_amount.toString()) || 0;
+    const totalAmount = parseFloat(formData.amount_paid.toString()) || 0;
 
     if (busAmount < 0 || schoolAmount < 0) {
       setError('Fee amounts cannot be negative');
@@ -186,131 +243,16 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return;
     }
 
-    try {
-      setSubmitting(true);
-
-      // Generate receipt number
-      const receiptNumber = `RC-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-      console.log('DEBUG - Payment data being submitted:', {
-        student_id: studentId,
-        amount_paid: parseFloat(formData.total_amount),
-        payment_date: formData.payment_date,
-        payment_method: formData.payment_method,
-        receipt_number: receiptNumber,
-        notes: formData.notes,
-        created_by: user.id,
-        academic_year_id: currentAcademicYearId,
-        bus_fee_amount: parseFloat(formData.bus_fee_amount) || 0,
-        school_fee_amount: parseFloat(formData.school_fee_amount) || 0
-      });
-
-      // Use the manual fee payment function
-      const { data: rpcResult, error: rpcError } = await supabase.rpc(
-        'insert_manual_fee_payment',
-        {
-          p_student_id: studentId,
-          p_amount_paid: parseFloat(formData.total_amount),
-          p_payment_date: formData.payment_date,
-          p_payment_method: formData.payment_method,
-          p_receipt_number: receiptNumber,
-          p_notes: formData.notes,
-          p_created_by: user.id,
-          p_academic_year_id: currentAcademicYearId,
-          p_bus_fee_amount: parseFloat(formData.bus_fee_amount) || 0,
-          p_school_fee_amount: parseFloat(formData.school_fee_amount) || 0
-        }
-      );
-
-      if (rpcError) {
-        console.error('RPC error:', rpcError);
-        throw new Error(rpcError.message);
-      }
-
-      // Fetch the created payment with its allocation
-      const { data: payment, error: fetchError } = await supabase
-        .from('fee_payments')
-        .select(`
-          *,
-          manual_payment_allocation (*)
-        `)
-        .eq('id', rpcResult.payment_id)
-        .single();
-
-      if (fetchError) {
-        console.error('Error fetching created payment:', fetchError);
-        throw new Error('Payment created but failed to retrieve details');
-      }
-
-      onSubmit(payment);
-    } catch (err) {
-      console.error('Error processing payment:', err);
-      setError(err instanceof Error ? err.message : 'Failed to process payment. Please try again.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleFeeAmountChange = (field: 'bus_fee_amount' | 'school_fee_amount', value: string) => {
-    const numValue = parseFloat(value) || 0;
-    
-    setFormData(prev => {
-      const updatedData = { ...prev, [field]: value };
-      
-      // Update the other field if total_amount is manually set
-      const otherField = field === 'bus_fee_amount' ? 'school_fee_amount' : 'bus_fee_amount';
-      const otherValue = parseFloat(prev[otherField]) || 0;
-      const totalAmount = parseFloat(prev.total_amount) || 0;
-      
-      // Only auto-adjust if the user has manually set a total
-      if (prev.total_amount !== '0' && prev.total_amount !== (prev.bus_fee_amount + prev.school_fee_amount).toString()) {
-        const newOtherValue = Math.max(0, totalAmount - numValue);
-        updatedData[otherField] = newOtherValue.toString();
-      }
-      
-      return updatedData;
+    await paymentMutation.mutate({
+      ...formData,
+      student_id: studentId || '',
+      created_by: user.id,
+      academic_year_id: academicYearId
     });
   };
 
-  const handleTotalAmountChange = (value: string) => {
-    const totalAmount = parseFloat(value) || 0;
-    
-    setFormData(prev => {
-      // Get current fee amounts
-      const busAmount = parseFloat(prev.bus_fee_amount) || 0;
-      const schoolAmount = parseFloat(prev.school_fee_amount) || 0;
-      const currentTotal = busAmount + schoolAmount;
-      
-      // If current total is zero, distribute evenly
-      if (currentTotal === 0) {
-        return {
-          ...prev,
-          total_amount: value,
-          bus_fee_amount: (totalAmount / 2).toString(),
-          school_fee_amount: (totalAmount / 2).toString()
-        };
-      }
-      
-      // Otherwise, distribute proportionally
-      const busRatio = busAmount / currentTotal;
-      const newBusAmount = Math.round((totalAmount * busRatio) * 100) / 100;
-      
-      return {
-        ...prev,
-        total_amount: value,
-        bus_fee_amount: newBusAmount.toString(),
-        school_fee_amount: (totalAmount - newBusAmount).toString()
-      };
-    });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Loading fee information...</span>
-      </div>
-    );
+  if (loadingFeeStatus) {
+    return <FeePaymentFormSkeleton />;
   }
 
   return (
@@ -393,7 +335,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             value={formData.payment_date}
             onChange={(e) => setFormData({ ...formData, payment_date: e.target.value })}
             required
-            disabled={submitting}
+            disabled={paymentMutation.isPending}
           />
         </div>
         
@@ -407,7 +349,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             value={formData.payment_method}
             onChange={(e) => setFormData({ ...formData, payment_method: e.target.value as 'cash' | 'online' })}
             required
-            disabled={submitting}
+            disabled={paymentMutation.isPending}
           >
             <option value="cash">Cash</option>
             <option value="online">Online Transfer</option>
@@ -440,7 +382,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                     className="input rounded-l-none"
                     value={formData.bus_fee_amount}
                     onChange={(e) => handleFeeAmountChange('bus_fee_amount', e.target.value)}
-                    disabled={submitting}
+                    disabled={paymentMutation.isPending}
                   />
                 </div>
                 {feeStatus.pending_bus_fees > 0 && (
@@ -451,9 +393,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                       className="text-primary hover:underline"
                       onClick={() => setFormData({ 
                         ...formData, 
-                        bus_fee_amount: feeStatus.pending_bus_fees.toString() 
+                        bus_fee_amount: feeStatus.pending_bus_fees
                       })}
-                      disabled={submitting}
+                      disabled={paymentMutation.isPending}
                     >
                       Use pending
                     </button>
@@ -479,7 +421,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                   className="input rounded-l-none"
                   value={formData.school_fee_amount}
                   onChange={(e) => handleFeeAmountChange('school_fee_amount', e.target.value)}
-                  disabled={submitting}
+                  disabled={paymentMutation.isPending}
                 />
               </div>
               {feeStatus && feeStatus.pending_school_fees > 0 && (
@@ -490,9 +432,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                     className="text-primary hover:underline"
                     onClick={() => setFormData({ 
                       ...formData, 
-                      school_fee_amount: feeStatus.pending_school_fees.toString() 
+                      school_fee_amount: feeStatus.pending_school_fees
                     })}
-                    disabled={submitting}
+                    disabled={paymentMutation.isPending}
                   >
                     Use pending
                   </button>
@@ -515,10 +457,10 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                   min="0"
                   step="0.01"
                   className="input rounded-l-none"
-                  value={formData.total_amount}
+                  value={formData.amount_paid}
                   onChange={(e) => handleTotalAmountChange(e.target.value)}
                   required
-                  disabled={submitting}
+                  disabled={paymentMutation.isPending}
                 />
               </div>
               {feeStatus && feeStatus.total_pending > 0 && (
@@ -528,7 +470,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
                     type="button"
                     className="text-primary hover:underline"
                     onClick={() => handleTotalAmountChange(feeStatus.total_pending.toString())}
-                    disabled={submitting}
+                    disabled={paymentMutation.isPending}
                   >
                     Use total pending
                   </button>
@@ -549,7 +491,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
             placeholder="Any additional information about this payment"
             value={formData.notes}
             onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-            disabled={submitting}
+            disabled={paymentMutation.isPending}
           />
         </div>
       </div>
@@ -563,19 +505,19 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Bus Fee Amount</p>
-            <p className="font-medium">₹{parseFloat(formData.bus_fee_amount || '0').toLocaleString('en-IN')}</p>
-            {parseFloat(formData.total_amount) > 0 && (
+            <p className="font-medium">₹{parseFloat(formData.bus_fee_amount.toString() || '0').toLocaleString('en-IN')}</p>
+            {parseFloat(formData.amount_paid.toString()) > 0 && (
               <p className="text-xs text-muted-foreground">
-                {Math.round((parseFloat(formData.bus_fee_amount || '0') / parseFloat(formData.total_amount)) * 100)}% of payment
+                {Math.round((parseFloat(formData.bus_fee_amount.toString() || '0') / parseFloat(formData.amount_paid.toString())) * 100)}% of payment
               </p>
             )}
           </div>
           <div>
             <p className="text-sm text-muted-foreground">School Fee Amount</p>
-            <p className="font-medium">₹{parseFloat(formData.school_fee_amount || '0').toLocaleString('en-IN')}</p>
-            {parseFloat(formData.total_amount) > 0 && (
+            <p className="font-medium">₹{parseFloat(formData.school_fee_amount.toString() || '0').toLocaleString('en-IN')}</p>
+            {parseFloat(formData.amount_paid.toString()) > 0 && (
               <p className="text-xs text-muted-foreground">
-                {Math.round((parseFloat(formData.school_fee_amount || '0') / parseFloat(formData.total_amount)) * 100)}% of payment
+                {Math.round((parseFloat(formData.school_fee_amount.toString() || '0') / parseFloat(formData.amount_paid.toString())) * 100)}% of payment
               </p>
             )}
           </div>
@@ -587,16 +529,16 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           type="button"
           className="btn btn-outline btn-md"
           onClick={onCancel}
-          disabled={submitting}
+          disabled={paymentMutation.isPending}
         >
           Cancel
         </button>
         <button
           type="submit"
           className="btn btn-primary btn-md"
-          disabled={submitting}
+          disabled={paymentMutation.isPending}
         >
-          {submitting ? (
+          {paymentMutation.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing...
