@@ -144,8 +144,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
 
   // Update total amount when individual fee amounts change
   useEffect(() => {
-    const busAmount = parseFloat(formData.bus_fee_amount.toString()) || 0;
-    const schoolAmount = parseFloat(formData.school_fee_amount.toString()) || 0;
+    const busAmount = Number(formData.bus_fee_amount ?? 0);
+    const schoolAmount = Number(formData.school_fee_amount ?? 0);
     setFormData(prev => ({
       ...prev,
       amount_paid: busAmount + schoolAmount
@@ -161,8 +161,8 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     
     setFormData(prev => {
       // Get current fee amounts
-      const busAmount = parseFloat(prev.bus_fee_amount.toString()) || 0;
-      const schoolAmount = parseFloat(prev.school_fee_amount.toString()) || 0;
+      const busAmount = Number(prev.bus_fee_amount ?? 0);
+      const schoolAmount = Number(prev.school_fee_amount ?? 0);
       const currentTotal = busAmount + schoolAmount;
       
       // If current total is zero, distribute evenly
@@ -206,9 +206,9 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       return false;
     }
 
-    const busAmount = parseFloat(formData.bus_fee_amount.toString()) || 0;
-    const schoolAmount = parseFloat(formData.school_fee_amount.toString()) || 0;
-    const totalAmount = parseFloat(formData.amount_paid.toString()) || 0;
+    const busAmount = Number(formData.bus_fee_amount ?? 0);
+    const schoolAmount = Number(formData.school_fee_amount ?? 0);
+    const totalAmount = Number(formData.amount_paid ?? 0);
 
     if (busAmount < 0 || schoolAmount < 0) {
       setError('Fee amounts cannot be negative');
@@ -505,19 +505,19 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         <div className="grid grid-cols-2 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Bus Fee Amount</p>
-            <p className="font-medium">₹{parseFloat(formData.bus_fee_amount.toString() || '0').toLocaleString('en-IN')}</p>
-            {parseFloat(formData.amount_paid.toString()) > 0 && (
+            <p className="font-medium">₹{Number(formData.bus_fee_amount ?? 0).toLocaleString('en-IN')}</p>
+            {Number(formData.amount_paid ?? 0) > 0 && (
               <p className="text-xs text-muted-foreground">
-                {Math.round((parseFloat(formData.bus_fee_amount.toString() || '0') / parseFloat(formData.amount_paid.toString())) * 100)}% of payment
+                {Math.round((Number(formData.bus_fee_amount ?? 0) / Number(formData.amount_paid ?? 0)) * 100)}% of payment
               </p>
             )}
           </div>
           <div>
             <p className="text-sm text-muted-foreground">School Fee Amount</p>
-            <p className="font-medium">₹{parseFloat(formData.school_fee_amount.toString() || '0').toLocaleString('en-IN')}</p>
-            {parseFloat(formData.amount_paid.toString()) > 0 && (
+            <p className="font-medium">₹{Number(formData.school_fee_amount ?? 0).toLocaleString('en-IN')}</p>
+            {Number(formData.amount_paid ?? 0) > 0 && (
               <p className="text-xs text-muted-foreground">
-                {Math.round((parseFloat(formData.school_fee_amount.toString() || '0') / parseFloat(formData.amount_paid.toString())) * 100)}% of payment
+                {Math.round((Number(formData.school_fee_amount ?? 0) / Number(formData.amount_paid ?? 0)) * 100)}% of payment
               </p>
             )}
           </div>
