@@ -180,7 +180,9 @@ const FeePaymentForm = ({
   }, [formData.bus_fee_amount, formData.school_fee_amount]);
 
   const handleFeeAmountChange = (field: 'bus_fee_amount' | 'school_fee_amount', value: string) => {
-    setFormData({ ...formData, [field]: value });
+    // Convert string to number, defaulting to 0 if invalid
+    const numericValue = parseFloat(value) || 0;
+    setFormData({ ...formData, [field]: numericValue });
   };
 
   // UPDATED LOGIC: Allocate to whole numbers, match closest possible pending, never adjust total
@@ -331,19 +333,19 @@ const FeePaymentForm = ({
             <div>
               <p className="text-muted-foreground">Total Fees</p>
               <p className="font-medium">
-                ₹{feeStatus.total_fees.toLocaleString('en-IN')}
+                ₹{(feeStatus.total_fees || 0).toLocaleString('en-IN')}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">Paid Amount</p>
               <p className="font-medium text-success">
-                ₹{feeStatus.total_paid.toLocaleString('en-IN')}
+                ₹{(feeStatus.total_paid || 0).toLocaleString('en-IN')}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground">Pending Amount</p>
               <p className="font-medium text-warning">
-                ₹{feeStatus.total_pending.toLocaleString('en-IN')}
+                ₹{(feeStatus.total_pending || 0).toLocaleString('en-IN')}
               </p>
             </div>
           </div>
@@ -354,22 +356,22 @@ const FeePaymentForm = ({
                 <div>
                   <p className="text-muted-foreground">Bus Fees</p>
                   <p className="font-medium">
-                    ₹{feeStatus.total_bus_fees.toLocaleString('en-IN')}
+                    ₹{(feeStatus.total_bus_fees || 0).toLocaleString('en-IN')}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Monthly: ₹{feeStatus.monthly_bus_fee.toLocaleString('en-IN')}
+                    Monthly: ₹{(feeStatus.monthly_bus_fee || 0).toLocaleString('en-IN')}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Paid</p>
                   <p className="font-medium">
-                    ₹{feeStatus.paid_bus_fees.toLocaleString('en-IN')}
+                    ₹{(feeStatus.paid_bus_fees || 0).toLocaleString('en-IN')}
                   </p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Pending</p>
                   <p className="font-medium">
-                    ₹{feeStatus.pending_bus_fees.toLocaleString('en-IN')}
+                    ₹{(feeStatus.pending_bus_fees || 0).toLocaleString('en-IN')}
                   </p>
                 </div>
               </div>
@@ -381,22 +383,22 @@ const FeePaymentForm = ({
               <div>
                 <p className="text-muted-foreground">School Fees</p>
                 <p className="font-medium">
-                  ₹{feeStatus.total_school_fees.toLocaleString('en-IN')}
+                  ₹{(feeStatus.total_school_fees || 0).toLocaleString('en-IN')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Monthly: ₹{feeStatus.monthly_school_fee.toLocaleString('en-IN')}
+                  Monthly: ₹{(feeStatus.monthly_school_fee || 0).toLocaleString('en-IN')}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Paid</p>
                 <p className="font-medium">
-                  ₹{feeStatus.paid_school_fees.toLocaleString('en-IN')}
+                  ₹{(feeStatus.paid_school_fees || 0).toLocaleString('en-IN')}
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Pending</p>
                 <p className="font-medium">
-                  ₹{feeStatus.pending_school_fees.toLocaleString('en-IN')}
+                  ₹{(feeStatus.pending_school_fees || 0).toLocaleString('en-IN')}
                 </p>
               </div>
             </div>
@@ -471,7 +473,7 @@ const FeePaymentForm = ({
                     min="0"
                     step="0.01"
                     className="input rounded-l-none"
-                    value={formData.bus_fee_amount}
+                    value={formData.bus_fee_amount || 0}
                     onChange={(e) =>
                       handleFeeAmountChange('bus_fee_amount', e.target.value)
                     }
@@ -481,7 +483,7 @@ const FeePaymentForm = ({
                 {feeStatus.pending_bus_fees > 0 && (
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">
-                      Pending: ₹{feeStatus.pending_bus_fees.toLocaleString('en-IN')}
+                      Pending: ₹{(feeStatus.pending_bus_fees || 0).toLocaleString('en-IN')}
                     </span>
                     <button
                       type="button"
@@ -519,7 +521,7 @@ const FeePaymentForm = ({
                   min="0"
                   step="0.01"
                   className="input rounded-l-none"
-                  value={formData.school_fee_amount}
+                  value={formData.school_fee_amount || 0}
                   onChange={(e) =>
                     handleFeeAmountChange('school_fee_amount', e.target.value)
                   }
@@ -529,7 +531,7 @@ const FeePaymentForm = ({
               {feeStatus && feeStatus.pending_school_fees > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
-                    Pending: ₹{feeStatus.pending_school_fees.toLocaleString('en-IN')}
+                    Pending: ₹{(feeStatus.pending_school_fees || 0).toLocaleString('en-IN')}
                   </span>
                   <button
                     type="button"
@@ -563,7 +565,7 @@ const FeePaymentForm = ({
                   min="0"
                   step="0.01"
                   className="input rounded-l-none"
-                  value={formData.amount_paid}
+                  value={formData.amount_paid || 0}
                   onChange={(e) => handleTotalAmountChange(e.target.value)}
                   required
                   disabled={paymentMutation.isPending}
@@ -572,7 +574,7 @@ const FeePaymentForm = ({
               {feeStatus && feeStatus.total_pending > 0 && (
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">
-                    Total pending: ₹{feeStatus.total_pending.toLocaleString('en-IN')}
+                    Total pending: ₹{(feeStatus.total_pending || 0).toLocaleString('en-IN')}
                   </span>
                   <button
                     type="button"
@@ -614,13 +616,13 @@ const FeePaymentForm = ({
           <div>
             <p className="text-sm text-muted-foreground">Bus Fee Amount</p>
             <p className="font-medium">
-              ₹{Number(formData.bus_fee_amount ?? 0).toLocaleString('en-IN')}
+              ₹{(Number(formData.bus_fee_amount) || 0).toLocaleString('en-IN')}
             </p>
-            {Number(formData.amount_paid ?? 0) > 0 && (
+            {Number(formData.amount_paid || 0) > 0 && (
               <p className="text-xs text-muted-foreground">
                 {Math.round(
-                  (Number(formData.bus_fee_amount ?? 0) /
-                    Number(formData.amount_paid ?? 0)) *
+                  (Number(formData.bus_fee_amount || 0) /
+                    Number(formData.amount_paid || 0)) *
                     100
                 )}
                 % of payment
@@ -630,13 +632,13 @@ const FeePaymentForm = ({
           <div>
             <p className="text-sm text-muted-foreground">School Fee Amount</p>
             <p className="font-medium">
-              ₹{Number(formData.school_fee_amount ?? 0).toLocaleString('en-IN')}
+              ₹{(Number(formData.school_fee_amount) || 0).toLocaleString('en-IN')}
             </p>
-            {Number(formData.amount_paid ?? 0) > 0 && (
+            {Number(formData.amount_paid || 0) > 0 && (
               <p className="text-xs text-muted-foreground">
                 {Math.round(
-                  (Number(formData.school_fee_amount ?? 0) /
-                    Number(formData.amount_paid ?? 0)) *
+                  (Number(formData.school_fee_amount || 0) /
+                    Number(formData.amount_paid || 0)) *
                     100
                 )}
                 % of payment
