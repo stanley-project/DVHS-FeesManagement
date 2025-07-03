@@ -53,13 +53,30 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
     enabled: !!studentId && !!academicYearId,
     onSuccess: (data) => {
       // Pre-fill form with pending amounts
-      setFormData(prev => ({
-        ...prev,
-        student_id: studentId || '',
-        bus_fee_amount: data.pending_bus_fees,
-        school_fee_amount: data.pending_school_fees,
-        amount_paid: data.total_pending
-      }));
+      if (data) {
+        // Check if student has bus service
+        const hasBusFees = data.total_bus_fees > 0;
+        
+        // Set appropriate fee amounts based on whether student has bus service
+        if (hasBusFees) {
+          setFormData(prev => ({
+            ...prev,
+            student_id: studentId || '',
+            bus_fee_amount: data.pending_bus_fees,
+            school_fee_amount: data.pending_school_fees,
+            amount_paid: data.total_pending
+          }));
+        } else {
+          // If no bus service, allocate everything to school fees
+          setFormData(prev => ({
+            ...prev,
+            student_id: studentId || '',
+            bus_fee_amount: 0, // Explicitly set to 0
+            school_fee_amount: data.pending_school_fees,
+            amount_paid: data.pending_school_fees // Total is just the school fees
+          }));
+        }
+      }
     },
     onError: (err) => {
       console.error('Error fetching fee status:', err);
@@ -82,21 +99,21 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
         'insert_manual_fee_payment',
         {
           p_student_id: paymentData.student_id,
-          p_amount_paid: parseFloat(paymentData.amount_paid.toString()),
+          p_amount_paid: Number(paymentData.amount_paid),
           p_payment_date: paymentData.payment_date,
           p_payment_method: paymentData.payment_method,
           p_receipt_number: receiptNumber,
           p_notes: paymentData.notes,
           p_created_by: user.id,
           p_academic_year_id: academicYearId,
-          p_bus_fee_amount: parseFloat(paymentData.bus_fee_amount.toString()) || 0,
-          p_school_fee_amount: parseFloat(paymentData.school_fee_amount.toString()) || 0
+          p_bus_fee_amount: Number(paymentData.bus_fee_amount || 0),
+          p_school_fee_amount: Number(paymentData.school_fee_amount || 0)
         }
       );
 
       if (rpcError) {
         console.error('RPC error:', rpcError);
-        throw new Error(rpcError.message);
+        throw rpcError;
       }
 
       // Fetch the created payment with its allocation
@@ -165,26 +182,40 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
       const schoolAmount = Number(prev.school_fee_amount ?? 0);
       const currentTotal = busAmount + schoolAmount;
       
-      // If current total is zero, distribute evenly
-      if (currentTotal === 0) {
+      // Check if student has bus service
+      const hasBusFees = feeStatus && feeStatus.total_bus_fees > 0;
+      
+      if (hasBusFees) {
+        // If student has bus service, distribute proportionally
+        if (currentTotal === 0) {
+          // If current total is zero, distribute evenly
+          return {
+            ...prev,
+            amount_paid: totalAmount,
+            bus_fee_amount: (totalAmount / 2),
+            school_fee_amount: (totalAmount / 2)
+          };
+        } else {
+          // Otherwise, distribute proportionally
+          const busRatio = busAmount / currentTotal;
+          const newBusAmount = Math.round((totalAmount * busRatio) * 100) / 100;
+          
+          return {
+            ...prev,
+            amount_paid: totalAmount,
+            bus_fee_amount: newBusAmount,
+            school_fee_amount: (totalAmount - newBusAmount)
+          };
+        }
+      } else {
+        // If no bus service, allocate everything to school fees
         return {
           ...prev,
           amount_paid: totalAmount,
-          bus_fee_amount: (totalAmount / 2),
-          school_fee_amount: (totalAmount / 2)
+          bus_fee_amount: 0, // Explicitly set to 0
+          school_fee_amount: totalAmount
         };
       }
-      
-      // Otherwise, distribute proportionally
-      const busRatio = busAmount / currentTotal;
-      const newBusAmount = Math.round((totalAmount * busRatio) * 100) / 100;
-      
-      return {
-        ...prev,
-        amount_paid: totalAmount,
-        bus_fee_amount: newBusAmount,
-        school_fee_amount: (totalAmount - newBusAmount)
-      };
     });
   };
 
@@ -364,7 +395,7 @@ const FeePaymentForm = ({ onSubmit, onCancel, studentId, registrationType, acade
           </p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Bus Fee Amount */}
+            {/* Bus Fee Amount - Only show if student has bus service */}
             {feeStatus && feeStatus.total_bus_fees > 0 && (
               <div className="space-y-2">
                 <label htmlFor="bus_fee_amount" className="block text-sm font-medium">
