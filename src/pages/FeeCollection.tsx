@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import { Search, ArrowRight, Filter, Download, FileText, Edit, Trash2, Loader2 } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import debounce from 'lodash/debounce';
 import { toast } from 'react-hot-toast';
 import { supabase, handleApiError, isAuthError } from '../lib/supabase';
@@ -11,9 +10,10 @@ import FeePaymentForm from '../components/fees/FeePaymentForm';
 import { StudentListSkeleton, FeePaymentFormSkeleton, PaymentHistorySkeleton } from '../components/Skeletons';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { useCurrentAcademicYear, useAcademicYearRefresher } from '../hooks/useCurrentAcademicYear';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import PaymentReceipt from '../components/fees/PaymentReceipt';
 
-// Lazy load modals for better performance
-const PaymentReceipt = lazy(() => import('../components/fees/PaymentReceipt'));
+// Lazy load other modals for better performance
 const DailyCollectionReport = lazy(() => import('../components/fees/DailyCollectionReport'));
 const EditPaymentModal = lazy(() => import('../components/fees/EditPaymentModal'));
 
@@ -637,7 +637,10 @@ const FeeCollection = () => {
       {/* Payment Receipt Modal */}
       {showReceipt && receiptData && (
         <Suspense fallback={<div className="fixed inset-0 bg-background/80 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="bg-card rounded-lg shadow-lg p-6">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-center">Loading receipt...</p>
+          </div>
         </div>}>
           <PaymentReceipt
             receipt={receiptData}
