@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { useVillages } from '../../hooks/useVillages';
+import { toast } from 'react-hot-toast';
 
 interface VillageFormProps {
   village?: any;
@@ -14,8 +15,8 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
     name: '',
     distance_from_school: '',
     is_active: true,
-    bus_number: '',
-    current_bus_fee: '',
+    bus_number: 'Bus1',
+    current_bus_fee: '0',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -27,31 +28,56 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
 
   const handleConfirm = async () => {
     try {
+      setError(null);
+      
       if (village) {
         await updateVillage(village.id, formData);
+        toast.success('Village updated successfully');
       } else {
         // When creating a new village, we need to handle the bus fee separately
         const { current_bus_fee, ...villageData } = formData;
-        const newVillage = await addVillage(villageData);
+        
+        // Validate required fields
+        if (!villageData.name.trim()) {
+          throw new Error('Village name is required');
+        }
+        
+        if (!villageData.distance_from_school) {
+          throw new Error('Distance from school is required');
+        }
+        
+        if (!villageData.bus_number) {
+          throw new Error('Bus number is required');
+        }
+        
+        // Add the village
+        const newVillage = await addVillage({
+          ...villageData,
+          distance_from_school: parseFloat(villageData.distance_from_school.toString())
+        });
         
         // If a bus fee was specified, create the initial bus fee record
-        if (current_bus_fee) {
-          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bus_fee_structure`, {
-            method: 'POST',
-            headers: {
-              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              village_id: newVillage.id,
-              fee_amount: parseFloat(current_bus_fee),
-              effective_from_date: new Date().toISOString(),
-              effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString(),
-              is_active: true,
-            }),
-          });
+        if (current_bus_fee && parseFloat(current_bus_fee) > 0) {
+          try {
+            const { data, error } = await supabase
+              .from('bus_fee_structure')
+              .insert({
+                village_id: newVillage.id,
+                fee_amount: parseFloat(current_bus_fee),
+                academic_year_id: (await supabase.from('academic_years').select('id').eq('is_current', true).single()).data?.id,
+                effective_from_date: new Date().toISOString().split('T')[0],
+                effective_to_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
+                is_active: true
+              });
+              
+            if (error) throw error;
+          } catch (busError) {
+            console.error('Error creating bus fee:', busError);
+            // Continue even if bus fee creation fails
+          }
         }
+        
+        toast.success('Village added successfully');
       }
       onClose();
     } catch (err) {
@@ -168,6 +194,12 @@ const VillageForm = ({ village, onClose }: VillageFormProps) => {
                 <span className="text-sm font-medium">Active</span>
               </label>
             </div>
+            
+            {error && (
+              <div className="md:col-span-2 mt-4 bg-error/10 border border-error/30 text-error rounded-md p-3">
+                {error}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-6 border-t">

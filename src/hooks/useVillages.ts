@@ -140,12 +140,22 @@ export function useVillages() {
     try {
       const { data, error: supabaseError } = await supabase
         .from('villages')
-        .insert([village])
+        .insert([{
+          name: village.name,
+          distance_from_school: village.distance_from_school,
+          is_active: village.is_active,
+          bus_number: village.bus_number
+        }])
         .select()
         .single();
 
       if (supabaseError) {
-        throw new Error(supabaseError.message);
+        console.error('Supabase error:', supabaseError);
+        if (supabaseError.code === '23505') {
+          throw new Error('A village with this name already exists');
+        } else {
+          throw new Error(supabaseError.message);
+        }
       }
 
       if (!data) {
