@@ -67,7 +67,6 @@ const VillageManagement = () => {
     villageStats,
     loadingStats,
     refreshVillageStats
-    refreshVillageStats
   } = useVillages();
 
   // Refresh village stats periodically
