@@ -88,11 +88,13 @@ export function useVillages() {
 
       if (yearError) {
         console.error('Error fetching current academic year:', yearError);
+        setLoadingStats(false);
         return;
       }
       
       if (!currentYear) {
         console.log('No current academic year found');
+        setLoadingStats(false);
         return;
       }
       
@@ -104,6 +106,7 @@ export function useVillages() {
 
       if (studentsError) {
         console.error('Error fetching students:', studentsError);
+        setLoadingStats(false);
         return;
       }
       

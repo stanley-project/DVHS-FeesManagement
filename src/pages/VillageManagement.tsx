@@ -67,6 +67,7 @@ const VillageManagement = () => {
     villageStats,
     loadingStats,
     refreshVillageStats
+    refreshVillageStats
   } = useVillages();
 
   // Refresh village stats periodically
@@ -81,7 +82,7 @@ const VillageManagement = () => {
     
     // Clean up interval on component unmount
     return () => clearInterval(intervalId);
-  }, [refreshVillageStats]);
+  }, []);
 
   const handleSubmit = async (data: Omit<Village, 'id' | 'created_at' | 'updated_at'>) => {
     try {
