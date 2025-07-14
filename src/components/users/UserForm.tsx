@@ -22,6 +22,7 @@ const userSchema = z.object({
 
 const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const { user: currentUser } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState(user || {
