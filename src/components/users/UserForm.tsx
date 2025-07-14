@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, AlertCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, handleApiError } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext'; 
 import { z } from 'zod';
 import { generateLoginCode } from '../../utils/codeGenerator';
@@ -64,69 +64,56 @@ const UserForm = ({ user, onClose, onSubmit }: UserFormProps) => {
   const handleConfirm = async () => {
     try {
       setError(null);
+      setIsLoading(true);
       
       if (!currentUser || currentUser.role !== 'administrator') {
         throw new Error('Only administrators can manage users');
       }
 
+      // Create or update user directly with Supabase client
       if (!user) {
-        // Call the Edge Function to create user
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+        // Create new user
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{
             name: formData.name,
-            phone_number: `+91${formData.phoneNumber}`, // Add country code
+            phone_number: formData.phoneNumber,
             role: formData.role,
-            email_suffix: 'deepthischool.edu',
-            status: formData.status,
-            login_code: formData.loginCode
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create user');
-        }
-
-        const result = await response.json();
-        onSubmit(result);
-      } else {
-        // When updating existing user
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user-by-admin`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: user.id,
-            name: formData.name,
-            phone_number: `+91${formData.phoneNumber}`,
-            role: formData.role,
-            status: formData.status,
+            is_active: formData.status === 'active',
             login_code: formData.loginCode,
-            action: 'update'
+            email: `${formData.phoneNumber}@deepthischool.edu` // Generate email from phone
+          }])
+          .select();
+          
+        if (error) throw error;
+        onSubmit(data?.[0] || formData);
+      } else {
+        // Update existing user
+        const { data, error } = await supabase
+          .from('users')
+          .update({
+            name: formData.name,
+            phone_number: formData.phoneNumber,
+            role: formData.role,
+            is_active: formData.status === 'active',
+            login_code: formData.loginCode,
+            email: user.email || `${formData.phoneNumber}@deepthischool.edu`
           })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to update user');
-        }
-
-        const result = await response.json();
-        onSubmit(result);
+          .eq('id', user.id)
+          .select();
+          
+        if (error) throw error;
+        onSubmit(data?.[0] || { ...user, ...formData });
       }
 
       setShowConfirmation(false);
     } catch (err: any) {
       console.error('Error saving user:', err);
       setError(err.message || 'Failed to save user');
+      handleApiError(err);
       setShowConfirmation(false);
+    } finally {
+      setIsLoading(false);
     }
   };
 
