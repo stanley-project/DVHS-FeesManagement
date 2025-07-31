@@ -11,8 +11,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false,
-    autoRefreshToken: false,
+    persistSession: true,       // <- This enables storing/reloading user session
+    autoRefreshToken: true,     // <- This keeps the token up-to-date automatically
   },
   db: {
     schema: 'public'
@@ -29,13 +29,11 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Error handling utilities
+// Error handling utilities (unchanged)
 export const isNetworkOrResourceError = (error: any): boolean => {
   const errorMessage = error?.message || error?.toString() || '';
   const errorName = error?.name || '';
-  
   return (
-    // Network errors
     errorMessage.includes('Failed to fetch') ||
     errorMessage.includes('fetch') ||
     errorName === 'TypeError' && errorMessage.includes('fetch') ||
@@ -67,7 +65,6 @@ export const isNetworkOrResourceError = (error: any): boolean => {
 
 export const isDatabaseError = (error: any): boolean => {
   const errorMessage = error?.message || error?.toString() || '';
-  
   return (
     errorMessage.includes('Database connection failed') ||
     errorMessage.includes('database connection') ||
@@ -82,7 +79,6 @@ export const isDatabaseError = (error: any): boolean => {
 export const isAuthError = (error: any): boolean => {
   const errorMessage = error?.message || error?.toString() || '';
   const errorCode = error?.code;
-  
   return (
     errorCode === 401 ||
     errorCode === 403 ||
@@ -96,29 +92,22 @@ export const isAuthError = (error: any): boolean => {
   );
 };
 
-// Debounce toast errors to prevent multiple toasts for the same error
 const errorToasts = new Map<string, number>();
 
 export const handleApiError = (error: any, retryFn?: () => void) => {
   console.error('API Error:', error);
-  
   const errorMessage = error?.message || error?.toString() || 'An unexpected error occurred';
   const now = Date.now();
   const lastShown = errorToasts.get(errorMessage) || 0;
-  
-  // Only show the same error toast once every 5 seconds
   if (now - lastShown < 5000) {
     return;
   }
-  
   errorToasts.set(errorMessage, now);
-  
+
   if (isAuthError(error)) {
     toast.error('Your session has expired. Please log in again.');
-    // Auth errors should be handled by the AuthContext
     return;
   }
-  
   if (isDatabaseError(error)) {
     toast.error(`Database temporarily unavailable. Please try again shortly. ${retryFn ? 'Click to retry.' : ''}`, {
       onClick: () => {
@@ -127,7 +116,6 @@ export const handleApiError = (error: any, retryFn?: () => void) => {
     });
     return;
   }
-  
   if (isNetworkOrResourceError(error)) {
     toast.error(`Network connection issue. Please check your internet connection. ${retryFn ? 'Click to retry.' : ''}`, {
       onClick: () => {
@@ -136,7 +124,5 @@ export const handleApiError = (error: any, retryFn?: () => void) => {
     });
     return;
   }
-  
-  // Default error message
   toast.error('An unexpected error occurred. Please try again.');
 };
