@@ -259,93 +259,89 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  const login = async (code: string): Promise<{ success: boolean; message: string }> => {
-    setAuthLoading(true);
-    
-    try {
-      if (!phoneNumber.trim() || !code.trim()) {
-        throw new Error('Phone number and login code are required');
-      }
-
-      console.log('AuthContext: Verifying credentials...');
-
-      // Test connection first
-      const { error: connectionError } = await supabase
-        .from('users')
-        .select('count')
-        .limit(1);
-
-      if (connectionError) {
-        if (isNetworkOrResourceError(connectionError)) {
-          console.error('AuthContext: Network connection failed:', connectionError);
-          throw new Error('Unable to connect to server. Please check your internet connection and try again.');
-        }
-        
-        console.error('AuthContext: Database connection failed:', connectionError);
-        throw new Error('Unable to connect to database. Please try again later.');
-      }
-
-      // Verify the user credentials in your custom users table
-      const { data: userData, error: dbError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('phone_number', phoneNumber)
-        .eq('login_code', code)
-        .eq('is_active', true)
-        .single();
-
-      if (dbError) {
-        if (isNetworkOrResourceError(dbError)) {
-          console.error('AuthContext: Network error during login:', dbError);
-          throw new Error('Network connection issue. Please check your internet connection and try again.');
-        }
-        
-        console.error('AuthContext: Invalid credentials:', dbError);
-        throw new Error('Invalid phone number or login code');
-      }
-
-      if (!userData) {
-        throw new Error('Invalid phone number or login code');
-      }
-
-      if (!['administrator', 'accountant', 'teacher'].includes(userData.role)) {
-        throw new Error('Invalid user role');
-      }
-
-      const authenticatedUser: AuthenticatedUser = {
-        id: userData.id,
-        name: userData.name,
-        role: userData.role as UserRole,
-        phone_number: userData.phone_number,
-        is_active: userData.is_active,
-        created_at: userData.created_at,
-        updated_at: userData.updated_at
-      };
-
-      // Save session and set authenticated state
-      saveUserSession(authenticatedUser);
-      setUser(authenticatedUser);
-      setIsAuthenticated(true);
-      setPhoneNumber('');
-
-      const redirectPath = getRedirectPath(authenticatedUser.role);
-      navigate(redirectPath);
-
-      return { 
-        success: true, 
-        message: `Welcome back, ${authenticatedUser.name}!` 
-      };
-
-    } catch (error: any) {
-      console.error('AuthContext: Login error:', error);
-      return { 
-        success: false, 
-        message: error.message || 'Authentication failed' 
-      };
-    } finally {
-      setAuthLoading(false);
+const login = async (code: string): Promise<{ success: boolean; message: string }> => {
+  setAuthLoading(true);
+  
+  try {
+    if (!phoneNumber.trim() || !code.trim()) {
+      throw new Error('Phone number and login code are required');
     }
-  };
+
+    console.log('AuthContext: Verifying credentials...');
+
+    // 1. Build dummy email from phone number
+    const dummyEmail = phoneNumber + '@deepthischool.edu';
+
+    // 2. Call Supabase Auth signInWithPassword with dummy email and login code as password
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: dummyEmail,
+      password: code,
+    });
+
+    if (authError) {
+      // Handle invalid credentials at the Auth level
+      console.error('AuthContext: Supabase Auth failed:', authError);
+      return { success: false, message: 'Invalid phone number or login code' };
+    }
+
+    // 3. Fetch the user's profile from your users table as before
+    const { data: userData, error: dbError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('phone_number', phoneNumber)
+      .eq('is_active', true)
+      .single();
+
+    if (dbError) {
+      if (isNetworkOrResourceError(dbError)) {
+        console.error('AuthContext: Network error during login:', dbError);
+        throw new Error('Network connection issue. Please check your internet connection and try again.');
+      }
+      console.error('AuthContext: DB profile lookup failed:', dbError);
+      throw new Error('Account profile not found or deactivated');
+    }
+
+    if (!userData) {
+      throw new Error('Invalid phone number or login code');
+    }
+
+    if (!['administrator', 'accountant', 'teacher'].includes(userData.role)) {
+      throw new Error('Invalid user role');
+    }
+
+    const authenticatedUser: AuthenticatedUser = {
+      id: userData.id,
+      name: userData.name,
+      role: userData.role as UserRole,
+      phone_number: userData.phone_number,
+      is_active: userData.is_active,
+      created_at: userData.created_at,
+      updated_at: userData.updated_at
+    };
+
+    // Save session and set authenticated state
+    saveUserSession(authenticatedUser);
+    setUser(authenticatedUser);
+    setIsAuthenticated(true);
+    setPhoneNumber('');
+    const redirectPath = getRedirectPath(authenticatedUser.role);
+    navigate(redirectPath);
+
+    return { 
+      success: true, 
+      message: `Welcome back, ${authenticatedUser.name}!` 
+    };
+
+  } catch (error: any) {
+    console.error('AuthContext: Login error:', error);
+    return { 
+      success: false, 
+      message: error.message || 'Authentication failed' 
+    };
+  } finally {
+    setAuthLoading(false);
+  }
+};
 
   const logout = async (): Promise<void> => {
     console.log('AuthContext: Starting logout process...');
