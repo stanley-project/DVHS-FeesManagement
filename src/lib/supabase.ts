@@ -122,6 +122,7 @@ export const handleApiError = (error: any, retryFn?: () => void) => {
         if (retryFn) retryFn();
       }
     });
+    window.supabase = supabase;
     return;
   }
   toast.error('An unexpected error occurred. Please try again.');
