@@ -250,22 +250,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (!response.ok) {
         const errorData = await response.json();
         console.error('AuthContext: Edge Function error:', errorData);
-        throw new Error(errorData.error || 'Authentication failed');
+        throw new Error(errorData.error || 'Authentication failed.');
       }
 
-      const { access_token, refresh_token, user: authUser } = await response.json();
-      console.log('AuthContext: Edge Function returned tokens:', !!access_token, !!refresh_token, 'Auth User:', !!authUser);
+      const { session, user: authUser } = await response.json();
+      console.log('AuthContext: Edge Function returned session:', !!session, 'Auth User:', !!authUser);
 
-      if (!access_token || !refresh_token) {
-        throw new Error('No authentication tokens returned from server');
+      if (!session || !authUser) {
+        throw new Error('No session or user data returned from server');
       }
 
       // Set the session in Supabase Auth
       console.log('AuthContext: Setting session in Supabase Auth...');
-      const { data, error: sessionError } = await supabase.auth.setSession({
-        access_token,
-        refresh_token
-      });
+      const { data, error: sessionError } = await supabase.auth.setSession(session);
 
       if (sessionError) {
         console.error('AuthContext: Error setting session:', sessionError);

@@ -1,5 +1,5 @@
-import { createClient } from "npm:@supabase/supabase-js@2.39.0";
-
+import { createClient } from "npm:@supabase/supabase-js@2";
+ 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     // This client bypasses RLS and can access auth.users directly
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
     // 1. Validate credentials against public.users table
@@ -67,40 +67,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. If credentials are valid, sign in the user using the Admin API
-    // This creates a session for the user in Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'token',
-      userId: userData.id
+    const dummyEmail = userData.email || `${phone_number}@deepthischool.edu`; // Use actual email if exists, else dummy
+
+    // 2. Sign in with Supabase Auth using dummy email + login_code
+    const { data: authData, error: signInErr } = await supabaseAdmin.auth.signInWithPassword({
+      email: dummyEmail,
+      password: login_code,
     });
 
-    if (authError) {
-      console.error("Supabase Admin Sign-in error:", authError);
+    if (signInErr) {
+      console.error("Supabase Sign-in error:", signInErr);
       return new Response(
-        JSON.stringify({ error: "Authentication failed: " + authError.message }),
+        JSON.stringify({ error: signInErr.message }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 500,
         }
       );
     }
-
-    if (!authData.properties?.access_token || !authData.properties?.refresh_token) {
-      return new Response(
-        JSON.stringify({ error: "Failed to generate authentication tokens" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 500,
-        }
-      );
-    }
-
-    // Return the authentication tokens to the client
+    
+    // Return the session & user profile
     return new Response(
-      JSON.stringify({ 
-        access_token: authData.properties.access_token,
-        refresh_token: authData.properties.refresh_token,
-        user: authData.user 
+      JSON.stringify({
+        session: authData.session,
+        user: authData.user,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
