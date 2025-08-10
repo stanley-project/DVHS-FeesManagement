@@ -1,5 +1,5 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
- 
+import { createClient } from "npm:@supabase/supabase-js@2.39.0";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -29,22 +29,21 @@ Deno.serve(async (req) => {
     }
 
     // Create a Supabase client with the service role key
-    // This client bypasses RLS and can access auth.users directly
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // 1. Validate credentials against public.users table
-    const { data: userData, error: userError } = await supabaseAdmin
+    // Step 1: Look up the user in public.users table to get their email
+    const { data: userRow, error: fetchErr } = await supabaseAdmin
       .from('users')
-      .select('id, name, role, is_active, login_code')
+      .select('id, name, role, is_active, email, phone_number')
       .eq('phone_number', phone_number)
       .eq('is_active', true)
       .single();
 
-    if (userError || !userData) {
-      console.error("User lookup error:", userError?.message || "User not found or inactive");
+    if (fetchErr || !userRow) {
+      console.error("User lookup error:", fetchErr?.message || "User not found or inactive");
       return new Response(
         JSON.stringify({ error: "Invalid phone number or login code" }),
         {
@@ -54,22 +53,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Compare the provided login_code with the stored login_code
-    // Note: For production, you should hash and compare the login_code securely.
-    // For this example, we assume login_code in public.users is plain text.
-    if (userData.login_code !== login_code) {
-      return new Response(
-        JSON.stringify({ error: "Invalid phone number or login code" }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 401,
-        }
-      );
-    }
+    // Use email from database or generate dummy email if not present
+    const dummyEmail = userRow.email || `${phone_number}@deepthischool.edu`;
 
-    const dummyEmail = userData.email || `${phone_number}@deepthischool.edu`; // Use actual email if exists, else dummy
-
-    // 2. Sign in with Supabase Auth using dummy email + login_code
+    // Step 2: Sign in with Supabase Auth using dummy email + login_code as password
     const { data: authData, error: signInErr } = await supabaseAdmin.auth.signInWithPassword({
       email: dummyEmail,
       password: login_code,
@@ -78,15 +65,15 @@ Deno.serve(async (req) => {
     if (signInErr) {
       console.error("Supabase Sign-in error:", signInErr);
       return new Response(
-        JSON.stringify({ error: signInErr.message }),
+        JSON.stringify({ error: "Invalid phone number or login code" }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 500,
+          status: 401,
         }
       );
     }
-    
-    // Return the session & user profile
+
+    // Step 3: Return the session & user profile
     return new Response(
       JSON.stringify({
         session: authData.session,
