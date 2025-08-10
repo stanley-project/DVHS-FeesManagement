@@ -263,6 +263,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Set the session in Supabase Auth
       console.log('AuthContext: Setting session in Supabase Auth...');
       const { data, error: sessionError } = await supabase.auth.setSession(session);
+      
+      if (sessionError) {
         throw new Error('Failed to establish session');
       }
 
