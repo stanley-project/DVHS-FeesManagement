@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
 
     // 2. If credentials are valid, sign in the user using the Admin API
     // This creates a session for the user in Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.generateAuthLink({
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'token',
       userId: userData.id
     });
