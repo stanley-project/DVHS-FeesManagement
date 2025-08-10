@@ -69,9 +69,10 @@ Deno.serve(async (req) => {
 
     // 2. If credentials are valid, sign in the user using the Admin API
     // This creates a session for the user in Supabase Auth
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.signInUserById(
-      userData.id
-    );
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.generateAuthLink({
+      type: 'token',
+      userId: userData.id
+    });
 
     if (authError) {
       console.error("Supabase Admin Sign-in error:", authError);
@@ -84,9 +85,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!authData.session) {
+    if (!authData.properties?.access_token || !authData.properties?.refresh_token) {
       return new Response(
-        JSON.stringify({ error: "Failed to create user session" }),
+        JSON.stringify({ error: "Failed to generate authentication tokens" }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 500,
@@ -94,9 +95,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Return the session data to the client
+    // Return the authentication tokens to the client
     return new Response(
-      JSON.stringify({ session: authData.session, user: authData.user }),
+      JSON.stringify({ 
+        access_token: authData.properties.access_token,
+        refresh_token: authData.properties.refresh_token,
+        user: authData.user 
+      }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
