@@ -33,6 +33,7 @@ interface FormData {
   registration_type: 'new' | 'continuing';
   previous_admission_number?: string;
   rejoining_reason?: string;
+  remarks?: string;
 }
 
 const StudentForm: React.FC<StudentFormProps> = ({
@@ -90,7 +91,8 @@ const StudentForm: React.FC<StudentFormProps> = ({
         bus_start_date: initialData.bus_start_date || '',
         registration_type: initialData.registration_type,
         previous_admission_number: initialData.previous_admission_number || '',
-        rejoining_reason: initialData.rejoining_reason || ''
+        rejoining_reason: initialData.rejoining_reason || '',
+        remarks: initialData.remarks || ''
       });
     }
   }, [initialData, reset]);
@@ -202,6 +204,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
         registration_type: data.registration_type,
         previous_admission_number: data.previous_admission_number || null,
         rejoining_reason: data.rejoining_reason || null,
+        remarks: data.remarks || null,
         last_registration_date: new Date().toISOString().split('T')[0],
         last_registration_type: data.registration_type,
         status: 'active' as const,
@@ -602,6 +605,27 @@ const StudentForm: React.FC<StudentFormProps> = ({
           </div>
         </div>
       )}
+
+      {/* Remarks */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-medium">Additional Information</h3>
+        
+        <div className="space-y-2">
+          <label htmlFor="remarks" className="block text-sm font-medium">
+            Remarks
+          </label>
+          <textarea
+            id="remarks"
+            rows={3}
+            className="input"
+            {...register('remarks')}
+            placeholder="Any additional remarks or notes about the student (optional)"
+          />
+          <p className="text-xs text-muted-foreground">
+            Optional field for any additional information about the student
+          </p>
+        </div>
+      </div>
 
       {/* Form Actions */}
       <div className="flex justify-end gap-3 pt-6 border-t">

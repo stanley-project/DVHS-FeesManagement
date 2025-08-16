@@ -27,6 +27,7 @@ export interface Student {
   last_registration_type?: 'new' | 'continuing';
   previous_admission_number?: string;
   rejoining_reason?: string;
+  remarks?: string;
   created_at: string;
   updated_at: string;
   class?: {

@@ -213,6 +213,16 @@ const StudentDetails = ({ student, onClose, onEdit }: StudentDetailsProps) => {
             </div>
           )}
 
+          {/* Remarks */}
+          {student.remarks && (
+            <div className="mt-8 pt-6 border-t">
+              <h3 className="text-lg font-medium mb-4">Remarks</h3>
+              <div className="bg-muted p-4 rounded-md">
+                <p className="text-sm">{student.remarks}</p>
+              </div>
+            </div>
+          )}
+
           {/* Timestamps */}
           <div className="mt-8 pt-6 border-t">
             <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
