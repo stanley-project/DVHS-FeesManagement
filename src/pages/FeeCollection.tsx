@@ -404,8 +404,8 @@ const FeeCollection = () => {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Student Search Panel */}
-        <div className="lg:col-span-1 bg-card rounded-lg shadow overflow-hidden text-white">
-          <div className="bg-primary p-4">
+        <div className="lg:col-span-1 bg-card rounded-lg shadow overflow-hidden">
+          <div className="bg-primary text-white p-4">
             <h2 className="text-xl font-semibold">Search Student</h2>
           </div>
           
