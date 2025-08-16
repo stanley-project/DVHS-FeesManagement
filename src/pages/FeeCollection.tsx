@@ -521,7 +521,7 @@ const FeeCollection = () => {
         {/* Fee Collection Form */}
         <div className="lg:col-span-2 bg-card rounded-lg shadow overflow-hidden">
           <div className="bg-primary text-primary-foreground p-4">
-            <h2 className="text-xl font-semibold">Fee Collection Details</h2>
+            <h2 className="text-xl text-white font-semibold">Fee Collection Details</h2>
           </div>
           
           <ErrorBoundary onError={(error) => handleApiError(error)}>
