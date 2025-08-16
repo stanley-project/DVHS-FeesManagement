@@ -406,7 +406,7 @@ const FeeCollection = () => {
         {/* Student Search Panel */}
         <div className="lg:col-span-1 bg-card rounded-lg shadow overflow-hidden">
           <div className="bg-primary text-white p-4">
-            <h2 className="text-xl font-semibold">Search Student</h2>
+            <h2 className="text-xl text-white font-semibold">Search Student</h2>
           </div>
           
           <div className="p-4">
