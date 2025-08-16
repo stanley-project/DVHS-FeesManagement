@@ -48,7 +48,6 @@ const StudentRegistration = () => {
     try {
       if (selectedStudent) {
         await updateStudent(selectedStudent.id, data);
-        await refreshStudents(); // Refresh the student list to show updated data
         toast.success('Student updated successfully');
       } else {
         await addStudent(data);

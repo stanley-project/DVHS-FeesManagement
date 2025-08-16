@@ -236,18 +236,15 @@ export function useStudents(options: UseStudentsOptions = {}) {
         throw error;
       }
 
-      // If RLS prevents returning the updated row, refresh the student list
-      if (!data || data.length === 0) {
-        await fetchStudents();
-        return null; // Return null to indicate successful update but no immediate data
+      // Always refresh the entire student list after update to ensure consistency
+      await fetchStudents();
+      
+      // Return the updated student data if available
+      if (data && data.length > 0) {
+        return data[0];
       }
-
-      const updatedStudent = data[0];
-
-      setStudents(prev => prev.map(student => 
-        student.id === id ? updatedStudent : student
-      ));
-      return updatedStudent;
+      
+      return null;
     } catch (err) {
       console.error('Error updating student:', err);
       throw err instanceof Error ? err : new Error('Failed to update student');
