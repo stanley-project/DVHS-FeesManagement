@@ -1,4 +1,5 @@
 import { School, Download, Printer, Mail } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface PaymentReceiptProps {
   receipt: {
@@ -34,9 +35,21 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
   const busAmount = receipt.busAmount ? formatCurrency(receipt.busAmount) : null;
   const schoolAmount = receipt.schoolAmount ? formatCurrency(receipt.schoolAmount) : null;
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 bg-background/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-card rounded-lg shadow-lg max-w-2xl w-full">
+      <div className="bg-card rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
         <div className="p-6 border-b">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Fee Receipt</h2>
@@ -54,7 +67,7 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)] custom-scrollbar">
           {/* School Header */}
           <div className="text-center space-y-2">
             <div className="flex justify-center">
@@ -165,7 +178,7 @@ const PaymentReceipt = ({ receipt, onClose }: PaymentReceiptProps) => {
           </div>
         </div>
 
-        <div className="p-6 border-t">
+        <div className="p-6 border-t bg-card">
           <div className="flex justify-end">
             <button
               className="btn btn-outline btn-md"
