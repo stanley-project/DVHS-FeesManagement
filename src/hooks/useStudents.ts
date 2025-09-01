@@ -28,6 +28,7 @@ export interface Student {
   previous_admission_number?: string;
   rejoining_reason?: string;
   remarks?: string;
+  tc_available?: boolean;
   created_at: string;
   updated_at: string;
   class?: {

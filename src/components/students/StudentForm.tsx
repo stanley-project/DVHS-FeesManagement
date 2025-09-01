@@ -70,7 +70,6 @@ const StudentForm: React.FC<StudentFormProps> = ({
   const watchVillageId = watch('village_id');
   const watchHasSchoolBus = watch('has_school_bus');
 
-  // Set form values when initialData changes
   useEffect(() => {
     if (initialData) {
       reset({
@@ -92,7 +91,8 @@ const StudentForm: React.FC<StudentFormProps> = ({
         registration_type: initialData.registration_type,
         previous_admission_number: initialData.previous_admission_number || '',
         rejoining_reason: initialData.rejoining_reason || '',
-        remarks: initialData.remarks || ''
+        remarks: initialData.remarks || '',
+        tc_available: initialData.tc_available || false
       });
     }
   }, [initialData, reset]);
@@ -125,13 +125,6 @@ const StudentForm: React.FC<StudentFormProps> = ({
 
     fetchStudentCount();
   }, [watchClassId]);
-
-  // Auto-enable bus service when village is selected
-  useEffect(() => {
-    if (watchVillageId) {
-      setValue('has_school_bus', true);
-    }
-  }, [watchVillageId, setValue]);
 
   // Set bus_start_date to today when has_school_bus is toggled on
   useEffect(() => {
@@ -209,7 +202,8 @@ const StudentForm: React.FC<StudentFormProps> = ({
         last_registration_type: data.registration_type,
         status: 'active' as const,
         section: 'A', // Default section since it's still required in the database
-        PEN: data.pen || 'Not provided' // Use PEN column directly
+        PEN: data.pen || 'Not provided', // Use PEN column directly
+        tc_available: data.tc_available || false
       };
 
       await onSubmit(submissionData);
@@ -540,11 +534,8 @@ const StudentForm: React.FC<StudentFormProps> = ({
             type="checkbox"
             className="h-4 w-4 rounded border-input"
             {...register('has_school_bus')}
-            onChange={(e) => {
-              setValue('has_school_bus', e.target.checked, { shouldValidate: true });
-            }}
           />
-          <label htmlFor="has_school_bus" className="text-sm font-medium text-white">
+          <label htmlFor="has_school_bus" className="text-sm font-medium">
             Requires School Bus Service
           </label>
         </div>
@@ -624,6 +615,18 @@ const StudentForm: React.FC<StudentFormProps> = ({
           <p className="text-xs text-muted-foreground">
             Optional field for any additional information about the student
           </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <input
+            id="tc_available"
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            {...register('tc_available')}
+          />
+          <label htmlFor="tc_available" className="text-sm font-medium">
+            TC (Transfer Certificate) Available
+          </label>
         </div>
       </div>
 
