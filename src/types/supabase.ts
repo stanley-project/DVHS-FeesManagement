@@ -17,6 +17,7 @@ export interface Database {
           email: string | null
           is_active: boolean | null
           role: 'administrator' | 'accountant' | 'teacher'
+          tc_available: boolean | null
           created_at: string | null
           updated_at: string | null
           login_code: string | null
@@ -44,8 +45,10 @@ export interface Database {
           created_at?: string | null
           updated_at?: string | null
           login_code?: string | null
+          tc_available?: boolean | null
           code_expires_at?: string | null
         }
+          tc_available?: boolean | null
       }
       [key: string]: any
     }
